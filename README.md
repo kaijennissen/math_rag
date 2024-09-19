@@ -14,30 +14,43 @@ Key features:
 
 ## 🚧 Prerequisites
 
-- Python 3.8+
+- Python 3.11
 - API keys for chosen LLM providers (e.g., OpenAI, Anthropic)
 - (Optional) Ollama for local LLM support
 
 ## 🎛 Project Setup
 
 1. Clone the repository:
-git clone https://github.com/yourusername/advanced-rag-chatbot.git
-cd advanced-rag-chatbot
-Copy
+
+  ```
+  git clone https://github.com/kaijennissen/advanced-rag-chatbot.git
+  cd advanced-rag-chatbot
+  ```
+
 2. Create and activate a virtual environment:
+
+```
 python -m venv venv
 source venv/bin/activate  # On Windows, use venv\Scripts\activate
-Copy
+```
+
 3. Install dependencies:
-pip install -r requirements.txt
-Copy
+
+```
+pip install -r requirements/dev.txt -r requirements/base.txt
+```
+
 4. Set up environment variables:
+
+```
 cp .env.example .env
 CopyEdit `.env` and add your API keys:
 OPENAI_API_KEY=your_openai_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
+```
+
 Add other API keys as needed
-Copy
+
 5. Prepare your document corpus:
 - Place PDF documents in the `./docs` folder
 - Alternatively, modify the `load_documents()` function in `main.py` to support other document types or sources
@@ -46,8 +59,12 @@ Copy
 - Edit the `SYSTEM_PROMPT` constant in `main.py` to align with your specific use case or domain
 
 7. Run the chatbot:
+
+```
 python main.py
-Copy
+```
+
+
 ## 📦 Project Structure
 ```bash
 langgraph-pdf-chat/
