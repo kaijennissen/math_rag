@@ -1,0 +1,14 @@
+langchain
+langchain-community
+langchain-core
+langchain-openai
+langgraph
+pandas
+python-dotenv
+pypdf2
+pytest
+pytest-asyncio
+rank_bm25
+rich
+scikit-learn
+streamlit
