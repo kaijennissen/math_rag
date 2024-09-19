@@ -1,13 +1,16 @@
-[tool.poetry]
-name = "langgraph"
+[build-system]
+requires = ["setuptools>64", "wheel"]
+build_backend = ["setuptools.build_meta"]
+
+[project]
+name = "rag_chat"
 version = "0.1.0"
 description = "Langgraph Agent for adaptive Document Chat"
-authors = ["Your Name <you@example.com>"]
 readme = "README.md"
 
 [tool.black]
-line_length=88
+line_length = 88
 
 [tool.isort]
-profile="black"
-src_paths=["src","tests"]
+profile = "black"
+src_paths = ["src", "tests"]

@@ -1,21 +1,31 @@
 import logging
+from pathlib import Path
 from typing import Dict, List, TypedDict
 
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from langgraph.graph import END, START, StateGraph
 
-from config import load_config
-from document_processing import load_and_process_pdfs
-from embeddings import initialize_embeddings
-from llm_utils import initialize_llm
-from prompts import (
+from rag_chat.config import load_config
+from rag_chat.document_processing import load_and_process_pdfs
+from rag_chat.embeddings import initialize_embeddings
+from rag_chat.llm_utils import initialize_llm
+from rag_chat.project_root import ROOT
+from rag_chat.prompts import (
     answer_grader_prompt,
     hallucination_grader_prompt,
+    prompt,
+    question_rewriter_prompt,
     question_router_prompt,
     rag_prompt,
     retrieval_grader_prompt,
 )
-from retrievers import initialize_retrievers
+from rag_chat.retrievers import initialize_retrievers
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 
 class GraphState(TypedDict):
@@ -29,7 +39,7 @@ class GraphState(TypedDict):
 def create_rag_chatbot():
     config = load_config()
 
-    docs = load_and_process_pdfs(config["docs_path"])
+    docs = load_and_process_pdfs(Path(config["docs_path"]))
     embeddings = initialize_embeddings(config)
     ensemble_retriever = initialize_retrievers(docs, embeddings, config)
     llm = initialize_llm(config)

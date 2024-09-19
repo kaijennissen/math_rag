@@ -2,7 +2,7 @@ from langchain.prompts import PromptTemplate
 
 question_router_prompt = PromptTemplate(
     template="""You are an expert at routing a user question to a vectorstore or normal LLM call.
-    Use the vectorstore for questions on LLM osram lamps, bulbs, products and specifications.
+    Use the vectorstore for questions about the mathematical fiels of Topology.
     You do not need to be stringent with the keywords in the question related to these topics.
     Otherwise, use normal LLM call. Give a binary choice 'normal_llm' or 'vectorstore' based on the question.
     Return the a JSON with a single key 'datasource' and no preamble or explanation.
@@ -12,8 +12,9 @@ question_router_prompt = PromptTemplate(
 
 # Normal LLM
 prompt = PromptTemplate(
-    template="""You are a question-answering system for Osram products. Respond politely and in a customer-oriented manner.
-    If you don't know the answer, refer to the specifics of the question. What exactly is the customer looking for?
+    template="""You are a question-answering system for mathematics studens, with a broad knowledge in mathematics especially in the field of Topology.
+    Respond politely and in a student-oriented manner.
+    If you don't know the answer, refer to the specifics of the question. What exactly is the studen asking for?
     Return a JSON with a single key 'generation' and no preamble or explanation. Be open and talkative.
     Here is the user question: '''{question}'''""",
     input_variables=["question"],
@@ -30,7 +31,8 @@ question_rewriter_prompt = PromptTemplate(
 # Generation (RAG Prompt)
 rag_prompt = PromptTemplate(
     template="""
-    You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.
+    You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question.
+    If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.
 
     Question: '''{question}'''
 
@@ -50,7 +52,7 @@ retrieval_grader_prompt = PromptTemplate(
     {document}
     ------------
     Here is the user question: '''{question}'''
-    If the document contains keywords or matching product codes that are related to the user's question, rate it as relevant.
+    If the document contains keywords or definitions that are related to the user's question, rate it as relevant.
     It doesn't need to be a strict test. The goal is to filter out erroneous retrievals.
     Give a binary rating of 'yes' or 'no' to indicate whether the document is relevant to the question.
     Provide the binary rating as JSON with a single key 'score' and without any preamble or explanation.""",
