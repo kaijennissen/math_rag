@@ -5,8 +5,7 @@ langchain-openai
 langgraph
 pandas
 python-dotenv
-pypdf2
-rank_bm25
+pypdf
 rich
 scikit-learn
 streamlit

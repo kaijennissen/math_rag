@@ -20,7 +20,6 @@ from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.retrievers import BM25Retriever
 from langchain_community.vectorstores import SKLearnVectorStore
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from langgraph.graph import END, START, StateGraph
 
@@ -127,7 +126,7 @@ def initialize_retrievers():
 ensemble_retriever = initialize_retrievers()
 
 # Router LLM (Question Routing)
-llm = ChatOpenAI(model=llm_model, format="json", temperature=0)
+llm = ChatOllama(model=llm_model, format="json", temperature=0)
 question_router_prompt = PromptTemplate(
     template="""You are an expert at routing a user question to a vectorstore or normal LLM call.
     Use the vectorstore for questions on LLM osram lamps, bulbs, products and specifications.
@@ -140,7 +139,7 @@ question_router_prompt = PromptTemplate(
 question_router = question_router_prompt | llm | JsonOutputParser()
 
 # Normal LLM
-llm = ChatOpenAI(model=llm_model, temperature=0)
+llm = ChatOllama(model=llm_model, temperature=0)
 prompt = PromptTemplate(
     template="""You are a question-answering system for Osram products. Respond politely and in a customer-oriented manner.
     If you don't know the answer, refer to the specifics of the question. What exactly is the customer looking for?
@@ -151,7 +150,7 @@ prompt = PromptTemplate(
 answer_normal = prompt | llm | StrOutputParser()
 
 # Question Re-writer
-llm = ChatOpenAI(model=llm_model, temperature=0)
+llm = ChatOllama(model=llm_model, temperature=0)
 question_rewriter_prompt = PromptTemplate(
     template="""You are a question re-writer that converts an input question to a better version optimized for vectorstore retrieval.
     Question: '''{question}'''.
@@ -161,7 +160,7 @@ question_rewriter_prompt = PromptTemplate(
 question_rewriter = question_rewriter_prompt | llm | StrOutputParser()
 
 # Generation (RAG Prompt)
-llm = ChatOpenAI(model=llm_model, temperature=0)
+llm = ChatOllama(model=llm_model, temperature=0)
 rag_prompt = PromptTemplate(
     template="""
     You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.
@@ -178,7 +177,7 @@ rag_prompt = PromptTemplate(
 rag_chain = rag_prompt | llm | StrOutputParser()
 
 # Grading
-llm = ChatOpenAI(model=llm_model, temperature=0)
+llm = ChatOllama(model=llm_model, temperature=0)
 retrieval_grader_prompt = PromptTemplate(
     template="""You are a grader evaluating the relevance of a retrieved document to a user question.
     Here is the retrieved document:
@@ -194,7 +193,7 @@ retrieval_grader_prompt = PromptTemplate(
 )
 retrieval_grader = retrieval_grader_prompt | llm | JsonOutputParser()
 
-llm = ChatOpenAI(model=llm_model, temperature=0)
+llm = ChatOllama(model=llm_model, temperature=0)
 hallucination_grader_prompt = PromptTemplate(
     template="""You are a grader assessing whether an answer is grounded in facts of the document. \n
     Here are the documents:
@@ -209,7 +208,7 @@ hallucination_grader_prompt = PromptTemplate(
 )
 hallucination_grader = hallucination_grader_prompt | llm | JsonOutputParser()
 
-llm = ChatOpenAI(model=llm_model, temperature=0)
+llm = ChatOllama(model=llm_model, temperature=0)
 answer_grader_prompt = PromptTemplate(
     template="""You are a grader assessing whether an answer is useful to resolve a question.
     Here is the answer:
@@ -341,12 +340,10 @@ workflow.add_conditional_edges(
 
 def chatbot_page():
 
-    st.title("Osram Product Chatbot")
-    st.write("You can ask questions about Osram products or documents.")
-
     app = workflow.compile()
 
-    user_input = st.text_area("Ask a question about Osram products", height=100)
+    st.title("Chatbot")
+    user_input = st.text_area("Ask a question:", height=100)
 
     if user_input:
         with st.spinner("Answering your question..."):

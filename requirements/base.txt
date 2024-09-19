@@ -133,7 +133,6 @@ numpy==1.26.4
     #   pandas
     #   pyarrow
     #   pydeck
-    #   rank-bm25
     #   scikit-learn
     #   scipy
     #   streamlit
@@ -172,7 +171,7 @@ pydeck==0.9.1
     # via streamlit
 pygments==2.18.0
     # via rich
-pypdf2==3.0.1
+pypdf==5.0.0
     # via -r requirements/base.in
 python-dateutil==2.9.0.post0
     # via pandas
@@ -187,8 +186,6 @@ pyyaml==6.0.2
     #   langchain
     #   langchain-community
     #   langchain-core
-rank-bm25==0.2.2
-    # via -r requirements/base.in
 referencing==0.35.1
     # via
     #   jsonschema
