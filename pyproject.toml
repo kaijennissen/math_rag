@@ -5,10 +5,9 @@ description = "Langgraph Agent for adaptive Document Chat"
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
 
-[tool.poetry.dependencies]
-python = "^3.11"
+[tool.black]
+line_length=88
 
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.isort]
+profile="black"
+src_paths=["src","tests"]
