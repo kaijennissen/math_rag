@@ -1,7 +1,8 @@
 import logging
 
 import streamlit as st
-from rag_chatbot import create_rag_chatbot
+
+from rag_chat.rag_chatbot import create_rag_chatbot
 
 logging.basicConfig(
     level=logging.INFO,

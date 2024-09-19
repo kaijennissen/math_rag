@@ -28,8 +28,8 @@ def load_and_process_pdfs(docs_path: Path):
         # loader = PyPDFLoader(pdf_file)
         loader = MathpixPDFLoader(
             pdf_file,
-            mathpix_api_id="kajen3_icloud_com_673346_d580cd",
-            mathpix_api_key="37be2e72e996264da7b0",
+            mathpix_api_id=os.environ["MATHPIX_API_ID"],
+            mathpix_api_key=os.environ["MATHPIX_API_KEY"],
         )
         docs.extend(loader.load())
 

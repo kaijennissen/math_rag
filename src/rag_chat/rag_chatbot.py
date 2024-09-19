@@ -39,7 +39,7 @@ class GraphState(TypedDict):
 def create_rag_chatbot():
     config = load_config()
 
-    docs = load_and_process_pdfs(Path(config["docs_path"]))
+    docs = load_and_process_pdfs(ROOT / config["docs_path"])
     embeddings = initialize_embeddings(config)
     ensemble_retriever = initialize_retrievers(docs, embeddings, config)
     llm = initialize_llm(config)

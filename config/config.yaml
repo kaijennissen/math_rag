@@ -1,7 +1,7 @@
 llm_model: "llama3.1:8b"
 use_openai: false
 openai_api_key: ""
-docs_path: "./docs"
+docs_path: "docs"
 top_k: 2
 score_threshold: 0.5
 temperature: 0
