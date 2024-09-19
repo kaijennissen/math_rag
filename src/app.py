@@ -21,8 +21,9 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_community.vectorstores import SKLearnVectorStore
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langgraph.graph import END, START, StateGraph
 from rich.console import Console
+
+from langgraph.graph import END, START, StateGraph
 
 console = Console()
 load_dotenv()
