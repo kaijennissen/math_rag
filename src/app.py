@@ -24,15 +24,17 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from langgraph.graph import END, START, StateGraph
 
-llm_model = "gpt4o"
+st.set_page_config(layout="wide", page_title="RAG Chatbot", page_icon="🚀")
+
+llm_model = "llama3.1:8b"
 
 # Load PDFs from folder docs
 pdf_files = glob.glob("./docs/*.pdf")
 logging.info(f"Found {len(pdf_files)} PDF files")
-print(f"Found {len(pdf_files)} PDF files")
 
 
 def initialize_embeddings(json=False):
+
     if "OPENAI_API_KEY" not in os.environ:
         embeddings = OllamaEmbeddings(model=llm_model)
 
@@ -223,114 +225,124 @@ answer_grader_prompt = PromptTemplate(
 answer_grader = answer_grader_prompt | llm | JsonOutputParser()
 
 
+# Define the graph state
+class GraphState(TypedDict):
+    question: str
+    generation: str
+    documents: List[str]
+    retries: int
+
+
+# Function definitions for the state graph
+def retrieve(state):
+    """Retrieve documents for the question."""
+    logging.info("🗄️ Retrieving documents...")
+    question = state["question"]
+    documents = ensemble_retriever.invoke(question)
+    logging.info(f"Retrieved {len(documents)} documents")
+    return {"documents": documents, "question": question}
+
+
+def generate(state):
+    """Generate an answer using retrieved documents."""
+    logging.info("🤖 Generating answer...")
+    question = state["question"]
+    documents = state["documents"]
+    generation = rag_chain.invoke({"context": documents, "question": question})
+    logging.info(f"Generated answer: {generation[:20]}")
+    return {"documents": documents, "question": question, "generation": generation}
+
+
+def grade_documents(state):
+    """Grade the relevance of retrieved documents."""
+    logging.info("💎 Grading documents...")
+    question = state["question"]
+    documents = state["documents"]
+    filtered_docs = [
+        d
+        for d in documents
+        if retrieval_grader.invoke({"question": question, "document": d.page_content})[
+            "score"
+        ]
+        == "yes"
+    ]
+    logging.info(f"Filtered {len(documents) - len(filtered_docs)} documents")
+    return {"documents": filtered_docs, "question": question}
+
+
+def transform_query(state):
+    """Re-write the query to improve retrieval."""
+    logging.info("📝  Transforming the query...")
+    question = state["question"]
+    better_question = question_rewriter.invoke({"question": question})
+    logging.info(f"Improved question: {better_question}")
+    return {"documents": state["documents"], "question": better_question}
+
+
+def normal_llm(state):
+    logging.info("💭  Calling normal LLM...")
+    question = state["question"]
+    answer = answer_normal.invoke({"question": question})
+    logging.info(f"Answer: {answer[:20]}")
+    return {"question": question, "generation": answer}
+
+
+def route_question(state):
+    """Route the question to either vectorstore or normal LLM."""
+    logging.info("⚖️  Routing the question...")
+    question = state["question"]
+    source = question_router.invoke({"question": question})
+    logging.info(f"Routing to: {source}")
+    return "normal_llm" if source["datasource"] == "normal_llm" else "vectorstore"
+
+
+def decide_to_generate(state):
+    """Decide whether to generate or rephrase the query."""
+    logging.info("🗯️  Deciding to generate or rephrase the query...")
+    return "transform_query" if not state["documents"] else "generate"
+
+
+def grade_generation(state):
+    """Grade the generation and its relevance."""
+    logging.info("🔍 Grading the generation...")
+    question = state["question"]
+    documents = state["documents"]
+    generation = state["generation"]
+    hallucination_score = hallucination_grader.invoke(
+        {"documents": documents, "generation": generation}
+    )["score"]
+    logging.info(f"Grounded in the documents: {hallucination_score}")
+    return "useful" if hallucination_score == "yes" else "not supported"
+
+
+# Create and compile the state graph
+workflow = StateGraph(GraphState)
+workflow.add_node("normal_llm", normal_llm)
+workflow.add_node("retrieve", retrieve)
+workflow.add_node("grade_documents", grade_documents)
+workflow.add_node("generate", generate)
+workflow.add_node("transform_query", transform_query)
+
+workflow.add_conditional_edges(
+    START, route_question, {"normal_llm": "normal_llm", "vectorstore": "retrieve"}
+)
+workflow.add_edge("normal_llm", END)
+workflow.add_edge("retrieve", "grade_documents")
+workflow.add_conditional_edges(
+    "grade_documents",
+    decide_to_generate,
+    {"transform_query": "transform_query", "generate": "generate"},
+)
+workflow.add_edge("transform_query", "retrieve")
+workflow.add_conditional_edges(
+    "generate", grade_generation, {"not supported": "generate", "useful": END}
+)
+
+
 def chatbot_page():
 
     st.title("Osram Product Chatbot")
     st.write("You can ask questions about Osram products or documents.")
-
-    # Define the graph state
-    class GraphState(TypedDict):
-        question: str
-        generation: str
-        documents: List[str]
-        retries: int
-
-    # Function definitions for the state graph
-    def retrieve(state):
-        """Retrieve documents for the question."""
-        logging.info("🗄️ Retrieving documents...")
-        question = state["question"]
-        documents = ensemble_retriever.invoke(question)
-        logging.info(f"Retrieved {len(documents)} documents")
-        return {"documents": documents, "question": question}
-
-    def generate(state):
-        """Generate an answer using retrieved documents."""
-        logging.info("🤖 Generating answer...")
-        question = state["question"]
-        documents = state["documents"]
-        generation = rag_chain.invoke({"context": documents, "question": question})
-        logging.info(f"Generated answer: {generation[:20]}")
-        return {"documents": documents, "question": question, "generation": generation}
-
-    def grade_documents(state):
-        """Grade the relevance of retrieved documents."""
-        logging.info("💎 Grading documents...")
-        question = state["question"]
-        documents = state["documents"]
-        filtered_docs = [
-            d
-            for d in documents
-            if retrieval_grader.invoke(
-                {"question": question, "document": d.page_content}
-            )["score"]
-            == "yes"
-        ]
-        logging.info(f"Filtered {len(documents) - len(filtered_docs)} documents")
-        return {"documents": filtered_docs, "question": question}
-
-    def transform_query(state):
-        """Re-write the query to improve retrieval."""
-        logging.info("📝  Transforming the query...")
-        question = state["question"]
-        better_question = question_rewriter.invoke({"question": question})
-        logging.info(f"Improved question: {better_question}")
-        return {"documents": state["documents"], "question": better_question}
-
-    def normal_llm(state):
-        logging.info("💭  Calling normal LLM...")
-        question = state["question"]
-        answer = answer_normal.invoke({"question": question})
-        logging.info(f"Answer: {answer[:20]}")
-        return {"question": question, "generation": answer}
-
-    def route_question(state):
-        """Route the question to either vectorstore or normal LLM."""
-        logging.info("⚖️  Routing the question...")
-        question = state["question"]
-        source = question_router.invoke({"question": question})
-        logging.info(f"Routing to: {source}")
-        return "normal_llm" if source["datasource"] == "normal_llm" else "vectorstore"
-
-    def decide_to_generate(state):
-        """Decide whether to generate or rephrase the query."""
-        logging.info("🗯️  Deciding to generate or rephrase the query...")
-        return "transform_query" if not state["documents"] else "generate"
-
-    def grade_generation(state):
-        """Grade the generation and its relevance."""
-        logging.info("🔍 Grading the generation...")
-        question = state["question"]
-        documents = state["documents"]
-        generation = state["generation"]
-        hallucination_score = hallucination_grader.invoke(
-            {"documents": documents, "generation": generation}
-        )["score"]
-        logging.info(f"Grounded in the documents: {hallucination_score}")
-        return "useful" if hallucination_score == "yes" else "not supported"
-
-    # Create and compile the state graph
-    workflow = StateGraph(GraphState)
-    workflow.add_node("normal_llm", normal_llm)
-    workflow.add_node("retrieve", retrieve)
-    workflow.add_node("grade_documents", grade_documents)
-    workflow.add_node("generate", generate)
-    workflow.add_node("transform_query", transform_query)
-
-    workflow.add_conditional_edges(
-        START, route_question, {"normal_llm": "normal_llm", "vectorstore": "retrieve"}
-    )
-    workflow.add_edge("normal_llm", END)
-    workflow.add_edge("retrieve", "grade_documents")
-    workflow.add_conditional_edges(
-        "grade_documents",
-        decide_to_generate,
-        {"transform_query": "transform_query", "generate": "generate"},
-    )
-    workflow.add_edge("transform_query", "retrieve")
-    workflow.add_conditional_edges(
-        "generate", grade_generation, {"not supported": "generate", "useful": END}
-    )
 
     app = workflow.compile()
 
