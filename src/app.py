@@ -1,6 +1,6 @@
 import argparse
-import asyncio
 import glob
+import logging
 import os
 import pprint
 import random
@@ -8,9 +8,9 @@ from typing import Dict, List, TypedDict
 
 import pandas as pd
 import rich
+import streamlit as st
 from dotenv import load_dotenv
 from langchain import hub
-from langchain.evaluation.qa.eval_prompt import context_template
 from langchain.prompts import PromptTemplate
 from langchain.retrievers import EnsembleRetriever
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -21,79 +21,111 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_community.vectorstores import SKLearnVectorStore
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from rich.console import Console
 
 from langgraph.graph import END, START, StateGraph
 
-console = Console()
-load_dotenv()
-
-# Initialize local LLM
-llm_model = "gpt-4o-mini"
+llm_model = "gpt4o"
 
 # Load PDFs from folder docs
 pdf_files = glob.glob("./docs/*.pdf")
+logging.info(f"Found {len(pdf_files)} PDF files")
 print(f"Found {len(pdf_files)} PDF files")
 
-docs = []
-for pdf_file in pdf_files:
-    loader = PyPDFLoader(pdf_file)
-    docs.extend(loader.load())
 
-df_docs = pd.DataFrame(
-    [
-        {
-            "page_content": doc.page_content,
-            "source": doc.metadata["source"],
-            "metadata": doc.metadata,
-        }
-        for doc in docs
-    ]
-)
+def initialize_embeddings(json=False):
+    if "OPENAI_API_KEY" not in os.environ:
+        embeddings = OllamaEmbeddings(model=llm_model)
 
-# Concatenate pages belonging to the same document
-concat_docs = []
-current_doc = None
-for doc in docs:
-    if current_doc is None:
-        current_doc = doc
-    elif current_doc.metadata["source"] == doc.metadata["source"]:
-        current_doc.page_content += "\n\n" + doc.page_content
     else:
-        concat_docs.append(current_doc)
-        current_doc = doc
+        embeddings = OpenAIEmbeddings(api_key=os.getenv("OPENAI_API_KEY"))
+
+    return embeddings
 
 
-concat_docs.append(current_doc)
-docs = concat_docs
-print(f"Loaded {len(docs)} documents")
+def load_and_process_pdfs(folder_path):
+    pdf_files = glob.glob(os.path.join(folder_path, "*.pdf"))
+    logging.info(f"Found {len(pdf_files)} PDF files")
+    print(f"Found {len(pdf_files)} PDF files")
 
-# Split documents into chunks
-text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-    chunk_size=1500, chunk_overlap=0
-)
-doc_splits = text_splitter.split_documents(docs)
-print(f"Split {len(docs)} documents into {len(doc_splits)} chunks")
+    docs = []
+    for pdf_file in pdf_files:
+        loader = PyPDFLoader(pdf_file)
+        docs.extend(loader.load())
+
+    df_docs = pd.DataFrame(
+        [
+            {
+                "page_content": doc.page_content,
+                "source": doc.metadata["source"],
+                "metadata": doc.metadata,
+            }
+            for doc in docs
+        ]
+    )
+
+    # Concatenate pages belonging to the same document
+    concat_docs = []
+    current_doc = None
+    for doc in docs:
+        if current_doc is None:
+            current_doc = doc
+        elif current_doc.metadata["source"] == doc.metadata["source"]:
+            current_doc.page_content += "\n\n" + doc.page_content
+        else:
+            concat_docs.append(current_doc)
+            current_doc = doc
+
+    concat_docs.append(current_doc)
+    docs = concat_docs
+    logging.info(f"Loaded {len(docs)} documents")
+    print(f"Loaded {len(docs)} documents")
+
+    return docs
 
 
-# Add the document chunks to the vectorstore
-vectorstore = SKLearnVectorStore.from_documents(
-    documents=doc_splits,
-    embedding=OpenAIEmbeddings(api_key=os.getenv("OPENAI_API_KEY")),
-)
-keyword_retriever = BM25Retriever.from_documents(doc_splits, similarity_top_k=2)
-vectorstore = vectorstore.as_retriever(
-    search_type="similarity_score_threshold",
-    search_kwargs={"score_threshold": 0.5, "top_k": 2},
-)
-ensemble_retriever = EnsembleRetriever(
-    retrievers=[vectorstore, keyword_retriever], weights=[0.2, 0.8]
-)
+# 3. Setup Document Processing
+def setup_document_processing(docs):
+    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        chunk_size=1500, chunk_overlap=0
+    )
+    doc_splits = text_splitter.split_documents(docs)
+    logging.info(f"Split {len(docs)} documents into {len(doc_splits)} chunks")
+    print(f"Split {len(docs)} documents into {len(doc_splits)} chunks")
 
+    return doc_splits
+
+
+# Setup retrievers and LLMs
+embeddings = initialize_embeddings()
+
+# Load and process PDFs
+docs = load_and_process_pdfs("./docs")
+
+# Setup document processing
+doc_splits = setup_document_processing(docs)
+
+
+def initialize_retrievers():
+    keyword_retriever = BM25Retriever.from_documents(doc_splits, similarity_top_k=2)
+    vectorstore = SKLearnVectorStore.from_documents(
+        documents=doc_splits,
+        embedding=embeddings,
+    )
+    vectorstore = vectorstore.as_retriever(
+        search_type="similarity_score_threshold",
+        search_kwargs={"score_threshold": 0.5, "top_k": 2},
+    )
+    ensemble_retriever = EnsembleRetriever(
+        retrievers=[vectorstore, keyword_retriever], weights=[0.2, 0.8]
+    )
+
+    return ensemble_retriever
+
+
+ensemble_retriever = initialize_retrievers()
 
 # Router LLM (Question Routing)
-llm = ChatOpenAI(model=llm_model, temperature=0)
-
+llm = ChatOpenAI(model=llm_model, format="json", temperature=0)
 question_router_prompt = PromptTemplate(
     template="""You are an expert at routing a user question to a vectorstore or normal LLM call.
     Use the vectorstore for questions on LLM osram lamps, bulbs, products and specifications.
@@ -104,7 +136,6 @@ question_router_prompt = PromptTemplate(
     input_variables=["question"],
 )
 question_router = question_router_prompt | llm | JsonOutputParser()
-
 
 # Normal LLM
 llm = ChatOpenAI(model=llm_model, temperature=0)
@@ -117,8 +148,8 @@ prompt = PromptTemplate(
 )
 answer_normal = prompt | llm | StrOutputParser()
 
-llm = ChatOpenAI(model=llm_model, temperature=0)
 # Question Re-writer
+llm = ChatOpenAI(model=llm_model, temperature=0)
 question_rewriter_prompt = PromptTemplate(
     template="""You are a question re-writer that converts an input question to a better version optimized for vectorstore retrieval.
     Question: '''{question}'''.
@@ -127,8 +158,8 @@ question_rewriter_prompt = PromptTemplate(
 )
 question_rewriter = question_rewriter_prompt | llm | StrOutputParser()
 
-llm = ChatOpenAI(model=llm_model, temperature=0)
 # Generation (RAG Prompt)
+llm = ChatOpenAI(model=llm_model, temperature=0)
 rag_prompt = PromptTemplate(
     template="""
     You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.
@@ -144,8 +175,8 @@ rag_prompt = PromptTemplate(
 )
 rag_chain = rag_prompt | llm | StrOutputParser()
 
-llm = ChatOpenAI(model=llm_model, temperature=0)
 # Grading
+llm = ChatOpenAI(model=llm_model, temperature=0)
 retrieval_grader_prompt = PromptTemplate(
     template="""You are a grader evaluating the relevance of a retrieved document to a user question.
     Here is the retrieved document:
@@ -192,150 +223,138 @@ answer_grader_prompt = PromptTemplate(
 answer_grader = answer_grader_prompt | llm | JsonOutputParser()
 
 
-# Define the graph state
-class GraphState(TypedDict):
-    question: str
-    generation: str
-    documents: List[str]
-    retries: int
+def chatbot_page():
 
+    st.title("Osram Product Chatbot")
+    st.write("You can ask questions about Osram products or documents.")
 
-# Function definitions for the state graph
-def retrieve(state: Dict) -> Dict:
-    """Retrieve documents for the question."""
-    console.print("🗄️ Retrieving documents...")
-    question = state["question"]
-    documents = ensemble_retriever.invoke(question)
-    console.print(f"Retrieved {len(documents)} documents")
-    return {"documents": documents, "question": question}
+    # Define the graph state
+    class GraphState(TypedDict):
+        question: str
+        generation: str
+        documents: List[str]
+        retries: int
 
+    # Function definitions for the state graph
+    def retrieve(state):
+        """Retrieve documents for the question."""
+        logging.info("🗄️ Retrieving documents...")
+        question = state["question"]
+        documents = ensemble_retriever.invoke(question)
+        logging.info(f"Retrieved {len(documents)} documents")
+        return {"documents": documents, "question": question}
 
-def generate(state: Dict) -> Dict:
-    """Generate an answer using retrieved documents."""
-    console.print("🤖 Generating answer...")
-    question = state["question"]
-    documents = state["documents"]
-    generation = rag_chain.invoke({"context": documents, "question": question})
-    console.print(f"Generated answer: {generation[:20]}")
-    return {"documents": documents, "question": question, "generation": generation}
+    def generate(state):
+        """Generate an answer using retrieved documents."""
+        logging.info("🤖 Generating answer...")
+        question = state["question"]
+        documents = state["documents"]
+        generation = rag_chain.invoke({"context": documents, "question": question})
+        logging.info(f"Generated answer: {generation[:20]}")
+        return {"documents": documents, "question": question, "generation": generation}
 
-
-def grade_documents(state: Dict) -> Dict:
-    """Grade the relevance of retrieved documents."""
-    console.print("💎 Grading documents...")
-    question = state["question"]
-    documents = state["documents"]
-    filtered_docs = [
-        d
-        for d in documents
-        if retrieval_grader.invoke({"question": question, "document": d.page_content})[
-            "score"
+    def grade_documents(state):
+        """Grade the relevance of retrieved documents."""
+        logging.info("💎 Grading documents...")
+        question = state["question"]
+        documents = state["documents"]
+        filtered_docs = [
+            d
+            for d in documents
+            if retrieval_grader.invoke(
+                {"question": question, "document": d.page_content}
+            )["score"]
+            == "yes"
         ]
-        == "yes"
-    ]
-    console.print(f"Filtered {len(documents) - len(filtered_docs)} documents")
-    return {"documents": filtered_docs, "question": question}
+        logging.info(f"Filtered {len(documents) - len(filtered_docs)} documents")
+        return {"documents": filtered_docs, "question": question}
 
+    def transform_query(state):
+        """Re-write the query to improve retrieval."""
+        logging.info("📝  Transforming the query...")
+        question = state["question"]
+        better_question = question_rewriter.invoke({"question": question})
+        logging.info(f"Improved question: {better_question}")
+        return {"documents": state["documents"], "question": better_question}
 
-def transform_query(state: Dict) -> Dict:
-    """Re-write the query to improve retrieval."""
-    console.print("📝  Transforming the query...")
-    question = state["question"]
-    better_question = question_rewriter.invoke({"question": question})
-    console.print(f"Improved question: {better_question}")
-    return {"documents": state["documents"], "question": better_question}
+    def normal_llm(state):
+        logging.info("💭  Calling normal LLM...")
+        question = state["question"]
+        answer = answer_normal.invoke({"question": question})
+        logging.info(f"Answer: {answer[:20]}")
+        return {"question": question, "generation": answer}
 
+    def route_question(state):
+        """Route the question to either vectorstore or normal LLM."""
+        logging.info("⚖️  Routing the question...")
+        question = state["question"]
+        source = question_router.invoke({"question": question})
+        logging.info(f"Routing to: {source}")
+        return "normal_llm" if source["datasource"] == "normal_llm" else "vectorstore"
 
-def normal_llm(state: Dict) -> Dict:
-    console.print("💭  Calling normal LLM...")
-    question = state["question"]
-    answer = answer_normal.invoke({"question": question})
-    console.print(f"Answer: {answer[:20]}")
-    return {"question": question, "generation": answer}
+    def decide_to_generate(state):
+        """Decide whether to generate or rephrase the query."""
+        logging.info("🗯️  Deciding to generate or rephrase the query...")
+        return "transform_query" if not state["documents"] else "generate"
 
+    def grade_generation(state):
+        """Grade the generation and its relevance."""
+        logging.info("🔍 Grading the generation...")
+        question = state["question"]
+        documents = state["documents"]
+        generation = state["generation"]
+        hallucination_score = hallucination_grader.invoke(
+            {"documents": documents, "generation": generation}
+        )["score"]
+        logging.info(f"Grounded in the documents: {hallucination_score}")
+        return "useful" if hallucination_score == "yes" else "not supported"
 
-def route_question(state: Dict) -> str:
-    """Route the question to either vectorstore or normal LLM."""
-    console.print("⚖️  Routing the question...")
-    question = state["question"]
-    source = question_router.invoke({"question": question})
-    console.print(f"Routing to: {source}")
-    return "normal_llm" if source["datasource"] == "normal_llm" else "vectorstore"
+    # Create and compile the state graph
+    workflow = StateGraph(GraphState)
+    workflow.add_node("normal_llm", normal_llm)
+    workflow.add_node("retrieve", retrieve)
+    workflow.add_node("grade_documents", grade_documents)
+    workflow.add_node("generate", generate)
+    workflow.add_node("transform_query", transform_query)
 
-
-def decide_to_generate(state: Dict) -> str:
-    """Decide whether to generate or rephrase the query."""
-    console.print("🗯️  Deciding to generate or rephrase the query...")
-    return "transform_query" if not state["documents"] else "generate"
-
-
-def grade_generation(state: Dict) -> str:
-    """Grade the generation and its relevance."""
-    console.print("🔍 Grading the generation...")
-    question = state["question"]
-    documents = state["documents"]
-    generation = state["generation"]
-    hallucination_score = hallucination_grader.invoke(
-        {"documents": documents, "generation": generation}
-    )["score"]
-    console.print(f"Grounded in the documents: {hallucination_score}")
-    return "useful" if hallucination_score == "yes" else "not supported"
-
-
-# Create and compile the state graph
-workflow = StateGraph(GraphState)
-workflow.add_node("normal_llm", normal_llm)
-workflow.add_node("retrieve", retrieve)
-workflow.add_node("grade_documents", grade_documents)
-workflow.add_node("generate", generate)
-workflow.add_node("transform_query", transform_query)
-
-workflow.add_conditional_edges(
-    START, route_question, {"normal_llm": "normal_llm", "vectorstore": "retrieve"}
-)
-workflow.add_edge("normal_llm", END)
-workflow.add_edge("retrieve", "grade_documents")
-workflow.add_conditional_edges(
-    "grade_documents",
-    decide_to_generate,
-    {"transform_query": "transform_query", "generate": "generate"},
-)
-workflow.add_edge("transform_query", "retrieve")
-workflow.add_conditional_edges(
-    "generate", grade_generation, {"not supported": "generate", "useful": END}
-)
-
-app = workflow.compile()
-
-
-if __name__ == "__main__":
-    console = Console(force_terminal=True)
-    console.print("\nWelcome to the Osram Product Chatbot!\n", style="bold cyan")
-    console.print(
-        "You can ask questions about Osram products or documents.", style="bold cyan"
+    workflow.add_conditional_edges(
+        START, route_question, {"normal_llm": "normal_llm", "vectorstore": "retrieve"}
     )
-    console.print("Type 'exit' to end the session.\n", style="bold cyan")
+    workflow.add_edge("normal_llm", END)
+    workflow.add_edge("retrieve", "grade_documents")
+    workflow.add_conditional_edges(
+        "grade_documents",
+        decide_to_generate,
+        {"transform_query": "transform_query", "generate": "generate"},
+    )
+    workflow.add_edge("transform_query", "retrieve")
+    workflow.add_conditional_edges(
+        "generate", grade_generation, {"not supported": "generate", "useful": END}
+    )
 
-    while True:
-        question = console.input("Ask a question about Osram products. \nQuestion: ")
-        if question.lower() in ["exit", "quit"]:
-            console.print("Exiting the chatbot. Goodbye!", style="bold red")
-            break
+    app = workflow.compile()
 
-        # Running the graph with the user's question
-        inputs = {"question": question}
-        result = None
+    user_input = st.text_area("Ask a question about Osram products", height=100)
 
-        try:
-            for output in app.stream(inputs):
-                for key, value in output.items():
-                    if "generation" in value:
-                        result = value["generation"]
+    if user_input:
+        with st.spinner("Answering your question..."):
+            # Running the graph with the user's question
+            inputs = {"question": user_input}
+            result = None
 
-        except Exception as e:
-            console.print(f"Error occurred: {e}", style="bold red")
+            try:
+                for output in app.stream(inputs):
+                    for key, value in output.items():
+                        if "generation" in value:
+                            result = value["generation"]
+
+            except Exception as e:
+                st.error(f"Error occurred: {e}")
 
         if result:
-            console.print(f"\nAnswer: {result}\n", style="bold cyan")
+            st.write(f"\nAnswer: {result}\n")
         else:
             print("\nSorry, I couldn't find an answer to that question.\n")
+
+
+chatbot_page()
