@@ -1,14 +1,20 @@
-[tool.poetry]
-name = "langgraph"
+[build-system]
+requires = ["setuptools>64", "wheel"]
+build_backend = ["setuptools.build_meta"]
+
+[project]
+name = "rag_chat"
 version = "0.1.0"
 description = "Langgraph Agent for adaptive Document Chat"
-authors = ["Your Name <you@example.com>"]
 readme = "README.md"
 
-[tool.poetry.dependencies]
-python = "^3.11"
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
 
+[tool.black]
+line_length = 88
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.isort]
+profile = "black"
+src_paths = ["src", "tests"]

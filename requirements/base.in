@@ -1,0 +1,11 @@
+langchain
+langchain-community
+langchain-core
+langchain-openai
+langgraph
+pandas
+python-dotenv
+pypdf
+rich
+scikit-learn
+streamlit
