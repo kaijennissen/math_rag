@@ -236,11 +236,10 @@ Evaluation Criteria: Modify the grading prompts to implement custom evaluation l
 
 # 📚 References
 
-LangChain Documentation
-LangGraph Documentation
-OpenAI API Documentation
-Anthropic API Documentation
-Ollama GitHub Repository
+[Ollama](https://ollama.com/)
+[OpenAI API Documentation](https://platform.openai.com/docs/overview)
+[LangChain Documentation](https://python.langchain.com/v0.2/docs/introduction/)
+[LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
 
 # 🏆 Conclusion
 This Advanced RAG Chatbot showcases the power of combining retrieval-augmented generation with flexible LLM integration. Its modular design and customization options make it adaptable to various domains and LLM providers, providing a solid foundation for building sophisticated question-answering systems.
