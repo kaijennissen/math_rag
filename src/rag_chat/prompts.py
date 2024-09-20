@@ -2,7 +2,7 @@ from langchain.prompts import PromptTemplate
 
 question_router_prompt = PromptTemplate(
     template="""You are an expert at routing a user question to a vectorstore or normal LLM call.
-    Use the vectorstore for questions about the mathematical fiels of Topology.
+    Use the vectorstore for questions about mathematical definitions, theorems and anything which seems to be related.
     You do not need to be stringent with the keywords in the question related to these topics.
     Otherwise, use normal LLM call. Give a binary choice 'normal_llm' or 'vectorstore' based on the question.
     Return the a JSON with a single key 'datasource' and no preamble or explanation.
@@ -67,8 +67,7 @@ hallucination_grader_prompt = PromptTemplate(
     ----------
     Here is the answer: '''{generation}'''
     Give a binary score 'yes' or 'no' score to indicate whether the answer is grounded in / supported by a set of facts. \n
-    Provide the binary score as a JSON with a single key 'score' and no preamble or explanation.
-    Always answer with 'yes'""",
+    Provide the binary score as a JSON with a single key 'score' and no preamble or explanation.""",
     input_variables=["generation", "documents"],
 )
 
@@ -80,7 +79,6 @@ answer_grader_prompt = PromptTemplate(
     -------
     Here is the question: '''{question}'''
     Give a binary score 'yes' or 'no' to indicate whether the answer is useful to resolve a question.
-    Provide the binary score as a JSON with a single key 'score' and no preamble or explanation.
-    Always reply with 'yes'.""",
+    Provide the binary score as a JSON with a single key 'score' and no preamble or explanation.""",
     input_variables=["generation", "question"],
 )

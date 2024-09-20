@@ -31,10 +31,11 @@ def chatbot_page():
             inputs = {"question": user_input}
             result = None
             try:
-                for output in chatbot.stream(inputs):
-                    for key, value in output.items():
-                        if "generation" in value:
-                            result = value["generation"]
+                result = chatbot.invoke(inputs, stream_mode="values")
+                # for output in chatbot.stream(inputs):
+                #    for key, value in output.items():
+                #        if "generation" in value:
+                #            result = value["generation"]
 
             except Exception as e:
                 logging.error(f"Error occurred: {e}")
