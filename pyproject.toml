@@ -8,6 +8,10 @@ version = "0.1.0"
 description = "Langgraph Agent for adaptive Document Chat"
 readme = "README.md"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+
 [tool.black]
 line_length = 88
 
