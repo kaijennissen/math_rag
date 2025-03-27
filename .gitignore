@@ -6,6 +6,7 @@
 data/
 media/
 
+CLAUDE.md
 
 # common data-type extensions
 *.feather
