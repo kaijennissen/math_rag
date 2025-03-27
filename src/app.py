@@ -32,18 +32,15 @@ def chatbot_page():
             result = None
             try:
                 result = chatbot.invoke(inputs, stream_mode="values")
-                # for output in chatbot.stream(inputs):
-                #    for key, value in output.items():
-                #        if "generation" in value:
-                #            result = value["generation"]
+                with st.chat_message("assistant"):
+                    st.markdown(result["generation"])
 
             except Exception as e:
                 logging.error(f"Error occurred: {e}")
-
-        if result:
-            st.write(f"\nAnswer: {result}\n")
-        else:
-            st.write("\nSorry, I couldn't find an answer to that question.\n")
+                with st.chat_message("assistant"):
+                    st.markdown(
+                        "An error occurred while processing your request. Please try again later."
+                    )
 
 
 if __name__ == "__main__":
