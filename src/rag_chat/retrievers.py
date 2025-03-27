@@ -3,6 +3,7 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_community.vectorstores import SKLearnVectorStore
 
 # from langchain_chroma import Chroma
+# https://python.langchain.com/docs/tutorials/rag/
 
 
 def initialize_retrievers(docs, embeddings, config):
@@ -22,6 +23,6 @@ def initialize_retrievers(docs, embeddings, config):
         },
     )
     ensemble_retriever = EnsembleRetriever(
-        retrievers=[vectorstore, keyword_retriever], weights=[0.2, 0.8]
+        retrievers=[vectorstore, keyword_retriever], weights=[0.5, 0.5]
     )
     return ensemble_retriever
