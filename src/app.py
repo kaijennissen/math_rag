@@ -15,6 +15,7 @@ st.set_page_config(layout="wide", page_title="RAG Chatbot", page_icon="🚀")
 
 
 def chatbot_page():
+    st.title("🤖 Chatbot 📝")
 
     if "chatbot" not in st.session_state:
         chatbot = create_rag_chatbot()
@@ -22,13 +23,20 @@ def chatbot_page():
     else:
         chatbot = st.session_state.get("chatbot")
 
-    st.title("Chatbot")
-    user_input = st.text_area("Ask a question:", height=100)
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-    if user_input:
+    # Display chat messages from history on app rerun
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if my_question := st.chat_input(
+        "Ask me a question about your data",
+    ):
         with st.spinner("Answering your question..."):
             # Running the graph with the user's question
-            inputs = {"question": user_input}
+            inputs = {"question": my_question}
             result = None
             try:
                 result = chatbot.invoke(inputs, stream_mode="values")
