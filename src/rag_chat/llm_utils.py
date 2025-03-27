@@ -1,5 +1,11 @@
 from langchain_community.chat_models import ChatOllama
+from langchain.chat_models import init_chat_model
 
 
 def initialize_llm(config):
-    return ChatOllama(model=config["llm_model"], temperature=config["temperature"])
+    if config["use_openai"]:
+        llm = init_chat_model("gpt-4o-mini", model_provider="openai")
+    else:
+        # If using Ollama, ensure the model is set
+        llm = ChatOllama(model=config["llm_model"], temperature=config["temperature"])
+    return llm

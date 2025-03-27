@@ -2,6 +2,8 @@ from langchain.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_community.vectorstores import SKLearnVectorStore
 
+# from langchain_chroma import Chroma
+
 
 def initialize_retrievers(docs, embeddings, config):
     keyword_retriever = BM25Retriever.from_documents(
@@ -11,6 +13,7 @@ def initialize_retrievers(docs, embeddings, config):
         documents=docs,
         embedding=embeddings,
     )
+    # vectorstore = Chroma("abc", embedding_function=embeddings)
     vectorstore = vectorstore.as_retriever(
         search_type="similarity_score_threshold",
         search_kwargs={

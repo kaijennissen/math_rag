@@ -1,11 +1,16 @@
-import glob
 import logging
 import os
 from pathlib import Path
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import MathpixPDFLoader, PyPDFLoader
+from langchain.text_splitter import (
+    RecursiveCharacterTextSplitter,
+    LatexTextSplitter,
+    MarkdownHeaderTextSplitter,
+)
+from langchain_community.document_loaders import MathpixPDFLoader
+from langchain_core.documents import Document
 from typing_extensions import Iterable
+from rag_chat.project_root import ROOT
 
 
 def concatenate_docs(docs: Iterable):
@@ -25,9 +30,9 @@ def load_and_process_pdfs(docs_path: Path):
 
     docs = []
     for pdf_file in pdf_files:
-        # loader = PyPDFLoader(pdf_file)
         loader = MathpixPDFLoader(
             pdf_file,
+            processed_file_format="md",
             mathpix_api_id=os.getenv("MATHPIX_API_ID"),
             mathpix_api_key=os.getenv("MATHPIX_API_KEY"),
         )
@@ -36,10 +41,23 @@ def load_and_process_pdfs(docs_path: Path):
     docs = concatenate_docs(docs)
     logging.info(f"Loaded {len(docs)} documents")
 
-    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-        chunk_size=1500, chunk_overlap=0
+    text_splitter = LatexTextSplitter()
+    headers_to_split_on = [("#", "Header 1"), ("##", "Header 2")]
+    header_splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=headers_to_split_on
     )
-    doc_splits = text_splitter.split_documents(docs)
-    logging.info(f"Split {len(docs)} documents into {len(doc_splits)} chunks.")
+    md_header_splits = header_splitter.split_text(docs[0].page_content)
 
-    return doc_splits
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1500, chunk_overlap=200, separators=["\n\n", "\n", " ", ""]
+    )
+    text_splits = text_splitter.split_documents(md_header_splits)
+
+    logging.info(f"Split {len(docs)} documents into {len(text_splits)} chunks.")
+
+    return text_splits
+
+
+if __name__ == "__main__":
+    docs = load_and_process_pdfs(ROOT / "docs")
+    print(f"Loaded {len(docs)} documents")
