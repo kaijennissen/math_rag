@@ -20,87 +20,9 @@ from langchain_core.runnables import (
 )
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import AIMessage, HumanMessage
+import argparse
 
 load_dotenv()
-
-# raw_documents = WikipediaLoader(query="Continuous functions").load()
-# text_splitter = CharacterTextSplitter(chunk_size=200, chunk_overlap=20)
-# texts = text_splitter.split_documents(raw_documents)
-
-
-# text = """
-# Marie Curie, 7 November 1867 – 4 July 1934, was a Polish and naturalised-French physicist and chemist who conducted pioneering research on radioactivity.
-# She was the first woman to win a Nobel Prize, the first person to win a Nobel Prize twice, and the only person to win a Nobel Prize in two scientific fields.
-# Her husband, Pierre Curie, was a co-winner of her first Nobel Prize, making them the first-ever married couple to win the Nobel Prize and launching the Curie family legacy of five Nobel Prizes.
-# She was, in 1906, the first woman to become a professor at the University of Paris.
-# Also, Robin Williams.
-# """
-
-# documents = [Document(page_content=text)]
-# text_splitter = CharacterTextSplitter(chunk_size=200, chunk_overlap=20)
-# texts = text_splitter.split_documents(documents)
-
-# Read the wikipedia article
-raw_documents = WikipediaLoader(query="Elizabeth I").load()
-# Define chunking strategy
-text_splitter = TokenTextSplitter(chunk_size=512, chunk_overlap=24)
-documents = text_splitter.split_documents(raw_documents[:3])
-
-# Initialize LLM
-llm = ChatOpenAI(
-    temperature=0,
-    model="gpt-4o",
-    max_tokens=2000,
-    api_key=os.environ.get("OPENAI_API_KEY"),
-)
-
-llm_transformer = LLMGraphTransformer(llm=llm)
-graph_documents = llm_transformer.convert_to_graph_documents(documents)
-
-
-# Store Knowledge Graph in Neo4j
-graph = Neo4jGraph(
-    url=os.environ.get("NEO4J_URI"),
-    username=os.environ.get("NEO4J_USERNAME"),
-    password=os.environ.get("NEO4J_PASSWORD"),
-)
-graph.add_graph_documents(graph_documents, baseEntityLabel=True, include_source=True)
-
-
-# directly show the graph resulting from the given Cypher query
-# default_cypher = "MATCH (s)-[r:!MENTIONS]->(t) RETURN s,r,t LIMIT 50"
-
-
-# def showGraph(cypher: str = default_cypher):
-#     # create a neo4j session to run queries
-#     driver = GraphDatabase.driver(
-#         uri=os.environ.get("NEO4J_URI"),
-#         auth=(os.environ.get("NEO4J_USERNAME"), os.environ.get("NEO4J_PASSWORD")),
-#     )
-#     session = driver.session()
-#     widget = GraphWidget(graph=session.run(cypher).graph())
-#     widget.node_label_mapping = "id"
-#     # display(widget)
-#     return widget
-
-
-# showGraph()
-
-
-vector_index = Neo4jVector.from_existing_graph(
-    OpenAIEmbeddings(),
-    search_type="hybrid",
-    node_label="Document",
-    text_node_properties=["text"],
-    embedding_node_property="embedding",
-    pre_delete_collection=True,
-)
-
-
-# Purpose of this section is to identify the relevant entities from a querstion.
-# F.e. 'Marie Curie' or 'Nobel Prize'.  These entities are then be used to query
-# the knowledge graph for relevant information by also retrieving adjacent
-# nodes/entities and using them as context.
 
 
 class Entities(BaseModel):
@@ -110,29 +32,6 @@ class Entities(BaseModel):
         ...,
         description="All the person, organization, or business entities that appear in the text",
     )
-
-
-prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            "You are extracting organization and person entities from the text.",
-        ),
-        (
-            "human",
-            "Use the given format to extract information from the following "
-            "input: {question}",
-        ),
-    ]
-)
-
-entity_chain = prompt | llm.with_structured_output(Entities)
-
-# Example usage
-entity_chain.invoke({"question": "Who is Marie Curie?"}).names
-entity_chain.invoke(
-    {"question": "Who won the Nobel Prize in Physics and Chemistry?"}
-).names
 
 
 def generate_full_text_query(input_str: str) -> str:
@@ -153,71 +52,6 @@ def generate_full_text_query(input_str: str) -> str:
     return full_text_query.strip()
 
 
-graph.query("MATCH (n:Person) RETURN n LIMIT 5")
-
-graph.query(
-    "CALL db.index.fulltext.queryNodes('keyword', 'Elizabeth') YIELD node, score"
-)
-
-
-# Fulltext index query
-def structured_retriever(question: str) -> str:
-    """
-    Collects the neighborhood of entities mentioned
-    in the question
-    """
-    result = ""
-    entities = entity_chain.invoke({"question": question})
-    for entity in entities.names:
-        response = graph.query(
-            """CALL db.index.fulltext.queryNodes('test_fulltext_index', $query, {limit:2})
-            YIELD node,score
-            CALL (node) {
-              MATCH (node)-[r:!MENTIONS]->(neighbor)
-              RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
-              UNION ALL
-              WITH node
-              MATCH (node)<-[r:!MENTIONS]-(neighbor)
-              RETURN neighbor.id + ' - ' + type(r) + ' -> ' +  node.id AS output
-            }
-            RETURN output LIMIT 50
-            """,
-            {"query": generate_full_text_query(entity)},
-        )
-        result += "\n".join([el["output"] for el in response])
-    return result
-
-
-print(structured_retriever("Who is Elisabeth I?"))
-
-
-def retriever(question: str):
-    print(f"Search query: {question}")
-    structured_data = structured_retriever(question)
-    unstructured_data = [
-        el.page_content for el in vector_index.similarity_search(question)
-    ]
-    final_data = f"""Structured data:
-        {structured_data}
-        Unstructured data:
-        {"#Document ". join(unstructured_data)}
-        """
-    return final_data
-
-
-print(retriever("Who is Elisabeth I?"))
-
-_template = """Given the following conversation and a follow up question,
- rephrase the follow up question to be a standalone question,
-in its original language.
-Chat History:
-{chat_history}
-Follow Up Input: {question}
-Standalone question:"""  # noqa: E501
-
-CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
-
-
 def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
     buffer = []
     for human, ai in chat_history:
@@ -226,51 +60,199 @@ def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
     return buffer
 
 
-_search_query = RunnableBranch(
-    # If input includes chat_history, we condense it with the follow-up question
-    (
-        RunnableLambda(lambda x: bool(x.get("chat_history"))).with_config(
-            run_name="HasChatHistoryCheck"
-        ),  # Condense follow-up question and chat into a standalone_question
-        RunnablePassthrough.assign(
-            chat_history=lambda x: _format_chat_history(x["chat_history"])
-        )
-        | CONDENSE_QUESTION_PROMPT
-        | ChatOpenAI(temperature=0)
-        | StrOutputParser(),
-    ),
-    # Else, we have no chat history, so just pass through the question
-    RunnableLambda(lambda x: x["question"]),
-)
-
-template = """Answer the question based only on the following context:
-{context}
-
-Question: {question}
-"""
-prompt = ChatPromptTemplate.from_template(template)
-
-chain = (
-    RunnableParallel(
-        {
-            "context": _search_query | retriever,
-            "question": RunnablePassthrough(),
-        }
+def main(recreate_graph: bool = False):
+    # Initialize LLM
+    llm = ChatOpenAI(
+        temperature=0,
+        model="gpt-4o",
+        max_tokens=2000,
+        api_key=os.environ.get("OPENAI_API_KEY"),
     )
-    | prompt
-    | llm
-    | StrOutputParser()
-)
 
+    # Create and connect to Neo4j graph
+    graph = Neo4jGraph(
+        url=os.environ.get("NEO4J_URI"),
+        username=os.environ.get("NEO4J_USERNAME"),
+        password=os.environ.get("NEO4J_PASSWORD"),
+    )
 
-chain.invoke({"question": "Which house did Elizabeth I belong to?"})
-chain.invoke(
-    {
-        "question": "When was she born?",
-        "chat_history": [("Which house did Elizabeth I belong to?", "House Of Tudor")],
-    }
-)
+    if recreate_graph:
+        # Read the wikipedia article
+        raw_documents = WikipediaLoader(query="Elizabeth I").load()
+        # Define chunking strategy
+        text_splitter = TokenTextSplitter(chunk_size=512, chunk_overlap=24)
+        documents = text_splitter.split_documents(raw_documents[:3])
+
+        # Transform documents to graph documents
+        llm_transformer = LLMGraphTransformer(llm=llm)
+        graph_documents = llm_transformer.convert_to_graph_documents(documents)
+
+        # Store Knowledge Graph in Neo4j
+        graph.add_graph_documents(
+            graph_documents, baseEntityLabel=True, include_source=True
+        )
+
+        # Create vector index
+        vector_index = Neo4jVector.from_existing_graph(
+            OpenAIEmbeddings(),
+            search_type="hybrid",
+            node_label="Document",
+            text_node_properties=["text"],
+            embedding_node_property="embedding",
+            pre_delete_collection=True,
+        )
+    else:
+        # Use existing vector index
+        vector_index = Neo4jVector.from_existing_graph(
+            OpenAIEmbeddings(),
+            search_type="hybrid",
+            node_label="Document",
+            text_node_properties=["text"],
+            embedding_node_property="embedding",
+            pre_delete_collection=False,
+        )
+
+    # Setup entity extraction chain
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are extracting organization and person entities from the text.",
+            ),
+            (
+                "human",
+                "Use the given format to extract information from the following "
+                "input: {question}",
+            ),
+        ]
+    )
+    entity_chain = prompt | llm.with_structured_output(Entities)
+
+    def structured_retriever(question: str) -> str:
+        """
+        Collects the neighborhood of entities mentioned
+        in the question
+        """
+        result = ""
+        entities = entity_chain.invoke({"question": question})
+        for entity in entities.names:
+            response = graph.query(
+                """CALL db.index.fulltext.queryNodes('test_fulltext_index', $query, {limit:2})
+                YIELD node,score
+                CALL (node) {
+                    WITH node
+                    MATCH (node)-[r:!MENTIONS]->(neighbor)
+                    RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
+                    UNION ALL
+                    WITH node
+                    MATCH (node)<-[r:!MENTIONS]-(neighbor)
+                    RETURN neighbor.id + ' - ' + type(r) + ' -> ' +  node.id AS output
+                }
+                RETURN output LIMIT 50
+                """,
+                {"query": generate_full_text_query(entity)},
+            )
+            result += "\n".join([el["output"] for el in response])
+        return result
+
+    def retriever(question: str):
+        print(f"Search query: {question}")
+        structured_data = structured_retriever(question)
+        unstructured_data = [
+            el.page_content for el in vector_index.similarity_search(question)
+        ]
+        final_data = f"""Structured data:
+            {structured_data}
+            Unstructured data:
+            {"#Document ". join(unstructured_data)}
+            """
+        return final_data
+
+    # Test queries
+    graph.query("MATCH (n:Person) RETURN n LIMIT 5")
+    graph.query(
+        "CALL db.index.fulltext.queryNodes('keyword', 'Elizabeth') YIELD node, score"
+    )
+
+    # Fulltext index query
+    # Set up question condensing
+    _template = """Given the following conversation and a follow up question,
+     rephrase the follow up question to be a standalone question,
+    in its original language.
+    Chat History:
+    {chat_history}
+    Follow Up Input: {question}
+    Standalone question:"""  # noqa: E501
+
+    CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
+
+    _search_query = RunnableBranch(
+        # If input includes chat_history, we condense it with the follow-up question
+        (
+            RunnableLambda(lambda x: bool(x.get("chat_history"))).with_config(
+                run_name="HasChatHistoryCheck"
+            ),  # Condense follow-up question and chat into a standalone_question
+            RunnablePassthrough.assign(
+                chat_history=lambda x: _format_chat_history(x["chat_history"])
+            )
+            | CONDENSE_QUESTION_PROMPT
+            | ChatOpenAI(temperature=0)
+            | StrOutputParser(),
+        ),
+        # Else, we have no chat history, so just pass through the question
+        RunnableLambda(lambda x: x["question"]),
+    )
+
+    # Set up final answer generation
+    template = """Answer the question based only on the following context:
+    {context}
+
+    Question: {question}
+    """
+    prompt = ChatPromptTemplate.from_template(template)
+
+    chain = (
+        RunnableParallel(
+            {
+                "context": _search_query | retriever,
+                "question": RunnablePassthrough(),
+            }
+        )
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    # Test retrieval
+    print(structured_retriever("Who is Elisabeth I?"))
+    print(retriever("Who is Elisabeth I?"))
+
+    # Test question answering
+    print(chain.invoke({"question": "Which house did Elizabeth I belong to?"}))
+    print(
+        chain.invoke(
+            {
+                "question": "When was she born?",
+                "chat_history": [
+                    ("Which house did Elizabeth I belong to?", "House Of Tudor")
+                ],
+            }
+        )
+    )
 
 
 if __name__ == "__main__":
-    main()
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description="Run graph-based RAG system")
+    parser.add_argument(
+        "--recreate-graph",
+        action="store_true",
+        default=False,
+        help="Recreate the knowledge graph from Wikipedia (default: False)",
+    )
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    # Pass the recreate_graph argument to main
+    main(recreate_graph=args.recreate_graph)
