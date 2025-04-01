@@ -3,6 +3,7 @@ langchain-community
 langchain-core
 langchain-openai
 langgraph
+llama-index
 pandas
 python-dotenv
 pypdf
