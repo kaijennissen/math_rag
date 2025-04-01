@@ -1,6 +1,5 @@
 import logging
-from pathlib import Path
-from typing import Dict, List, TypedDict
+from typing import List, TypedDict
 
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from langgraph.graph import END, START, StateGraph
@@ -11,7 +10,6 @@ from rag_chat.embeddings import initialize_embeddings
 from rag_chat.llm_utils import initialize_llm
 from rag_chat.project_root import ROOT
 from rag_chat.prompts import (
-    answer_grader_prompt,
     hallucination_grader_prompt,
     prompt,
     question_rewriter_prompt,
@@ -49,7 +47,7 @@ def create_rag_chatbot():
     question_rewriter = question_rewriter_prompt | llm | StrOutputParser()
     rag_chain = rag_prompt | llm | StrOutputParser()
     retrieval_grader = retrieval_grader_prompt | llm | JsonOutputParser()
-    answer_grader = answer_grader_prompt | llm | JsonOutputParser()
+    # answer_grader = answer_grader_prompt | llm | JsonOutputParser()
     hallucination_grader = hallucination_grader_prompt | llm | JsonOutputParser()
 
     def retrieve(state):
@@ -120,7 +118,7 @@ def create_rag_chatbot():
     def grade_generation(state):
         """Grade the generation and its relevance."""
         logging.info("🔍 Grading the generation...")
-        question = state["question"]
+        # question = state["question"]
         documents = state["documents"]
         generation = state["generation"]
         hallucination_score = hallucination_grader.invoke(

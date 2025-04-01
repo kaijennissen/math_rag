@@ -3,9 +3,8 @@ import os
 from typing import List, Tuple
 
 from dotenv import load_dotenv
-from langchain.text_splitter import CharacterTextSplitter, TokenTextSplitter
+from langchain.text_splitter import TokenTextSplitter
 from langchain_community.document_loaders import WikipediaLoader
-from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
@@ -19,9 +18,7 @@ from langchain_experimental.graph_transformers import LLMGraphTransformer
 from langchain_neo4j import Neo4jGraph, Neo4jVector
 from langchain_neo4j.vectorstores.neo4j_vector import remove_lucene_chars
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from neo4j import GraphDatabase
 from pydantic import BaseModel, Field
-from yfiles_jupyter_graphs import GraphWidget
 
 load_dotenv()
 
@@ -165,7 +162,7 @@ def main(recreate_graph: bool = False):
         final_data = f"""Structured data:
             {structured_data}
             Unstructured data:
-            {"#Document ". join(unstructured_data)}
+            {"#Document ".join(unstructured_data)}
             """
         return final_data
 

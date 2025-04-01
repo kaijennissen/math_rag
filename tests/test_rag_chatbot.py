@@ -29,12 +29,12 @@ def mock_docs() -> List[Document]:
 
 @pytest.fixture
 def mock_chatbot(mock_config: Dict[str, Any], mock_docs: List[Document]) -> Mock:
-    with patch("rag_chat.rag_chatbot.load_config", return_value=mock_config), patch(
-        "rag_chat.rag_chatbot.load_and_process_pdfs", return_value=mock_docs
-    ), patch("rag_chat.rag_chatbot.initialize_embeddings", return_value=Mock()), patch(
-        "rag_chat.rag_chatbot.initialize_retrievers", return_value=Mock()
-    ), patch(
-        "rag_chat.rag_chatbot.initialize_llm", return_value=Mock()
+    with (
+        patch("rag_chat.rag_chatbot.load_config", return_value=mock_config),
+        patch("rag_chat.rag_chatbot.load_and_process_pdfs", return_value=mock_docs),
+        patch("rag_chat.rag_chatbot.initialize_embeddings", return_value=Mock()),
+        patch("rag_chat.rag_chatbot.initialize_retrievers", return_value=Mock()),
+        patch("rag_chat.rag_chatbot.initialize_llm", return_value=Mock()),
     ):
         yield create_rag_chatbot()
 

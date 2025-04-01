@@ -1,18 +1,54 @@
+# This is a .pre-commit-config.yaml file. The pre-commit tool uses this configuration
+# to manage and enforce coding standards and checks before code commits.
+# It helps automate checks for common issues, ensuring that changes committed to the repository
+# comply with predefined standards and are free of certain types of errors.
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v5.0.0 # The version of the general pre-commit hooks we are using.
     hooks:
+      - id: check-ast
+        # Checks if Python Abstract Syntax Trees (ASTs) are well-formed, catching syntax errors.
+
       - id: check-yaml
+        # Verifies the syntax of YAML files, ensuring they are correctly structured.
+
       - id: end-of-file-fixer
+        # Ensures that all files end with a newline, which is a common POSIX standard.
+
       - id: trailing-whitespace
+        # Removes any trailing whitespace at the end of lines in text files.
+
+      - id: check-executables-have-shebangs
+        # Ensures that executable files have a shebang line, which indicates how the script should be executed.
+
       - id: debug-statements
-  - repo: https://github.com/pycqa/isort
-    rev: 6.0.1
+        # Checks for the presence of debug statements (like Python's breakpoint) that shouldn't be in committed code.
+
+      - id: check-added-large-files
+        args: ["--maxkb=5000"]
+        # Prevents accidentally committing large files to the repository by setting a size limit of 5000KB.
+
+      - id: mixed-line-ending
+        # Ensures consistent line ending style across files, avoiding mixtures that can lead to problems on different platforms.
+        # Checks if Jupyter notebooks are clean and free of output cells.
+  - repo: https://github.com/srstevenson/nb-clean
+    rev: 4.0.1
     hooks:
-      - id: isort
-        args: [--profile black]
-        name: isort (python)
-  - repo: https://github.com/psf/black
-    rev: 25.1.0
+      - id: nb-clean
+        args:
+          - --remove-empty-cells
+          - --preserve-cell-outputs
+  # - repo: https://github.com/PyCQA/isort
+  #   rev: 6.0.1 # The version of isort we are using to sort imports in Python files.
+  #   hooks:
+  #     - id: isort
+  #       args: ["--profile", "black", "--filter-files"]
+  #       # Configures isort to use the Black formatting profile and only filter files that were selected by pre-commit.
+  #       language_version: python3 # Specifies that this should run with Python 3.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: "v0.11.2" # Specific version of ruff, a fast Python linter.
     hooks:
-      - id: black
+      - id: ruff
+        # Runs ruff to perform linting on the code, checking for stylistic and logical errors not covered by other tools.
+      - id: ruff-format
