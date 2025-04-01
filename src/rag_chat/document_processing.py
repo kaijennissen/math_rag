@@ -3,13 +3,14 @@ import os
 from pathlib import Path
 
 from langchain.text_splitter import (
-    RecursiveCharacterTextSplitter,
     LatexTextSplitter,
     MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
 )
 from langchain_community.document_loaders import MathpixPDFLoader
 from langchain_core.documents import Document
 from typing_extensions import Iterable
+
 from rag_chat.project_root import ROOT
 
 

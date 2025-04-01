@@ -1,5 +1,5 @@
-from langchain_ollama.embeddings import OllamaEmbeddings
 from langchain.embeddings import OpenAIEmbeddings
+from langchain_ollama.embeddings import OllamaEmbeddings
 
 
 def initialize_embeddings(config):

@@ -1,5 +1,5 @@
-from langchain_community.chat_models import ChatOllama
 from langchain.chat_models import init_chat_model
+from langchain_community.chat_models import ChatOllama
 
 
 def initialize_llm(config):

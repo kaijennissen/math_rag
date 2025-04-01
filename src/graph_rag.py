@@ -1,26 +1,27 @@
-from langchain_core.documents import Document
+import argparse
+import os
+from typing import List, Tuple
+
+from dotenv import load_dotenv
 from langchain.text_splitter import CharacterTextSplitter, TokenTextSplitter
 from langchain_community.document_loaders import WikipediaLoader
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_experimental.graph_transformers import LLMGraphTransformer
-import os
-from dotenv import load_dotenv
-from langchain_neo4j import Neo4jGraph, Neo4jVector
-from neo4j import GraphDatabase
-from yfiles_jupyter_graphs import GraphWidget
+from langchain_core.documents import Document
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
-from langchain_neo4j.vectorstores.neo4j_vector import remove_lucene_chars
-from pydantic import BaseModel, Field
-from typing import List, Tuple
 from langchain_core.runnables import (
+    RunnableBranch,
+    RunnableLambda,
     RunnableParallel,
     RunnablePassthrough,
-    RunnableLambda,
-    RunnableBranch,
 )
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.messages import AIMessage, HumanMessage
-import argparse
+from langchain_experimental.graph_transformers import LLMGraphTransformer
+from langchain_neo4j import Neo4jGraph, Neo4jVector
+from langchain_neo4j.vectorstores.neo4j_vector import remove_lucene_chars
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from neo4j import GraphDatabase
+from pydantic import BaseModel, Field
+from yfiles_jupyter_graphs import GraphWidget
 
 load_dotenv()
 
