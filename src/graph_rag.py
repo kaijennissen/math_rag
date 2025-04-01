@@ -49,7 +49,7 @@ documents = text_splitter.split_documents(raw_documents[:3])
 # Initialize LLM
 llm = ChatOpenAI(
     temperature=0,
-    model="gpt-4-0125-preview",
+    model="gpt-4o",
     max_tokens=2000,
     api_key=os.environ.get("OPENAI_API_KEY"),
 )
@@ -93,6 +93,7 @@ vector_index = Neo4jVector.from_existing_graph(
     node_label="Document",
     text_node_properties=["text"],
     embedding_node_property="embedding",
+    pre_delete_collection=True,
 )
 
 
@@ -152,6 +153,13 @@ def generate_full_text_query(input_str: str) -> str:
     return full_text_query.strip()
 
 
+graph.query("MATCH (n:Person) RETURN n LIMIT 5")
+
+graph.query(
+    "CALL db.index.fulltext.queryNodes('keyword', 'Elizabeth') YIELD node, score"
+)
+
+
 # Fulltext index query
 def structured_retriever(question: str) -> str:
     """
@@ -162,10 +170,9 @@ def structured_retriever(question: str) -> str:
     entities = entity_chain.invoke({"question": question})
     for entity in entities.names:
         response = graph.query(
-            """CALL db.index.fulltext.queryNodes('entity', $query, {limit:2})
+            """CALL db.index.fulltext.queryNodes('test_fulltext_index', $query, {limit:2})
             YIELD node,score
-            CALL {
-              WITH node
+            CALL (node) {
               MATCH (node)-[r:!MENTIONS]->(neighbor)
               RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
               UNION ALL
@@ -263,3 +270,7 @@ chain.invoke(
         "chat_history": [("Which house did Elizabeth I belong to?", "House Of Tudor")],
     }
 )
+
+
+if __name__ == "__main__":
+    main()
