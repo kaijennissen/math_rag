@@ -83,9 +83,22 @@ def load_and_process_pdfs(docs_path: Path):
 
         # Print first 50 characters of each chunk
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1500, chunk_overlap=200, separators=["\n\n", "\n", " ", ""]
+        chunk_size=1500, chunk_overlap=200, separators=["\n\n", "\nBeweis", " ", ""]
     )
     text_splits = text_splitter.split_documents(md_header_splits)
+
+    encoding = tiktoken.get_encoding("cl100k_base")  # GPT-4 encoding
+    for chunk_num, chunk in enumerate(text_splits):
+        # Print metadata and content length for each chunk
+        if chunk.metadata:
+            headers = ", ".join([f"{k}: {v}" for k, v in chunk.metadata.items()])
+            print(f"Chunk {chunk_num + 1} " + "=" * 120)
+            print(f"Metadata: {headers}")
+            print(f"Content length: {len(chunk.page_content)} characters")
+            print(f"Content: {chunk.page_content[:20]}")
+            tokens = encoding.encode(chunk.page_content)
+            token_count = len(tokens)
+            print(f"Token count: {token_count}")
 
     logging.info(f"Split {len(docs)} documents into {len(text_splits)} chunks.")
 
