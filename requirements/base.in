@@ -10,3 +10,4 @@ pypdf
 rich
 scikit-learn
 streamlit
+watchdog
