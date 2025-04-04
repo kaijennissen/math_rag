@@ -22,16 +22,40 @@ chunker_type = st.selectbox(
 )
 
 # Parameters section based on selected splitter
-with st.expander("Chunker Parameters"):
+with st.expander("Chunker Parameters", expanded=True):
+    separators_options = [
+        ("\\n\\n", "\n\n"),  # Double newline
+        ("\\n", "\n"),  # Single newline
+        (".", "."),  # Period
+        (",", ","),  # Comma
+        ("' '", " "),  # Space
+    ]
     if chunker_type == "CharacterTextSplitter":
         chunk_size = st.slider("Chunk Size", 100, 2000, 1000)
         chunk_overlap = st.slider("Chunk Overlap", 0, 500, 200)
-        separator = st.text_input("Separator", "\n\n")
+        selected_separators = st.selectbox(
+            "Separator",
+            [option[0] for option in separators_options],
+            index=0,
+        )
+        separators = [
+            actual
+            for display, actual in separators_options
+            if display == selected_separators
+        ][0]
 
     elif chunker_type == "RecursiveCharacterTextSplitter":
         chunk_size = st.slider("Chunk Size", 100, 2000, 1000)
         chunk_overlap = st.slider("Chunk Overlap", 0, 500, 200)
-        separators = st.text_area("Separators (one per line)", "\n\n\n\n\n").split("\n")
+        selected_separators = st.multiselect(
+            "Separators (in order of priority)",
+            [option[0] for option in separators_options],
+            default=["\\n\\n"],
+        )
+        separators = [
+            next(actual for display, actual in separators_options if display == sep)
+            for sep in selected_separators
+        ]
 
     elif chunker_type == "TokenTextSplitter":
         chunk_size = st.slider("Chunk Size (tokens)", 100, 2000, 1000)
@@ -43,7 +67,8 @@ with st.expander("Chunker Parameters"):
 # Explanations section
 with st.expander("How it works"):
     if chunker_type == "CharacterTextSplitter":
-        st.markdown("""
+        st.markdown(
+            """
         **CharacterTextSplitter** splits text based on a character separator. It's the simplest form of chunking.
 
         **Parameters:**
@@ -52,10 +77,12 @@ with st.expander("How it works"):
         - **Separator**: Character(s) to split on
 
         **Best used when**: You have text with natural separators like paragraphs or line breaks.
-        """)
+        """
+        )
 
     elif chunker_type == "RecursiveCharacterTextSplitter":
-        st.markdown("""
+        st.markdown(
+            """
         **RecursiveCharacterTextSplitter** splits text by trying a list of separators in order.
 
         **Parameters:**
@@ -65,10 +92,12 @@ with st.expander("How it works"):
 
         **Best used when**: You want more control over how text is split, preserving semantic structure.
         This splitter first tries to split on double newlines, then single newlines, and so on.
-        """)
+        """
+        )
 
     elif chunker_type == "TokenTextSplitter":
-        st.markdown("""
+        st.markdown(
+            """
         **TokenTextSplitter** splits text based on token count rather than characters.
 
         **Parameters:**
@@ -77,14 +106,15 @@ with st.expander("How it works"):
         - **Encoding**: The tokenizer encoding to use
 
         **Best used when**: You want to ensure chunks stay within token limits for your model.
-        """)
+        """
+        )
 
 # Text input
 st.subheader("Try it out")
 input_text = st.text_area(
     "Paste your text here",
     height=200,
-    value="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n\nUt enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.\n\nExcepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+    placeholder="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n\nUt enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.\n\nExcepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
 )
 
 # Process and display chunks
@@ -94,9 +124,8 @@ if st.button("Split Text"):
 
         if chunker_type == "CharacterTextSplitter":
             splitter = CharacterTextSplitter(
-                chunk_size=chunk_size, chunk_overlap=chunk_overlap, separator=separator
+                chunk_size=chunk_size, chunk_overlap=chunk_overlap, separator=separators
             )
-            chunks = splitter.split_text(input_text)
 
         elif chunker_type == "RecursiveCharacterTextSplitter":
             splitter = RecursiveCharacterTextSplitter(
@@ -104,7 +133,6 @@ if st.button("Split Text"):
                 chunk_overlap=chunk_overlap,
                 separators=separators,
             )
-            chunks = splitter.split_text(input_text)
 
         elif chunker_type == "TokenTextSplitter":
             splitter = TokenTextSplitter(
@@ -112,18 +140,19 @@ if st.button("Split Text"):
                 chunk_overlap=chunk_overlap,
                 encoding_name=encoding_name,
             )
-            chunks = splitter.split_text(input_text)
+
+        chunks = splitter.split_text(input_text)
 
         # Display chunks with stats
-        st.subheader(f"Output: {len(chunks)} chunks")
 
         encoding = tiktoken.get_encoding("cl100k_base")
 
-        for i, chunk in enumerate(chunks):
-            with st.expander(f"Chunk {i + 1}"):
-                st.text(chunk)
-                token_count = len(encoding.encode(chunk))
-                st.caption(f"Characters: {len(chunk)} | Tokens: {token_count}")
+        for i, chunk in enumerate(chunks, start=1):
+            token_count = len(encoding.encode(chunk))
+            st.caption(
+                f"Chunk: {i}/{len(chunks)} | Characters: {len(chunk)} | Tokens: {token_count}"
+            )
+            st.text(chunk)
 
     except Exception as e:
         st.error(f"Error processing text: {str(e)}")

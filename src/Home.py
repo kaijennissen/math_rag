@@ -7,10 +7,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
 # Main page content
 st.title("🏠 Introduction to RAG Pipelines")
-st.write("""
+st.write(
+    """
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor
 incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud
 exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute
@@ -24,16 +24,5 @@ exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute
 irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
 pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia
 deserunt mollit anim id est laborum.
-""")
-
-# Add sidebar navigation
-st.sidebar.title("RAG Pipeline Tutorial")
-st.sidebar.info("""
-### Navigation
-Use the menu above to navigate to different sections of the tutorial.
-
-- **Home** - Introduction to RAG
-- **Chunking** - Document chunking methods
-- **Embeddings** - Embedding models
-- **Retrievers** - Retrieval techniques
-""")
+"""
+)
