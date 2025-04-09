@@ -91,6 +91,9 @@ class Chunks(BaseModel):
 output_parser = PydanticOutputParser(pydantic_object=DocChunk)
 format_instructions = output_parser.get_format_instructions()
 
+output_parser = PydanticOutputParser(pydantic_object=Chunks)
+format_instructions = output_parser.get_format_instructions()
+
 chat_prompt = ChatPromptTemplate.from_messages(
     [
         (
@@ -108,10 +111,10 @@ chat_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 # https://medium.com/@docherty/mastering-structured-output-in-llms-revisiting-langchain-and-json-structured-outputs-d95dfc286045
-structured_llm = llm.with_structured_output(DocChunk, method="json_mode")
+structured_llm = llm.with_structured_output(DocChunk, method="json_schema")
 chain = chat_prompt | llm
 
-chunks = chain.invoke(f"{docs[0].page_content[:500]}\n\n{format_instructions}")
+chunks = chain.invoke(f"{docs[0].page_content[:2500]}\n\n{format_instructions}")
 
 
 # https://python.langchain.com/v0.2/docs/how_to/code_splitter/#markdown
