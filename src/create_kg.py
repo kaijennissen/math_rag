@@ -80,6 +80,14 @@ class DocChunk(BaseModel):
     )
 
 
+class Chunks(BaseModel):
+    """Extracts a list of DocChunk objects from a document."""
+
+    chunk: list[DocChunk] = Field(
+        description="A list of DocChunk objects representing the extracted chunks."
+    )
+
+
 output_parser = PydanticOutputParser(pydantic_object=DocChunk)
 format_instructions = output_parser.get_format_instructions()
 
@@ -103,7 +111,7 @@ chat_prompt = ChatPromptTemplate.from_messages(
 structured_llm = llm.with_structured_output(DocChunk, method="json_mode")
 chain = chat_prompt | llm
 
-chunks = chain.invoke(docs[0].page_content[:500])
+chunks = chain.invoke(f"{docs[0].page_content[:500]}\n\n{format_instructions}")
 
 
 # https://python.langchain.com/v0.2/docs/how_to/code_splitter/#markdown
