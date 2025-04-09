@@ -1,249 +1,154 @@
-# 🚀 Advanced Adaptive RAG Chatbot with Flexible LLM Integration (Langgraph)
+# 🧮 Math-RAG: Knowledge Graph-Based QA System for Mathematical Documents
 
 ## 🧭 Project Overview
 
-This project implements a sophisticated chatbot leveraging Retrieval-Augmented Generation (RAG) with flexible Language Model (LLM) integration. It's designed to provide accurate, context-aware responses to user queries by combining document retrieval, question rewriting, and multi-stage answer generation and grading.
+This project implements a GraphRAG system for question-answering on mathematical documents. It combines the power of Knowledge Graphs with Retrieval-Augmented Generation to provide accurate answers to mathematical queries by capturing the hierarchical and relational structure of mathematical concepts.
 
 Key features:
-- 🔄 Flexible LLM integration supporting OpenAI, Ollama, and other providers via LangChain
-- 🧠 Intelligent question routing between vectorstore and direct LLM calls
-- 🔍 Ensemble retrieval combining keyword (BM25) and semantic search
-- ✍️ Dynamic question rewriting for improved retrieval
-- 🎭 Multi-stage answer generation with self-evaluation
-- 🔧 Easily customizable for different domains and document types
+- 🧠 Knowledge Graph construction from mathematical PDFs with Neo4j
+- 📊 Specialized processing for mathematical notation via MathPix API
+- 🔄 Graph-enhanced retrieval combining structured and unstructured knowledge
+- 🤖 Flexible LLM integration supporting OpenAI and local models via LangChain
+- 🎯 Advanced query routing with multi-stage answer generation
+- 📱 Streamlit web interface for chatting with your mathematical documents
 
 ## 🚧 Prerequisites
 
-- Python 3.11
-- API keys for chosen LLM providers (e.g., OpenAI, Anthropic)
-- (Optional) Ollama for local LLM support
+- Python 3.11+
+- Neo4j database (can be run via Docker)
+- API keys:
+  - OpenAI API key (optional, can use local models)
+  - MathPix API for processing mathematical notation in PDFs
+- Docker and Docker Compose (for running Neo4j)
 
 ## 🎛 Project Setup
 
 1. Clone the repository:
-
-  ```
-  git clone https://github.com/kaijennissen/advanced-rag-chatbot.git
-  cd advanced-rag-chatbot
-  ```
+   ```
+   git clone https://github.com/yourusername/math_rag.git
+   cd math_rag
+   ```
 
 2. Create and activate a virtual environment:
-
-```
-python -m venv venv
-source venv/bin/activate  # On Windows, use venv\Scripts\activate
-```
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows, use venv\Scripts\activate
+   ```
 
 3. Install dependencies:
-
-```
-python -m pip install -r requirements/dev.txt -r requirements/base.txt
-```
+   ```
+   pip install -r requirements/dev.txt
+   ```
 
 4. Set up environment variables:
+   Create a `.env` file with the following variables:
+   ```
+   OPENAI_API_KEY=your_openai_api_key  # Optional if using local models
+   MATHPIX_API_ID=your_mathpix_api_id
+   MATHPIX_API_KEY=your_mathpix_api_key
+   NEO4J_URI=bolt://localhost:7687
+   NEO4J_USERNAME=neo4j
+   NEO4J_PASSWORD=password
+   ```
 
-```
-cp .env.example .env
-CopyEdit `.env` and add your API keys:
-OPENAI_API_KEY=your_openai_api_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
-```
+5. Start the Neo4j database:
+   ```
+   docker-compose up -d
+   ```
 
-Add other API keys as needed
+6. Process your mathematical documents:
+   Place mathematical PDFs in the `./docs` folder and run:
+   ```
+   python src/create_kg.py
+   ```
+   This will:
+   - Process PDFs using MathPix to preserve mathematical notation
+   - Extract hierarchical structure (sections, theorems, definitions, etc.)
+   - Create a knowledge graph in Neo4j
 
-5. Prepare your document corpus:
-- Place PDF documents in the `./docs` folder
-- Alternatively, modify the `load_documents()` function in `main.py` to support other document types or sources
-
-6. Customize the system prompt:
-- Edit the `SYSTEM_PROMPT` constant in `main.py` to align with your specific use case or domain
-
-7. Run the chatbot:
-
-```
-python main.py
-```
-
+7. Launch the Streamlit interface:
+   ```
+   python src/app.py
+   ```
 
 ## 📦 Project Structure
-```bash
-langgraph-pdf-chat/
+```
+math_rag/
 │
 ├── config/
 │   └── config.yaml               # Configuration file
+│
+├── docs/                         # Folder for storing mathematical PDFs
+│
 ├── src/
 │   ├── app.py                    # Streamlit interface
-│   ├── rag_chatbot.py            # LangGraph logic
-│   ├── document_processing.py    # PDF loading and processing
-│   ├── embeddings.py             # Embeddings initialization
-│   ├── retrievers.py             # Retriever setup
-│   ├── prompts.py                # Prompt templates
-│   ├── llm_utils.py              # LLM utility functions
-│   └── config.py                 # Configuration loading and management
+│   ├── create_kg.py              # Knowledge Graph creation
+│   ├── graph_creation.py         # Graph functions
+│   ├── graph_rag.py              # Generic Graph RAG implementation
+│   ├── graph_rag_math.py         # Math-specific Graph RAG implementation
+│   └── rag_chat/                 # Core RAG implementation
+│       ├── __init__.py
+│       ├── config.py             # Config loading and management
+│       ├── document_processing.py # PDF loading and processing
+│       ├── embeddings.py         # Vector embeddings
+│       ├── llm_utils.py          # LLM utilities
+│       ├── project_root.py       # Project path utilities
+│       ├── prompts.py            # System prompts
+│       ├── rag_chatbot.py        # LangGraph RAG implementation
+│       └── retrievers.py         # Retrieval methods
 │
-├── .gitignore                    # Git ignore file
-├── .pre-commit-config.yaml       # Pre-commit configuration file
-├── requirements                  # Project dependencies
-│   ├── base.in
-│   ├── base.txt                 # Generated by pip-compile
-│   ├── dev.in
-│   └── dev.txt                  # Generated by pip-compile
+├── notebooks/                    # Jupyter notebooks
 │
-├── .env                          # Environment variables
-├── notebooks/                    # Jupyter notebook for testing the chatbot (optional)
-│   ├── pdf-chat.ipynb
-│   └── ...
-│
-├── docs/                         # Folder for storing PDF documents (or other supported formats)
-│   ├── *.pdf
-│   └── ...
-│
-├── tests/                    # Directory for unit tests (optional)
-│   ├── test1.py
-│   └── ...
-│
-└── README.md                 # Project documentation
+├── docker-compose.yml            # Docker setup for Neo4j
+├── Makefile                      # Build utilities
+└── README.md                     # Project documentation
 ```
 
-## 🔀 Reproducing the Graph
+## 🔄 Knowledge Graph Structure
 
-The chatbot's logic is implemented using LangChain's StateGraph. Here's how to reproduce and customize the graph:
+The system creates a knowledge graph that captures the following elements from mathematical documents:
 
-1. Define the graph state:
-   ```python
-    class GraphState(TypedDict):
-       question: str
-       generation: str
-       documents: List[str]
-       retries: int
+- Hierarchical structure: Sections, subsections, subsubsections
+- Mathematical entities: Theorems, definitions, lemmas, propositions
+- Relationships: Dependencies between mathematical concepts
+- Proofs: Connected to their corresponding theorems
 
-    Implement node functions:
+This structure enables more sophisticated retrieval than traditional vector-based approaches, allowing the system to answer complex mathematical questions that require understanding of mathematical relationships.
 
-    retrieve: Fetch relevant documents
-    generate: Produce an answer using retrieved documents
-    grade_documents: Evaluate document relevance
-    transform_query: Rewrite the query for better retrieval
-    normal_llm: Direct LLM call without retrieval
-    route_question: Decide between vectorstore and normal LLM
-    decide_to_generate: Choose between generation and query transformation
-    grade_generation: Evaluate the generated answer
+## 🚀 Using the Chat Interface
 
+After launching the Streamlit app, you can:
 
-    Create and compile the graph:
-    pythonCopyworkflow = StateGraph(GraphState)
+1. Ask questions about the mathematical content in your documents
+2. The system will:
+   - Route your question to the appropriate retrieval method
+   - Use the knowledge graph to find relevant mathematical concepts
+   - Generate a comprehensive answer with proper mathematical notation
+   - Verify the answer against the source material to prevent hallucinations
 
-    # Add nodes
-    workflow.add_node("normal_llm", normal_llm)
-    workflow.add_node("retrieve", retrieve)
-    # ... Add other nodes ...
+## 🛠️ Customization
 
-    # Add edges
-    workflow.add_conditional_edges(
-        START, route_question,
-        {"normal_llm": "normal_llm", "vectorstore": "retrieve"}
-    )
-    workflow.add_edge("normal_llm", END)
-    # ... Add other edges ...
+The system can be customized through the `config/config.yaml` file:
 
-    # Compile the graph
-    app = workflow.compile()
+- `llm_model`: The LLM to use (defaults to "llama3.1:8b" for local models)
+- `use_openai`: Set to `true` to use OpenAI models instead of local models
+- `docs_path`: Path to the documents directory
+- `top_k`: Number of documents to retrieve
+- `score_threshold`: Minimum similarity score for retrieval
+- `temperature`: LLM temperature (higher values = more creative responses)
 
-    Run the graph:
-    pythonCopyinputs = {"question": user_question}
-    for output in app.stream(inputs):
-    # Process output```
+## 📚 References
 
+- [Neo4j Graph Database](https://neo4j.com/)
+- [LangChain Documentation](https://python.langchain.com/docs/get_started/introduction)
+- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
+- [MathPix API](https://mathpix.com/)
+- [Streamlit Documentation](https://docs.streamlit.io/)
 
-Customize the graph by modifying node functions, adding new nodes, or changing the edge connections to alter the chatbot's behavior.
-# 🔧 LLM Provider Configuration
-To switch between LLM providers:
+## 🏆 Conclusion
 
-Update the LLM initialization in main.py:
-```python
-# For OpenAI
-from langchain_openai import ChatOpenAI
-llm = ChatOpenAI(model_name="gpt-3.5-turbo")
+This Math-RAG system demonstrates the power of combining Knowledge Graphs with LLM-based RAG for mathematical question answering. Its graph-based approach captures the complex relationships between mathematical concepts, enabling more precise and comprehensive answers to specialized mathematical queries.
 
-# For Anthropic
-from langchain_anthropic import ChatAnthropic
-llm = ChatAnthropic(
-    model="claude-3-5-sonnet-20240620",
-    temperature=0,
-    max_tokens=1024,
-    timeout=None,
-    max_retries=2,
-    # other params...
-)
+## 🤝 Contributions
 
-# For Ollama (local)
-from langchain_community.chat_models import ChatOllama
-llm = ChatOllama(model="llama2")
-
-# For LangChain Groq
-from langchain_groq import ChatGroq
-
-llm = ChatGroq(
-    model="mixtral-8x7b-32768",
-    temperature=0,
-    max_tokens=None,
-    timeout=None,
-    max_retries=2,
-    # other params...
-)
-
-# For HuggingFace Endpoint
-from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-
-llm = HuggingFaceEndpoint(
-    repo_id="HuggingFaceH4/zephyr-7b-beta",
-    task="text-generation",
-    max_new_tokens=512,
-    do_sample=False,
-    repetition_penalty=1.03,
-)
-
-chat_model = ChatHuggingFace(llm=llm)
-
-# For HuggingFace Pipeline
-from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
-
-llm = HuggingFacePipeline.from_model_id(
-    model_id="HuggingFaceH4/zephyr-7b-beta",
-    task="text-generation",
-    pipeline_kwargs=dict(
-        max_new_tokens=512,
-        do_sample=False,
-        repetition_penalty=1.03,
-    ),
-)
-
-chat_model = ChatHuggingFace(llm=llm)
-```
-
-
-Ensure the corresponding API key is set in your .env file.
-Update the requirements.txt file if necessary to include the appropriate LangChain integration package.
-
-# 🗄️ Data
-The chatbot processes documents stored in the ./docs/ folder to build its knowledge base. By default, it supports PDF files, but you can extend load_documents() in main.py to handle additional formats or data sources.
-# 🛠 Customization
-
-System Prompt: Modify the SYSTEM_PROMPT in main.py to tailor the chatbot's behavior and domain expertise.
-LLM Provider: Change the LLM initialization as described in the "LLM Provider Configuration" section.
-Document Loading: Extend the load_documents() function to support additional file types or data sources.
-Retrieval Strategy: Adjust the weights in the EnsembleRetriever to fine-tune the balance between keyword and semantic search.
-Evaluation Criteria: Modify the grading prompts to implement custom evaluation logic for document relevance and answer quality.
-
-# 📚 References
-
-[Ollama](https://ollama.com/)
-[OpenAI API Documentation](https://platform.openai.com/docs/overview)
-[LangChain Documentation](https://python.langchain.com/v0.2/docs/introduction/)
-[LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
-
-# 🏆 Conclusion
-This Advanced RAG Chatbot showcases the power of combining retrieval-augmented generation with flexible LLM integration. Its modular design and customization options make it adaptable to various domains and LLM providers, providing a solid foundation for building sophisticated question-answering systems.
-# 🤝 Contributions
-Contributions are welcome! Please feel free to submit a Pull Request with improvements, bug fixes, or new features. For major changes, please open an issue first to discuss what you would like to change.
-# 📄 License
-This project is licensed under the MIT License - see the LICENSE file for details.
+Contributions are welcome! Please feel free to submit a Pull Request with improvements, bug fixes, or new features.
