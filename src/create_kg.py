@@ -1,5 +1,7 @@
 import os
-
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from pydantic import Field, BaseModel
 from langchain_community.document_loaders import (
     MathpixPDFLoader,
 )
@@ -7,6 +9,8 @@ from langchain.text_splitter import (
     RecursiveCharacterTextSplitter,
     MarkdownHeaderTextSplitter,
 )
+from typing import Optional
+
 from langchain_openai import OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
 from langchain_openai import ChatOpenAI
@@ -18,7 +22,9 @@ load_dotenv()
 
 DOCS_PATH = "docs/"
 
-llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4o")
+llm = ChatOpenAI(
+    openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.5-preview"
+)
 
 embedding_provider = OpenAIEmbeddings(
     openai_api_key=os.getenv("OPENAI_API_KEY"), model="text-embedding-3-small"
@@ -46,81 +52,59 @@ loader = MathpixPDFLoader(
 docs = loader.load()
 
 
-markdown_text = """
-# Fun in California
+class DocChunk(BaseModel):
+    """An atomic segment of a mathematical document, containing a complete logical unit
+    such as a theorem, definition, proof, or example, with its hierarchical position
+    and classification to facilitate precise knowledge graph construction."""
 
-## Driving
+    section: int = Field(description="The section number of the chunk.")
+    subsection: int = Field(description="The subsection number of the chunk.")
+    subsubsection: int = Field(
+        description="The subsubsection number of the chunk.",
+    )
+    type: str = Field(
+        description="The type of the subsubsection.",
+        examples=[
+            "Definition",
+            "Theorem",
+            "Note",
+            "Exercise",
+            "Example",
+            "Lemma",
+            "Proposition",
+        ],
+    )
+    text: str = Field(description="The text contained in the chunk.")
+    proof: Optional[str] = Field(
+        default=None, description="The proof associated with a theorem or proposition."
+    )
 
-Try driving on the 1 down to San Diego
 
-### Food
+output_parser = PydanticOutputParser(pydantic_object=DocChunk)
+format_instructions = output_parser.get_format_instructions()
 
-Make sure to eat a burrito while you're there
+chat_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """Your task is to divide large mathematical documents into self-contained chunks,
+             following the document's structure. Begin by splitting the document into sections (Header 1),
+             subsections (Header 2), and subsubsections (Header 3).
+             Maintain the hierarchical structure, ensuring that subsections (e.g., Subsection 5.1)
+             remain part of their respective sections (e.g., Section 5).
+             Subsubsections are typically labeled as Satz(Theorem), Definition(Definition), Lemma (Lemma), Aufgabe (Exercise), Bemerkung (Note), Vorbemerkung (Note), or Proposition (Proposition) and should be returned as such.
+             In case of Theorems, usually a proof follows which should be included in the chunk.
+             """,
+        ),
+        ("human", "{input}"),
+    ]
+)
+# https://medium.com/@docherty/mastering-structured-output-in-llms-revisiting-langchain-and-json-structured-outputs-d95dfc286045
+structured_llm = llm.with_structured_output(DocChunk, method="json_mode")
+chain = chat_prompt | llm
 
-## Hiking
+chunks = chain.invoke(docs[0].page_content[:500])
 
-Go to Yosemite
-"""
-
-{
-    # sections
-    "type": "object",
-    "properties": {
-        "section": {"type": "string"},
-        "number": {"type": "number"},
-        "text": {"type", "string"},
-        # subsections
-        "subsections": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "section": {"type": "string"},
-                    "number": {"type": "number"},
-                    "text": {"type": "string"},
-                    # subsubsections
-                    "subsections": {
-                        "type": "object",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "subsubsection": {"type": "string"},
-                                "number": {"type": "number"},
-                                "text": {"type": "string"},
-                            },
-                        },
-                    },
-                },
-            },
-        },
-    },
-}
-# {
-#     "type": "object",
-#     "properties": {
-#         "subsection": {"type": "string"},
-#         "number": {"type": "number"},
-#         "text": {"type": "string"},
-#         "subsubsections": {
-#             "type": "array",
-#             "items": {
-#                 "type": "object",
-#                 "properties": {
-#                     "subsubsection": {"type": "string"},
-#                     "number": {"type": "number"},
-#                     "text": {"type": "string"},
-#                 },
-#             },
-#         },
-# }
-# # {
-# #     "type": "object",
-# #     "properties": {
-# #         "subsubsection": {"type": "string"},
-# #         "number": {"type": "number"},
-# #         "text": {"type": "string"},
-# #     },
-# # }
 
 # https://python.langchain.com/v0.2/docs/how_to/code_splitter/#markdown
 headers_to_split_on = [("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3")]
