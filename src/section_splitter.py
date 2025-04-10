@@ -218,6 +218,7 @@ def load_section_headers_from_yaml(yaml_file: str) -> List[str]:
 
 def main(
     section_number: int,
+    input_file: str,
     yaml_file: str = "docs/section_headers.yaml",
     output_dir: str = "docs/sections",
 ):
@@ -230,18 +231,15 @@ def main(
         output_dir: Directory to save the processed sections
     """
     # Construct the document ID and file path
-    document_id = f"KE_{section_number}"
-    pickle_file = f"docs/cached_{document_id}.pkl"
-
-    logger.info(f"Processing section {section_number} from {pickle_file}")
+    logger.info(f"Processing section {section_number} from {input_file}")
 
     # Load the document
     try:
-        docs = pickle.load(open(pickle_file, "rb"))
+        docs = pickle.load(open(input_file, "rb"))
         document_content = docs[0].page_content
         logger.info(f"Loaded document content ({len(document_content)} characters)")
     except FileNotFoundError:
-        logger.error(f"Document file {pickle_file} not found")
+        logger.error(f"Document file {input_file} not found")
         return
     except Exception as e:
         logger.error(f"Error loading document: {e}")
@@ -286,6 +284,10 @@ if __name__ == "__main__":
         help="Path to YAML file with section headers",
     )
     parser.add_argument(
+        "--input",
+        help="Input file for processed sections",
+    )
+    parser.add_argument(
         "--output",
         default="docs/sections",
         help="Output directory for processed sections",
@@ -293,4 +295,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(section_number=args.section, yaml_file=args.yaml, output_dir=args.output)
+    main(
+        section_number=args.section,
+        yaml_file=args.yaml,
+        input_file=args.input,
+        output_dir=args.output,
+    )
