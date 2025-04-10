@@ -57,14 +57,21 @@ Key features:
    ```
 
 6. Process your mathematical documents:
-   Place mathematical PDFs in the `./docs` folder and run:
+   Place mathematical PDFs in the `./docs` folder and run the following workflows:
+
    ```
-   python src/create_kg.py
+   # Complete workflow to create a knowledge graph
+   python src/pdf_to_text.py  # Step 1: Parse PDF with MathPix
+   python src/section_splitter.py  # Step 2: Split content into subsections
+   python src/extract_atomic_units.py  # Step 3: Extract definitions, theorems, etc. with LLM from each subsection
+   python src/build_knowledge_graph.py  # Step 4: Create the knowledge graph
    ```
-   This will:
-   - Process PDFs using MathPix to preserve mathematical notation
-   - Extract hierarchical structure (sections, theorems, definitions, etc.)
-   - Create a knowledge graph in Neo4j
+
+   This workflow:
+   - Processes PDFs using MathPix to preserve mathematical notation
+   - Splits content into meaningful subsections
+   - Uses LLM to identify atomic units (definitions, theorems, etc.)
+   - Creates a structured knowledge graph in Neo4j
 
 7. Launch the Streamlit interface:
    ```
@@ -82,7 +89,10 @@ math_rag/
 │
 ├── src/
 │   ├── app.py                    # Streamlit interface
-│   ├── create_kg.py              # Knowledge Graph creation
+│   ├── pdf_to_text.py            # Parse PDF with MathPix
+│   ├── section_splitter.py       # Split content into subsections
+│   ├── extract_atomic_units.py   # Extract definitions/theorems using LLM
+│   ├── build_knowledge_graph.py  # Create knowledge graph from atomic units
 │   ├── graph_creation.py         # Graph functions
 │   ├── graph_rag.py              # Generic Graph RAG implementation
 │   ├── graph_rag_math.py         # Math-specific Graph RAG implementation
