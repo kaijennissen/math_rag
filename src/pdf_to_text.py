@@ -1,23 +1,250 @@
-from dotenv import load_dotenv
+import logging
+import os
+import time
+import json
+from pathlib import Path
+from typing import List, Dict, Optional
 import pickle
+
+from langchain_community.document_loaders import MathpixPDFLoader
+from langchain.schema import Document
+from dotenv import load_dotenv
+import fitz  # PyMuPDF
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("pdf_processing.log"), logging.StreamHandler()],
+)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-DOCS_PATH = "docs/"
+DOCS_PATH = Path("docs/")
+CHECKPOINT_DIR = DOCS_PATH / "checkpoints"
+CHECKPOINT_DIR.mkdir(exist_ok=True)
+
+# Maximum retry attempts
+MAX_RETRIES = 3
+# Initial backoff time in seconds
+INITIAL_BACKOFF = 2
 
 
-# Load and split the documents
-# loader = DirectoryLoader(DOCS_PATH, glob="**/*.pdf", loader_cls=PyPDFLoader)
+def get_pdf_page_count(pdf_path: Path) -> int:
+    """Get the number of pages in a PDF file."""
+    try:
+        doc = fitz.open(pdf_path)
+        page_count = doc.page_count
+        doc.close()
+        return page_count
+    except Exception as e:
+        logger.error(f"Error getting page count for {pdf_path}: {e}")
+        return 0
 
 
-# pdf_file = os.path.join(DOCS_PATH, "KE_5.pdf")
-# loader = MathpixPDFLoader(
-#     pdf_file,
-#     processed_file_format="md",
-#     mathpix_api_id=os.environ.get("MATHPIX_API_ID"),
-#     mathpix_api_key=os.environ.get("MATHPIX_API_KEY"),
-# )
-# docs = loader.load()
+def load_checkpoint(pdf_path: Path) -> Dict:
+    """Load processing checkpoint for a PDF file."""
+    checkpoint_file = CHECKPOINT_DIR / f"{pdf_path.stem}_checkpoint.json"
+    if checkpoint_file.exists():
+        try:
+            with open(checkpoint_file, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading checkpoint: {e}")
 
-docs = pickle.load(open("docs/cached_KE_5.pkl", "rb"))
-chunks = pickle.load(open("docs/KE_5_chunks.pkl", "rb"))
+    # Initialize a new checkpoint
+    return {
+        "filename": pdf_path.name,
+        "total_pages": get_pdf_page_count(pdf_path),
+        "processed_pages": [],
+        "failed_pages": [],
+        "processing_complete": False,
+        "last_updated": time.time(),
+    }
+
+
+def save_checkpoint(pdf_path: Path, checkpoint_data: Dict) -> None:
+    """Save processing checkpoint for a PDF file."""
+    checkpoint_file = CHECKPOINT_DIR / f"{pdf_path.stem}_checkpoint.json"
+    checkpoint_data["last_updated"] = time.time()
+
+    try:
+        with open(checkpoint_file, "w") as f:
+            json.dump(checkpoint_data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Error saving checkpoint: {e}")
+
+
+def save_page_result(pdf_path: Path, page_num: int, content: Document) -> None:
+    """Save the processed content of a page."""
+    result_dir = CHECKPOINT_DIR / pdf_path.stem
+    result_dir.mkdir(exist_ok=True)
+
+    try:
+        with open(result_dir / f"page_{page_num}.pkl", "wb") as f:
+            pickle.dump(content, f)
+    except Exception as e:
+        logger.error(f"Error saving page result: {e}")
+
+
+def load_page_results(pdf_path: Path) -> List[Document]:
+    """Load all processed page results for a PDF."""
+    result_dir = CHECKPOINT_DIR / pdf_path.stem
+    if not result_dir.exists():
+        return []
+
+    documents = []
+    try:
+        for page_file in sorted(
+            result_dir.glob("page_*.pkl"), key=lambda x: int(x.stem.split("_")[1])
+        ):
+            with open(page_file, "rb") as f:
+                page_doc = pickle.load(f)
+                documents.extend(page_doc)
+    except Exception as e:
+        logger.error(f"Error loading page results: {e}")
+
+    return documents
+
+
+def process_pdf_page(pdf_path: Path, page_num: int) -> Optional[List[Document]]:
+    """Process a single page of a PDF with MathPix."""
+    retries = 0
+    backoff = INITIAL_BACKOFF
+
+    while retries < MAX_RETRIES:
+        try:
+            logger.info(f"Processing {pdf_path.name} - page {page_num}")
+            loader = MathpixPDFLoader(
+                str(pdf_path),
+                processed_file_format="md",
+                mathpix_api_id=os.environ.get("MATHPIX_API_ID"),
+                mathpix_api_key=os.environ.get("MATHPIX_API_KEY"),
+                options={
+                    "page_ranges": f"{page_num + 1}"
+                },  # MathPix uses 1-indexed pages
+            )
+            result = loader.load()
+            logger.info(f"Successfully processed page {page_num}")
+            return result
+        except Exception as e:
+            retries += 1
+            logger.warning(f"Attempt {retries} failed for page {page_num}: {e}")
+
+            if retries < MAX_RETRIES:
+                logger.info(f"Retrying in {backoff} seconds...")
+                time.sleep(backoff)
+                # Exponential backoff
+                backoff *= 2
+            else:
+                logger.error(
+                    f"Failed to process page {page_num} after {MAX_RETRIES} attempts"
+                )
+                return None
+
+
+def process_pdf(pdf_path: Path) -> List[Document]:
+    """Process a PDF file page by page with checkpoints and error handling."""
+    if not pdf_path.exists():
+        logger.error(f"PDF file not found: {pdf_path}")
+        return []
+
+    # Load or create checkpoint
+    checkpoint = load_checkpoint(pdf_path)
+    logger.info(f"Processing {pdf_path.name} - {checkpoint['total_pages']} pages total")
+
+    # If already completed, just load the results
+    if checkpoint["processing_complete"]:
+        logger.info(f"PDF {pdf_path.name} already fully processed, loading results")
+        return load_page_results(pdf_path)
+
+    # Process each page that hasn't been processed yet
+    for page_num in range(checkpoint["total_pages"]):
+        if page_num in checkpoint["processed_pages"]:
+            logger.info(f"Page {page_num} already processed, skipping")
+            continue
+
+        if page_num in checkpoint["failed_pages"]:
+            logger.info(f"Page {page_num} previously failed, skipping")
+            continue
+
+        page_result = process_pdf_page(pdf_path, page_num)
+
+        if page_result:
+            save_page_result(pdf_path, page_num, page_result)
+            checkpoint["processed_pages"].append(page_num)
+            save_checkpoint(pdf_path, checkpoint)
+        else:
+            checkpoint["failed_pages"].append(page_num)
+            save_checkpoint(pdf_path, checkpoint)
+
+    # Check if all pages were processed successfully
+    if len(checkpoint["processed_pages"]) == checkpoint["total_pages"]:
+        logger.info(f"All pages in {pdf_path.name} processed successfully")
+        checkpoint["processing_complete"] = True
+        save_checkpoint(pdf_path, checkpoint)
+    else:
+        logger.warning(
+            f"Processing of {pdf_path.name} incomplete. "
+            f"Processed {len(checkpoint['processed_pages'])} of {checkpoint['total_pages']} pages. "
+            f"Failed pages: {checkpoint['failed_pages']}"
+        )
+
+    # Return all successfully processed documents
+    return load_page_results(pdf_path)
+
+
+def concatenate_docs(docs: List[Document]) -> List[Document]:
+    """Concatenate documents from the same source."""
+    concat_docs = {}
+    for doc in docs:
+        source = doc.metadata["source"]
+        if source not in concat_docs:
+            concat_docs[source] = doc
+        else:
+            concat_docs[source].page_content += "\n\n" + doc.page_content
+    return list(concat_docs.values())
+
+
+def save_processed_document(docs: List[Document], pdf_path: Path) -> None:
+    """Save the final processed document."""
+    output_dir = DOCS_PATH / "processed"
+    output_dir.mkdir(exist_ok=True)
+
+    output_file = output_dir / f"{pdf_path.stem}.pkl"
+    try:
+        with open(output_file, "wb") as f:
+            pickle.dump(docs, f)
+        logger.info(f"Saved processed document to {output_file}")
+    except Exception as e:
+        logger.error(f"Error saving processed document: {e}")
+
+
+def main():
+    """Main function to process all PDFs in the docs directory."""
+    pdf_files = list(DOCS_PATH.glob("*.pdf"))
+    logger.info(f"Found {len(pdf_files)} PDF files")
+
+    for pdf_file in pdf_files:
+        try:
+            docs = process_pdf(pdf_file)
+
+            if docs:
+                # Concatenate pages from the same source
+                docs = concatenate_docs(docs)
+                logger.info(
+                    f"Successfully processed {pdf_file.name}: {len(docs)} documents"
+                )
+
+                # Save the final processed document
+                save_processed_document(docs, pdf_file)
+            else:
+                logger.warning(f"No documents extracted from {pdf_file.name}")
+
+        except Exception as e:
+            logger.error(f"Error processing {pdf_file.name}: {e}")
+
+
+if __name__ == "__main__":
+    main()
