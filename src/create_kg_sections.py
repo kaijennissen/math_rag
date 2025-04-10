@@ -7,6 +7,33 @@ import pickle
 docs = pickle.load(open("docs/cached_KE_5.pkl", "rb"))
 
 
+def strip_loesungshinweise(document_content: str) -> str:
+    """
+    Remove 'Lösungshinweise zu...' sections from the document content.
+    Assumes Lösungshinweise sections appear at the end of the document.
+
+    Args:
+        document_content: The full text content of the document
+
+    Returns:
+        str: Document content with Lösungshinweise sections removed
+    """
+    # Simplified pattern to match any Lösungshinweise section
+    # This will match both ## and ### headers with either Lektion or Kurseinheit
+    loesungshinweise_pattern = r"#{2,3}\s+Lösungshinweise zu (Lektion|Kurseinheit)\s+\d"
+
+    # Search for the pattern in the document content
+    match = re.search(loesungshinweise_pattern, document_content)
+
+    # If found, return only the content before the match
+    if match:
+        print(f"Found Lösungshinweise section at position {match.start()}")
+        return document_content[: match.start()]
+
+    # If not found, return the original content
+    return document_content
+
+
 def split_document_by_section_headers(
     document_content: str, section_headers: List[str]
 ) -> Dict[str, str]:
@@ -27,30 +54,30 @@ def split_document_by_section_headers(
     section_patterns = []
     for header in section_headers:
         # Extract the section number (e.g., "5.1" from "5.1 R_{0}-Räume")
-        section_num = re.match(r"(\d+\.\d+)", header).group(1)
+        section_num_match = re.match(r"(\d+\.\d+)", header)
+        if section_num_match:
+            section_num = section_num_match.group(1)
 
-        # Create patterns for both regular and LaTeX formatted headers
-        regular_pattern = f"## {header}"
-        latex_pattern_1 = f"## ${section_num} \\quad"
-        latex_pattern_2 = f"## ${section_num} \\mathrm"
+            # Create patterns for both regular and LaTeX formatted headers
+            regular_pattern = f"## {header}"
+            latex_pattern_1 = f"## ${section_num} \\quad"
+            latex_pattern_2 = f"## ${section_num} \\mathrm"
 
-        section_patterns.append(regular_pattern)
-        section_patterns.append(latex_pattern_1)
-        section_patterns.append(latex_pattern_2)
+            section_patterns.append((regular_pattern, section_num))
+            section_patterns.append((latex_pattern_1, section_num))
+            section_patterns.append((latex_pattern_2, section_num))
+        else:
+            # For non-numeric headers like "Einleitung"
+            regular_pattern = f"## {header}"
+            section_patterns.append((regular_pattern, header))
 
     # Find the positions of all section headers in the document
     section_positions = []
-    for pattern in section_patterns:
-        for match in re.finditer(re.escape(pattern), document_content):
-            # Extract the section number from the pattern
-            if "$" in pattern:
-                # For LaTeX patterns
-                section_num = re.search(r"\$\s*(\d+\.\d+)", pattern).group(1)
-            else:
-                # For regular patterns
-                section_num = re.search(r"## (\d+\.\d+)", pattern).group(1)
 
-            section_positions.append((match.start(), pattern, section_num))
+    # Process section headers
+    for pattern, section_id in section_patterns:
+        for match in re.finditer(re.escape(pattern), document_content):
+            section_positions.append((match.start(), pattern, section_id))
 
     # Sort positions by their occurrence in the document
     section_positions.sort(key=lambda x: x[0])
@@ -96,9 +123,15 @@ if __name__ == "__main__":
         "5.7 T_{3\frac{1}{2}}-Räume und vollständig reguläre Räume",
         "5.8 Vollnormale und parakompakte Räume",
     ]
-    sections = split_document_by_section_headers(docs[0].page_content, section_headers)
+    # First, strip out any Lösungshinweise sections
+    document_content = docs[0].page_content
+    print(f"Content-length before stripping: {len(document_content)}")
+    document_content = strip_loesungshinweise(document_content)
+    print(f"Content-length after stripping: {len(document_content)}")
+    sections = split_document_by_section_headers(document_content, section_headers)
 
     for section, content in sections.items():
         print("=" * 80)
         print(f"Section: {section}")
         print(f"Content: {content[:100]}...")
+        print(f"Content-length: {len(content)}")
