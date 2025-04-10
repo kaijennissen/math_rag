@@ -1,7 +1,10 @@
+import argparse
 import logging
 import os
 import time
 import json
+import tempfile
+import shutil
 from pathlib import Path
 from typing import List, Dict, Optional
 import pickle
@@ -116,18 +119,36 @@ def process_pdf_page(pdf_path: Path, page_num: int) -> Optional[List[Document]]:
     while retries < MAX_RETRIES:
         try:
             logger.info(f"Processing {pdf_path.name} - page {page_num}")
-            loader = MathpixPDFLoader(
-                str(pdf_path),
-                processed_file_format="md",
-                mathpix_api_id=os.environ.get("MATHPIX_API_ID"),
-                mathpix_api_key=os.environ.get("MATHPIX_API_KEY"),
-                options={
-                    "page_ranges": f"{page_num + 1}"
-                },  # MathPix uses 1-indexed pages
-            )
-            result = loader.load()
-            logger.info(f"Successfully processed page {page_num}")
-            return result
+            # Create a temporary PDF with only the target page
+            temp_dir = Path(tempfile.mkdtemp())
+            temp_pdf_path = temp_dir / f"page_{page_num}.pdf"
+
+            try:
+                # Extract the single page using PyMuPDF
+                doc = fitz.open(pdf_path)
+                new_doc = fitz.open()
+                new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
+                new_doc.save(temp_pdf_path)
+                new_doc.close()
+                doc.close()
+
+                loader = MathpixPDFLoader(
+                    str(temp_pdf_path),
+                    processed_file_format="md",
+                    mathpix_api_id=os.environ.get("MATHPIX_API_ID"),
+                    mathpix_api_key=os.environ.get("MATHPIX_API_KEY"),
+                )
+                result = loader.load()
+                logger.info(f"Successfully processed page {page_num}")
+                return result
+            finally:
+                # Clean up temporary files
+                try:
+                    shutil.rmtree(temp_dir)
+                except Exception as cleanup_error:
+                    logger.warning(
+                        f"Failed to clean up temporary files: {cleanup_error}"
+                    )
         except Exception as e:
             retries += 1
             logger.warning(f"Attempt {retries} failed for page {page_num}: {e}")
@@ -221,30 +242,42 @@ def save_processed_document(docs: List[Document], pdf_path: Path) -> None:
         logger.error(f"Error saving processed document: {e}")
 
 
-def main():
-    """Main function to process all PDFs in the docs directory."""
-    pdf_files = list(DOCS_PATH.glob("*.pdf"))
-    logger.info(f"Found {len(pdf_files)} PDF files")
+def process_single_pdf(pdf_path):
+    """Process a single PDF file and save the results."""
+    pdf_path = Path(pdf_path)
+    if not pdf_path.exists():
+        logger.error(f"PDF file not found: {pdf_path}")
+        return False
 
-    for pdf_file in pdf_files:
-        try:
-            docs = process_pdf(pdf_file)
+    try:
+        logger.info(f"Processing PDF file: {pdf_path}")
+        docs = process_pdf(pdf_path)
 
-            if docs:
-                # Concatenate pages from the same source
-                docs = concatenate_docs(docs)
-                logger.info(
-                    f"Successfully processed {pdf_file.name}: {len(docs)} documents"
-                )
+        if docs:
+            # Concatenate pages from the same source
+            docs = concatenate_docs(docs)
+            logger.info(
+                f"Successfully processed {pdf_path.name}: {len(docs)} documents"
+            )
 
-                # Save the final processed document
-                save_processed_document(docs, pdf_file)
-            else:
-                logger.warning(f"No documents extracted from {pdf_file.name}")
+            # Save the final processed document
+            save_processed_document(docs, pdf_path)
+            return True
+        else:
+            logger.warning(f"No documents extracted from {pdf_path.name}")
+            return False
 
-        except Exception as e:
-            logger.error(f"Error processing {pdf_file.name}: {e}")
+    except Exception as e:
+        logger.error(f"Error processing {pdf_path.name}: {e}")
+        return False
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Process a PDF file with MathPix API, page by page"
+    )
+    parser.add_argument("--pdf-path", help="Path to the PDF file to process")
+
+    args = parser.parse_args()
+
+    process_single_pdf(args.pdf_path)

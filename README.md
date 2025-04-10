@@ -61,7 +61,7 @@ Key features:
 
    ```
    # Complete workflow to create a knowledge graph
-   python src/pdf_to_text.py  # Step 1: Parse PDF with MathPix
+   python src/pdf_to_text.py --pdf-path path/to/your/document.pdf  # Step 1: Parse PDF with MathPix
    python src/section_splitter.py  # Step 2: Split content into subsections
    python src/extract_atomic_units.py  # Step 3: Extract definitions, theorems, etc. with LLM from each subsection
    python src/build_knowledge_graph.py  # Step 4: Create the knowledge graph
@@ -72,6 +72,17 @@ Key features:
    - Splits content into meaningful subsections
    - Uses LLM to identify atomic units (definitions, theorems, etc.)
    - Creates a structured knowledge graph in Neo4j
+
+   **Detailed Usage for pdf_to_text.py**:
+   ```
+   python src/pdf_to_text.py /absolute/path/to/your/document.pdf
+   ```
+
+   The script now processes a single PDF file at a time with these features:
+   - Page-by-page processing with checkpoints
+   - Automatic retries with exponential backoff for API failures
+   - Saves intermediate results to enable resume capability
+   - Robust error handling to skip problematic pages
 
 7. Launch the Streamlit interface:
    ```
