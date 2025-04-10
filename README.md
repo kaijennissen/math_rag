@@ -61,26 +61,32 @@ Key features:
 
    ```
    # Complete workflow to create a knowledge graph
-   python src/pdf_to_text.py path/to/your/document.pdf  # Step 1: Parse PDF with MathPix
-   python src/section_splitter.py --section 5  # Step 2: Split content into subsections
-   python src/extract_atomic_units.py --section 5  # Step 3: Extract definitions, theorems, etc. with LLM
-   python src/build_knowledge_graph.py  # Step 4: Create the knowledge graph
+   python src/pdf_to_text.py path/to/your/document.pdf                # Step 1: Parse PDF with MathPix
+   python src/section_splitter.py --input docs/processed/document.pkl  # Step 2: Split document into major sections
+   python src/subsection_splitter.py --section 5                       # Step 3: Split sections into subsections
+   python src/extract_atomic_units.py --section 5                      # Step 4: Extract definitions, theorems, etc. with LLM
+   python src/build_knowledge_graph.py                                 # Step 5: Create the knowledge graph
    ```
 
    This workflow:
-   - Processes PDFs using MathPix to preserve mathematical notation
-   - Splits content into meaningful subsections
-   - Uses LLM to identify atomic units (definitions, theorems, etc.)
-   - Creates a structured knowledge graph in Neo4j
+   - Processes PDFs using MathPix to preserve mathematical notation (Step 1)
+   - Extracts and splits the document into major sections (Step 2)
+   - Further splits sections into meaningful subsections (Step 3)
+   - Uses LLM to identify atomic units like definitions and theorems (Step 4)
+   - Creates a structured knowledge graph in Neo4j (Step 5)
 
    **Detailed Usage for Each Tool**:
    ```
    # Process a single PDF file
    python src/pdf_to_text.py /absolute/path/to/your/document.pdf
 
+   # Split document into major sections
+   python src/section_splitter.py --input docs/processed/document.pkl                # Process all sections
+   python src/section_splitter.py --input docs/processed/document.pkl --section 5    # Process specific section
+
    # Split sections into subsections
-   python src/section_splitter.py --section 5                  # Process one section
-   python src/section_splitter.py --section 5 --section 6      # Process multiple sections
+   python src/subsection_splitter.py --section 5                  # Process one section
+   python src/subsection_splitter.py --section 5 --section 6      # Process multiple sections
 
    # Extract atomic units from sections or specific subsections
    python src/extract_atomic_units.py --section 5                # Process all subsections in section 5
@@ -112,7 +118,8 @@ math_rag/
 ├── src/
 │   ├── app.py                    # Streamlit interface
 │   ├── pdf_to_text.py            # Parse PDF with MathPix
-│   ├── section_splitter.py       # Split content into subsections
+│   ├── section_splitter.py       # Split document into major sections
+│   ├── subsection_splitter.py    # Split sections into subsections
 │   ├── extract_atomic_units.py   # Extract definitions/theorems using LLM
 │   ├── build_knowledge_graph.py  # Create knowledge graph from atomic units
 │   ├── graph_creation.py         # Graph functions
