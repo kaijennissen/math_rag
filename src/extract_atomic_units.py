@@ -29,7 +29,7 @@ OUTPUT_PATH = DOCS_PATH / "atomic_units"
 
 
 # Initialize the LLM (allow override via environment variable)
-llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="o3-mini")
+llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4o-mini")
 
 
 class DocChunk(BaseModel):
@@ -128,7 +128,7 @@ chat_prompt = ChatPromptTemplate.from_messages(
       "section": 5,
       "section_title": "Trennungsaxiome",
       "subsection": 1,
-      "subsection_title": "R₀-Räume",
+      "subsection_title": "R_{{0}}-Räume",
       "subsubsection": 1,
       "type": "Introduction",
       "identifier": "Vorbemerkung 5.1.1",
@@ -139,7 +139,7 @@ chat_prompt = ChatPromptTemplate.from_messages(
       "section": 5,
       "section_title": "Trennungsaxiome",
       "subsection": 1,
-      "subsection_title": "R₀-Räume",
+      "subsection_title": "R_{{0}}-Räume",
       "subsubsection": 2,
       "type": "Theorem",
       "identifier": "Satz 5.1.2",
