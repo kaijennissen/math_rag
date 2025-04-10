@@ -1,14 +1,9 @@
 import os
-from langchain_core.prompts import ChatPromptTemplate
-from pydantic import Field, BaseModel
-from typing import Optional
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
 from langchain_openai import ChatOpenAI
-from langchain_experimental.graph_transformers import LLMGraphTransformer
 from dotenv import load_dotenv
-import pickle
 
 load_dotenv()
 
@@ -28,192 +23,6 @@ graph = Neo4jGraph(
     password=os.getenv("NEO4J_PASSWORD"),
 )
 
-doc_transformer = LLMGraphTransformer(llm=llm)
-
-# Load and split the documents
-# loader = DirectoryLoader(DOCS_PATH, glob="**/*.pdf", loader_cls=PyPDFLoader)
-
-
-# pdf_file = os.path.join(DOCS_PATH, "KE_5.pdf")
-# loader = MathpixPDFLoader(
-#     pdf_file,
-#     processed_file_format="md",
-#     mathpix_api_id=os.environ.get("MATHPIX_API_ID"),
-#     mathpix_api_key=os.environ.get("MATHPIX_API_KEY"),
-# )
-# docs = loader.load()
-
-docs = pickle.load(open("docs/KE_5.pkl", "rb"))
-
-
-class DocChunk(BaseModel):
-    """An atomic segment of a mathematical document, containing a complete logical unit
-    such as a theorem, definition, proof, or example, with its hierarchical position
-    and classification to facilitate precise knowledge graph construction."""
-
-    section: float = Field(description="The main section number (e.g., 5.0, 5.1, 5.2)")
-    subsection: Optional[float] = Field(
-        default=None,
-        description="The subsection number if applicable (e.g., 5.1.1, 5.1.2)",
-    )
-    type: str = Field(
-        description="The type of the mathematical entity",
-        examples=[
-            "Definition",
-            "Theorem",
-            "Note",
-            "Exercise",
-            "Example",
-            "Lemma",
-            "Proposition",
-            "Introduction",
-            "Remark",
-        ],
-    )
-    identifier: Optional[str] = Field(
-        default=None,
-        description="The identifier of the entity (e.g., 'Theorem 5.1.2', 'Definition 5.2.2')",
-    )
-    text: str = Field(description="The text contained in the chunk")
-    proof: Optional[str] = Field(
-        default=None, description="The proof associated with a theorem or proposition"
-    )
-
-
-class Chunks(BaseModel):
-    """A collection of structured mathematical document chunks."""
-
-    chunks: list[DocChunk] = Field(
-        description="A list of DocChunk objects representing the extracted chunks"
-    )
-
-
-# Create a more explicit system prompt
-system_prompt = """
-You are a precise mathematical document parser. Your task is to parse German mathematical documents into
-structured chunks that preserve their hierarchical organization.
-
-YOU MUST RETURN A VALID JSON OBJECT that follows the schema EXACTLY. Do not include explanations or notes
-outside the JSON structure.
-
-Parsing guidelines:
-1. Extract sections (like 5.1, 5.2) and subsections (like 5.1.1, 5.1.2)
-2. Identify mathematical entities: Satz (Theorem), Definition, Lemma, Aufgabe (Exercise), etc.
-3. Maintain the hierarchical relationships between sections and subsections
-4. Include proofs with their associated theorems
-5. Preserve all mathematical notation
-
-Mathematical terminology in German:
-- "Satz" = Theorem
-- "Definition" = Definition
-- "Lemma" = Lemma
-- "Aufgabe" = Exercise
-- "Bemerkung" = Note/Remark
-- "Beispiel" = Example
-- "Vorbemerkung" = Preliminary remark/Note
-- "Proposition" = Proposition
-- "Einleitung" = Introduction
-
-Remember to:
-- Use floating point numbers for section numbers (5.1, 5.2.1)
-- Capture the full text of each entity
-- Include proofs with their theorems
-- Set proper types for each mathematical entity
-"""
-
-# Use a more structured prompt with example schema
-chat_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system_prompt),
-        (
-            "human",
-            """Please parse the following mathematical text into structured chunks following the schema:
-
-{
-  "chunks": [
-    {
-      "section": 5.1,
-      "subsection": 5.1.1,
-      "type": "Introduction",
-      "identifier": "Vorbemerkung 5.1.1",
-      "text": "The full text of this introduction...",
-      "proof": null
-    },
-    {
-      "section": 5.1,
-      "subsection": 5.1.2,
-      "type": "Theorem",
-      "identifier": "Satz 5.1.2",
-      "text": "The theorem statement...",
-      "proof": "The proof text..."
-    }
-  ]
-}
-
-Here's the text to parse:
-
-{input}""",
-        ),
-    ]
-)
-
-# Set up the structured output chain
-structured_llm = llm.with_structured_output(Chunks, method="json_schema")
-chain = chat_prompt | structured_llm
-
-# Use try-except to handle potential errors in structured output
-try:
-    print("Parsing mathematical document structure...")
-    # Process a smaller segment for testing
-    test_segment = (
-        docs[0].page_content[1815:5000]
-        if len(docs[0].page_content) > 5000
-        else docs[0].page_content
-    )
-    chunks_result = chain.invoke({"input": test_segment})
-
-    # Print summary of results
-    print(f"✅ Successfully parsed {len(chunks_result.chunks)} chunks")
-
-    # Display a sample of the first few chunks
-    for i, chunk in enumerate(chunks_result.chunks[:2]):
-        print(f"\nChunk {i + 1}:")
-        print(f"  Section: {chunk.section}")
-        print(f"  Subsection: {chunk.subsection}")
-        print(f"  Type: {chunk.type}")
-        print(f"  Identifier: {chunk.identifier}")
-        print(f"  Text starts with: {chunk.text[:50]}...")
-        if chunk.proof:
-            print(f"  Proof included: Yes ({len(chunk.proof)} characters)")
-
-    # Now process the full document
-    chunks = chain.invoke({"input": docs[0].page_content[1815:10000]})
-    print(f"\nFull document processed: {len(chunks.chunks)} chunks extracted")
-
-except Exception as e:
-    print(f"❌ Error parsing document structure: {str(e)}")
-    print("Trying with hierarchical parsing approach...")
-
-    # Import our specialized hierarchical parser
-    from hierarchical_parser import parse_document
-
-    # Use the hierarchical parser as a fallback
-    try:
-        # Process document using the hierarchical approach
-        chunks = parse_document(docs[0].page_content[1815:10000])
-        print(f"Hierarchical parsing successful: {len(chunks.chunks)} chunks extracted")
-    except Exception as hierarchical_error:
-        print(f"❌ Hierarchical parsing also failed: {str(hierarchical_error)}")
-        print("Using final fallback approach...")
-
-        # Last resort fallback
-        system_prompt_fallback = "Parse this mathematical text and return it in JSON format as chunks with section, subsection, type, and text fields."
-        fallback_prompt = ChatPromptTemplate.from_template(
-            system_prompt_fallback + "\n\n{input}"
-        )
-        chunks = fallback_prompt | llm
-
-
 # Process the parsed chunks and create knowledge graph
 print("\n" + "=" * 80)
 print("Creating Knowledge Graph from Parsed Chunks")
@@ -230,6 +39,9 @@ graph.query(
     {"document_id": document_name, "title": f"Mathematical document: {document_name}"},
 )
 
+
+with open("docs/sections/section_5_0.md", "r") as f:
+    chunks = f.read()
 # Create nodes for each section to establish hierarchy
 sections = {}
 for chunk in chunks.chunks:

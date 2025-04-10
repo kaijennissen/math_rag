@@ -1,13 +1,9 @@
 import os
-import re
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import Field, BaseModel
-from typing import Optional, List
+from typing import Optional
 
-from langchain_openai import OpenAIEmbeddings
-from langchain_neo4j import Neo4jGraph
 from langchain_openai import ChatOpenAI
-from langchain_experimental.graph_transformers import LLMGraphTransformer
 from dotenv import load_dotenv
 import pickle
 
@@ -17,17 +13,6 @@ DOCS_PATH = "docs/"
 
 llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="o3-mini")
 
-embedding_provider = OpenAIEmbeddings(
-    openai_api_key=os.getenv("OPENAI_API_KEY"), model="text-embedding-3-small"
-)
-
-graph = Neo4jGraph(
-    url=os.getenv("NEO4J_URI"),
-    username=os.getenv("NEO4J_USERNAME"),
-    password=os.getenv("NEO4J_PASSWORD"),
-)
-
-doc_transformer = LLMGraphTransformer(llm=llm)
 
 # Load the documents
 docs = pickle.load(open("docs/cached_KE_5.pkl", "rb"))
@@ -75,57 +60,6 @@ class Chunks(BaseModel):
     chunks: list[DocChunk] = Field(
         description="A list of DocChunk objects representing the extracted chunks"
     )
-
-
-def split_document_by_header2(document_content: str) -> List[str]:
-    """
-    Split a markdown document by Header 2 sections that follow the pattern of
-    two digits followed by a title (like "5.1 R_{0}-Räume").
-
-    Args:
-        document_content: The full text content of the document
-
-    Returns:
-        List[str]: A list of document chunks split by Header 2
-    """
-    # This regex pattern is specifically designed to match Header 2 sections with:
-    # 1. Exactly two digits separated by a dot (e.g., "5.1", "5.2")
-    # 2. Followed by a title
-    # 3. The pattern handles both regular text and LaTeX math expressions
-
-    # Extremely specific pattern for Header 2 with exactly the format we want:
-    # - Either "## 5.1 Title" format or "## $5.1 \quad \mathrm{X}_{0}$-Title" format
-    h2_pattern = r"(?:^|\n)##\s*(?:\$\s*(\d+\.\d+)\s*\\quad.*?\$|\s*(\d+\.\d+)\s+[^\n]+)(?:\n|.)*?(?=\n##\s*(?:\$\s*\d+\.\d+|\s*\d+\.\d+\s+)|\Z)"
-
-    # Find all matches
-    matches = re.finditer(h2_pattern, document_content, re.DOTALL)
-
-    # Extract the chunks
-    chunks = []
-    last_end = 0
-
-    for match in matches:
-        # Get the start and end positions of the match
-        start, end = match.span()
-
-        # Extract the section number for debugging
-        section_num = match.group(1) if match.group(1) else match.group(2)
-        print(f"Found section: {section_num}")
-
-        # Add the chunk
-        chunk = document_content[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-
-        last_end = end
-
-    # Add the last chunk if there's content after the last match
-    if last_end < len(document_content):
-        last_chunk = document_content[last_end:].strip()
-        if last_chunk:
-            chunks.append(last_chunk)
-
-    return chunks
 
 
 # Create a more explicit system prompt
@@ -226,15 +160,11 @@ def process_document_with_regex_splitting(document_content: str):
     """
     print("Splitting document by Header 2 sections using regex...")
 
-    # Split the document by Header 2 sections
-    chunks = split_document_by_header2(document_content)
-
+    chunks = document_content
     # Print the first few characters of each chunk for verification
     for i, chunk in enumerate(chunks):
         preview = chunk[:50].replace("\n", " ")
         print(f"Chunk {i + 1}: {preview}...")
-
-    print(f"Document split into {len(chunks)} chunks")
 
     # Process each chunk separately
     all_parsed_chunks = []
