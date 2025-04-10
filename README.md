@@ -61,9 +61,9 @@ Key features:
 
    ```
    # Complete workflow to create a knowledge graph
-   python src/pdf_to_text.py --pdf-path path/to/your/document.pdf  # Step 1: Parse PDF with MathPix
-   python src/section_splitter.py  # Step 2: Split content into subsections
-   python src/extract_atomic_units.py  # Step 3: Extract definitions, theorems, etc. with LLM from each subsection
+   python src/pdf_to_text.py path/to/your/document.pdf  # Step 1: Parse PDF with MathPix
+   python src/section_splitter.py --section 5  # Step 2: Split content into subsections
+   python src/extract_atomic_units.py --section 5  # Step 3: Extract definitions, theorems, etc. with LLM
    python src/build_knowledge_graph.py  # Step 4: Create the knowledge graph
    ```
 
@@ -73,16 +73,26 @@ Key features:
    - Uses LLM to identify atomic units (definitions, theorems, etc.)
    - Creates a structured knowledge graph in Neo4j
 
-   **Detailed Usage for pdf_to_text.py**:
+   **Detailed Usage for Each Tool**:
    ```
+   # Process a single PDF file
    python src/pdf_to_text.py /absolute/path/to/your/document.pdf
+
+   # Split a specific section into subsections
+   python src/section_splitter.py --section 5
+
+   # Extract atomic units from sections or specific subsections
+   python src/extract_atomic_units.py --section 5                # Process all subsections in section 5
+   python src/extract_atomic_units.py --subsection 5.1           # Process just subsection 5.1
+   python src/extract_atomic_units.py --section 5 --section 6    # Process all subsections in sections 5 and 6
+   python src/extract_atomic_units.py --section 5 --subsection 6.1 # Combine specific sections and subsections
    ```
 
-   The script now processes a single PDF file at a time with these features:
-   - Page-by-page processing with checkpoints
+   The tools have these resilient features:
+   - Page-by-page processing with checkpoints (pdf_to_text.py)
    - Automatic retries with exponential backoff for API failures
    - Saves intermediate results to enable resume capability
-   - Robust error handling to skip problematic pages
+   - Robust error handling to skip problematic content
 
 7. Launch the Streamlit interface:
    ```

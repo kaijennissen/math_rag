@@ -1,21 +1,36 @@
+import argparse
+import glob
+import logging
 import os
-from langchain_core.prompts import ChatPromptTemplate
-from pydantic import Field, BaseModel
-from typing import Optional
+import re
+from pathlib import Path
+from typing import Dict, List, Optional
 
-from langchain_openai import ChatOpenAI
+import coloredlogs
 from dotenv import load_dotenv
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 import pickle
+
+# Configure logger
+logger = logging.getLogger(__name__)
+coloredlogs.install(
+    level="INFO",
+    logger=logger,
+    fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 load_dotenv()
 
-DOCS_PATH = "docs/"
+# Constants
+DOCS_PATH = Path("docs")
+SECTIONS_PATH = DOCS_PATH / "sections"
+OUTPUT_PATH = DOCS_PATH / "atomic_units"
 
+
+# Initialize the LLM (allow override via environment variable)
 llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="o3-mini")
-
-
-# Load the documents
-docs = pickle.load(open("docs/cached_KE_5.pkl", "rb"))
 
 
 class DocChunk(BaseModel):
@@ -147,55 +162,231 @@ structured_llm = llm.with_structured_output(Chunks, method="json_schema")
 chain = chat_prompt | structured_llm
 
 
-def process_document_with_regex_splitting(document_content: str):
+def extract_atomic_units(content: str) -> Chunks:
     """
-    Process a document by first splitting it using regex to identify Header 2 sections,
-    then parsing each chunk separately.
+    Process content to extract atomic units
 
     Args:
-        document_content: The full text content of the document
+        content: Document or subsection content
 
     Returns:
-        List[DocChunk]: A list of parsed document chunks
+        Chunks: A collection of parsed document chunks
     """
-    print("Splitting document by Header 2 sections using regex...")
+    try:
+        # Process the content
+        chunk_result = chain.invoke({"input": content})
+        logger.info(f"Successfully extracted {len(chunk_result.chunks)} atomic units")
+        return chunk_result
+    except Exception as e:
+        logger.error(f"Error extracting atomic units: {str(e)}")
+        return Chunks(chunks=[])
 
-    chunks = document_content
-    # Print the first few characters of each chunk for verification
-    for i, chunk in enumerate(chunks):
-        preview = chunk[:50].replace("\n", " ")
-        print(f"Chunk {i + 1}: {preview}...")
 
-    # Process each chunk separately
-    all_parsed_chunks = []
+def get_section_files_to_process(
+    sections: List[int], subsections: List[str]
+) -> List[Path]:
+    """
+    Build a list of files to process based on section and subsection arguments
 
-    for i, chunk in enumerate(chunks):
-        print(f"Processing chunk {i + 1}/{len(chunks)} ({len(chunk)} characters)")
+    Args:
+        sections: List of section numbers
+        subsections: List of subsection identifiers (e.g., ["5.1", "6.2"])
 
-        try:
-            # Process the chunk
-            chunk_result = chain.invoke({"input": chunk})
-            all_parsed_chunks.extend(chunk_result.chunks)
-            print(f"  ✅ Successfully parsed {len(chunk_result.chunks)} entities")
+    Returns:
+        List[Path]: List of files to process
+    """
+    files_to_process = []
 
-        except Exception as e:
-            print(f"  ❌ Error processing chunk {i + 1}: {str(e)}")
-            # You could implement a fallback strategy here if needed
+    # Add files for section arguments
+    if sections:
+        for section_num in sections:
+            # Simple glob for all files in this section
+            pattern = f"section_{section_num}_*.md"
+            section_files = glob.glob(str(SECTIONS_PATH / pattern))
 
-    return Chunks(chunks=all_parsed_chunks)
+            if section_files:
+                files_to_process.extend([Path(f) for f in section_files])
+                logger.info(
+                    f"Found {len(section_files)} files for section {section_num}"
+                )
+            else:
+                logger.warning(f"No files found for section {section_num}")
+
+    # Add files for subsection arguments
+    if subsections:
+        for subsection_id in subsections:
+            try:
+                section, subsection = subsection_id.split(".")
+                # Direct file pattern for this specific subsection
+                pattern = f"section_{section}_{subsection}*.md"
+                subsection_files = glob.glob(str(SECTIONS_PATH / pattern))
+
+                if subsection_files:
+                    # If multiple files match, just take the first one
+                    if len(subsection_files) > 1:
+                        logger.warning(
+                            f"Multiple files found for subsection {subsection_id}, using first match"
+                        )
+
+                    files_to_process.append(Path(subsection_files[0]))
+                    logger.info(
+                        f"Found file for subsection {subsection_id}: {Path(subsection_files[0]).name}"
+                    )
+                else:
+                    logger.warning(f"No file found for subsection {subsection_id}")
+            except ValueError:
+                logger.error(
+                    f"Invalid subsection format: {subsection_id}. Expected format: '5.1'"
+                )
+
+    # Remove duplicates while preserving order
+    unique_files = []
+    seen = set()
+    for file in files_to_process:
+        if str(file) not in seen:
+            seen.add(str(file))
+            unique_files.append(file)
+
+    logger.info(f"Total files to process: {len(unique_files)}")
+    return unique_files
+
+
+def process_file(file_path: Path) -> Optional[Chunks]:
+    """
+    Process a single file to extract atomic units
+
+    Args:
+        file_path: Path to the file to process
+
+    Returns:
+        Optional[Chunks]: Extracted atomic units if successful, None otherwise
+    """
+    logger.info(f"Processing file: {file_path.name}")
+
+    # Extract section and subsection from filename
+    match = re.match(r"section_(\d+)_(\d+)", file_path.stem)
+    if not match:
+        logger.error(f"Invalid file naming pattern: {file_path.name}")
+        return None
+
+    section_num = int(match.group(1))
+    subsection_num = int(match.group(2))
+
+    try:
+        # Read the file content
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Extract atomic units
+        result = extract_atomic_units(content)
+
+        # Save the result as JSON
+        output_file = OUTPUT_PATH / f"section_{section_num}_{subsection_num}_units.json"
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(result.model_dump_json(indent=2))
+
+        logger.info(f"Saved {len(result.chunks)} atomic units to {output_file}")
+
+        # Also save as pickle for compatibility
+        pickle_output = (
+            OUTPUT_PATH / f"section_{section_num}_{subsection_num}_units.pkl"
+        )
+        with open(pickle_output, "wb") as f:
+            pickle.dump(result, f)
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error processing file {file_path}: {str(e)}")
+        return None
+
+
+def combine_results_by_section(results: Dict[Path, Chunks]) -> None:
+    """
+    Combine results by section and save combined files
+
+    Args:
+        results: Dictionary mapping file paths to results
+    """
+    # Group results by section
+    section_results: Dict[int, List[DocChunk]] = {}
+
+    for file_path, chunks in results.items():
+        if not chunks or not chunks.chunks:
+            continue
+
+        # Extract section number from filename
+        match = re.match(r"section_(\d+)_", file_path.stem)
+        if match:
+            section_num = int(match.group(1))
+
+            if section_num not in section_results:
+                section_results[section_num] = []
+
+            section_results[section_num].extend(chunks.chunks)
+
+    # Save combined results for each section
+    for section_num, chunks_list in section_results.items():
+        if not chunks_list:
+            continue
+
+        combined_chunks = Chunks(chunks=chunks_list)
+
+        # Save as JSON
+        json_output = OUTPUT_PATH / f"section_{section_num}_all_units.json"
+        with open(json_output, "w", encoding="utf-8") as f:
+            f.write(combined_chunks.model_dump_json(indent=2))
+
+        # Save as pickle
+        pickle_output = OUTPUT_PATH / f"section_{section_num}_all_units.pkl"
+        with open(pickle_output, "wb") as f:
+            pickle.dump(combined_chunks, f)
+
+        logger.info(
+            f"Saved combined results for section {section_num} with {len(chunks_list)} units"
+        )
+
+
+def main(sections: List, subsections: List):
+    OUTPUT_PATH.mkdir(exist_ok=True)
+    # Get files to process
+    files_to_process = get_section_files_to_process(sections, subsections)
+
+    if not files_to_process:
+        logger.error("No files found to process")
+        return 1
+
+    # Process each file
+    results = {}
+    for file_path in files_to_process:
+        result = process_file(file_path)
+        if result:
+            results[file_path] = result
+
+    logger.info("✅ Extraction complete!")
 
 
 if __name__ == "__main__":
-    # Load the document
-    print("Loading document...")
-    document_content = docs[0].page_content
+    parser = argparse.ArgumentParser(
+        description="Extract atomic units from mathematical documents"
+    )
 
-    # Process the document
-    result = process_document_with_regex_splitting(document_content)
+    parser.add_argument(
+        "--section",
+        type=int,
+        action="append",
+        help="Process all subsections in this section (can be used multiple times)",
+    )
+    parser.add_argument(
+        "--subsection",
+        action="append",
+        help='Process specific subsection (can be used multiple times, format: "5.1")',
+    )
 
-    # Save the results
-    print(f"Saving {len(result.chunks)} parsed chunks...")
-    with open("docs/KE_5_chunks_regex.pkl", "wb") as f:
-        pickle.dump(result, f)
+    args = parser.parse_args()
 
-    print("✅ Done!")
+    # Check if at least one argument is provided
+    if not args.section and not args.subsection:
+        parser.error("At least one --section or --subsection argument is required")
+
+    main(sections=args.section, subsections=args.subsection)
