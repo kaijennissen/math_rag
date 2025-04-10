@@ -217,23 +217,23 @@ def load_section_headers_from_yaml(yaml_file: str) -> List[str]:
 
 
 def main(
-    section_number: int,
+    section_numbers: list[int],
     input_file: str,
     yaml_file: str = "docs/section_headers.yaml",
     output_dir: str = "docs/sections",
 ):
     """
-    Main function to process a document by section number.
+    Main function to process a document for multiple section numbers.
 
     Args:
-        section_number: The section number to process (e.g., 5 for KE_5)
+        section_numbers: List of section numbers to process (e.g., [5, 6] for KE_5 and KE_6)
+        input_file: Path to the input file containing processed document
         yaml_file: Path to the YAML file containing section headers
         output_dir: Directory to save the processed sections
     """
-    # Construct the document ID and file path
-    logger.info(f"Processing section {section_number} from {input_file}")
+    logger.info(f"Processing sections {section_numbers} from {input_file}")
 
-    # Load the document
+    # Load the document once for all sections
     try:
         docs = pickle.load(open(input_file, "rb"))
         document_content = docs[0].page_content
@@ -248,26 +248,38 @@ def main(
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
 
-    # Load section headers from YAML file
+    # Load section headers from YAML file once
     section_headers = load_section_headers_from_yaml(yaml_file)
 
-    # Filter headers for the current section number
-    filtered_headers = [
-        header for header in section_headers if header.startswith(f"{section_number}.")
-    ]
+    # Process each section with the already loaded document
+    for section_number in section_numbers:
+        logger.info(f"Processing section {section_number}")
 
-    if not filtered_headers:
-        logger.warning(f"No headers found for section {section_number} in {yaml_file}")
-        return
+        # Filter headers for the current section number
+        filtered_headers = [
+            header
+            for header in section_headers
+            if header.startswith(f"{section_number}.")
+        ]
 
-    logger.info(f"Found {len(filtered_headers)} headers for section {section_number}")
+        if not filtered_headers:
+            logger.warning(
+                f"No headers found for section {section_number} in {yaml_file}"
+            )
+            continue
 
-    # Process and save the document
-    process_and_save_document(document_content, filtered_headers, output_dir)
+        logger.info(
+            f"Found {len(filtered_headers)} headers for section {section_number}"
+        )
 
-    logger.info(
-        f"✅ Done! All sections for section {section_number} saved to {output_dir}"
-    )
+        # Process and save the document
+        process_and_save_document(document_content, filtered_headers, output_dir)
+
+        logger.info(
+            f"✅ Done! All sections for section {section_number} saved to {output_dir}"
+        )
+
+    logger.info(f"✅ Completed processing all {len(section_numbers)} sections")
 
 
 if __name__ == "__main__":
@@ -275,7 +287,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--section",
         type=int,
-        help="Section number to process (e.g., 5 for KE_5)",
+        action="append",
+        help="Section number to process (e.g., 5 for KE_5). Can be used multiple times.",
         required=True,
     )
     parser.add_argument(
@@ -296,7 +309,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(
-        section_number=args.section,
+        section_numbers=args.section,
         yaml_file=args.yaml,
         input_file=args.input,
         output_dir=args.output,

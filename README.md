@@ -78,8 +78,9 @@ Key features:
    # Process a single PDF file
    python src/pdf_to_text.py /absolute/path/to/your/document.pdf
 
-   # Split a specific section into subsections
-   python src/section_splitter.py --section 5
+   # Split sections into subsections
+   python src/section_splitter.py --section 5                  # Process one section
+   python src/section_splitter.py --section 5 --section 6      # Process multiple sections
 
    # Extract atomic units from sections or specific subsections
    python src/extract_atomic_units.py --section 5                # Process all subsections in section 5
