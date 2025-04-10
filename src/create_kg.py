@@ -1,22 +1,14 @@
 import os
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import Field, BaseModel
-from langchain_community.document_loaders import (
-    MathpixPDFLoader,
-)
-from langchain.text_splitter import (
-    RecursiveCharacterTextSplitter,
-    MarkdownHeaderTextSplitter,
-)
 from typing import Optional
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
 from langchain_openai import ChatOpenAI
 from langchain_experimental.graph_transformers import LLMGraphTransformer
-from langchain_community.graphs.graph_document import Node, Relationship
 from dotenv import load_dotenv
+import pickle
 
 load_dotenv()
 
@@ -42,14 +34,16 @@ doc_transformer = LLMGraphTransformer(llm=llm)
 # loader = DirectoryLoader(DOCS_PATH, glob="**/*.pdf", loader_cls=PyPDFLoader)
 
 
-pdf_file = os.path.join(DOCS_PATH, "KE_5.pdf")
-loader = MathpixPDFLoader(
-    pdf_file,
-    processed_file_format="md",
-    mathpix_api_id=os.environ.get("MATHPIX_API_ID"),
-    mathpix_api_key=os.environ.get("MATHPIX_API_KEY"),
-)
-docs = loader.load()
+# pdf_file = os.path.join(DOCS_PATH, "KE_5.pdf")
+# loader = MathpixPDFLoader(
+#     pdf_file,
+#     processed_file_format="md",
+#     mathpix_api_id=os.environ.get("MATHPIX_API_ID"),
+#     mathpix_api_key=os.environ.get("MATHPIX_API_KEY"),
+# )
+# docs = loader.load()
+
+docs = pickle.load(open("docs/KE_5.pkl", "rb"))
 
 
 class DocChunk(BaseModel):
@@ -57,13 +51,13 @@ class DocChunk(BaseModel):
     such as a theorem, definition, proof, or example, with its hierarchical position
     and classification to facilitate precise knowledge graph construction."""
 
-    section: int = Field(description="The section number of the chunk.")
-    subsection: int = Field(description="The subsection number of the chunk.")
-    subsubsection: int = Field(
-        description="The subsubsection number of the chunk.",
+    section: float = Field(description="The main section number (e.g., 5.0, 5.1, 5.2)")
+    subsection: Optional[float] = Field(
+        default=None,
+        description="The subsection number if applicable (e.g., 5.1.1, 5.1.2)",
     )
     type: str = Field(
-        description="The type of the subsubsection.",
+        description="The type of the mathematical entity",
         examples=[
             "Definition",
             "Theorem",
@@ -72,129 +66,383 @@ class DocChunk(BaseModel):
             "Example",
             "Lemma",
             "Proposition",
+            "Introduction",
+            "Remark",
         ],
     )
-    text: str = Field(description="The text contained in the chunk.")
+    identifier: Optional[str] = Field(
+        default=None,
+        description="The identifier of the entity (e.g., 'Theorem 5.1.2', 'Definition 5.2.2')",
+    )
+    text: str = Field(description="The text contained in the chunk")
     proof: Optional[str] = Field(
-        default=None, description="The proof associated with a theorem or proposition."
+        default=None, description="The proof associated with a theorem or proposition"
     )
 
 
 class Chunks(BaseModel):
-    """Extracts a list of DocChunk objects from a document."""
+    """A collection of structured mathematical document chunks."""
 
-    chunk: list[DocChunk] = Field(
-        description="A list of DocChunk objects representing the extracted chunks."
+    chunks: list[DocChunk] = Field(
+        description="A list of DocChunk objects representing the extracted chunks"
     )
 
 
-output_parser = PydanticOutputParser(pydantic_object=DocChunk)
-format_instructions = output_parser.get_format_instructions()
+# Create a more explicit system prompt
+system_prompt = """
+You are a precise mathematical document parser. Your task is to parse German mathematical documents into
+structured chunks that preserve their hierarchical organization.
 
-output_parser = PydanticOutputParser(pydantic_object=Chunks)
-format_instructions = output_parser.get_format_instructions()
+YOU MUST RETURN A VALID JSON OBJECT that follows the schema EXACTLY. Do not include explanations or notes
+outside the JSON structure.
 
+Parsing guidelines:
+1. Extract sections (like 5.1, 5.2) and subsections (like 5.1.1, 5.1.2)
+2. Identify mathematical entities: Satz (Theorem), Definition, Lemma, Aufgabe (Exercise), etc.
+3. Maintain the hierarchical relationships between sections and subsections
+4. Include proofs with their associated theorems
+5. Preserve all mathematical notation
+
+Mathematical terminology in German:
+- "Satz" = Theorem
+- "Definition" = Definition
+- "Lemma" = Lemma
+- "Aufgabe" = Exercise
+- "Bemerkung" = Note/Remark
+- "Beispiel" = Example
+- "Vorbemerkung" = Preliminary remark/Note
+- "Proposition" = Proposition
+- "Einleitung" = Introduction
+
+Remember to:
+- Use floating point numbers for section numbers (5.1, 5.2.1)
+- Capture the full text of each entity
+- Include proofs with their theorems
+- Set proper types for each mathematical entity
+"""
+
+# Use a more structured prompt with example schema
 chat_prompt = ChatPromptTemplate.from_messages(
     [
+        ("system", system_prompt),
         (
-            "system",
-            """Your task is to divide large mathematical documents into self-contained chunks,
-             following the document's structure. Begin by splitting the document into sections (Header 1),
-             subsections (Header 2), and subsubsections (Header 3).
-             Maintain the hierarchical structure, ensuring that subsections (e.g., Subsection 5.1)
-             remain part of their respective sections (e.g., Section 5).
-             Subsubsections are typically labeled as Satz(Theorem), Definition(Definition), Lemma (Lemma), Aufgabe (Exercise), Bemerkung (Note), Vorbemerkung (Note), or Proposition (Proposition) and should be returned as such.
-             In case of Theorems, usually a proof follows which should be included in the chunk.
-             """,
+            "human",
+            """Please parse the following mathematical text into structured chunks following the schema:
+
+{
+  "chunks": [
+    {
+      "section": 5.1,
+      "subsection": 5.1.1,
+      "type": "Introduction",
+      "identifier": "Vorbemerkung 5.1.1",
+      "text": "The full text of this introduction...",
+      "proof": null
+    },
+    {
+      "section": 5.1,
+      "subsection": 5.1.2,
+      "type": "Theorem",
+      "identifier": "Satz 5.1.2",
+      "text": "The theorem statement...",
+      "proof": "The proof text..."
+    }
+  ]
+}
+
+Here's the text to parse:
+
+{input}""",
         ),
-        ("human", "{input}"),
     ]
 )
-# https://medium.com/@docherty/mastering-structured-output-in-llms-revisiting-langchain-and-json-structured-outputs-d95dfc286045
-structured_llm = llm.with_structured_output(DocChunk, method="json_schema")
-chain = chat_prompt | llm
 
-chunks = chain.invoke(f"{docs[0].page_content[:2500]}\n\n{format_instructions}")
+# Set up the structured output chain
+structured_llm = llm.with_structured_output(Chunks, method="json_schema")
+chain = chat_prompt | structured_llm
+
+# Use try-except to handle potential errors in structured output
+try:
+    print("Parsing mathematical document structure...")
+    # Process a smaller segment for testing
+    test_segment = (
+        docs[0].page_content[1815:5000]
+        if len(docs[0].page_content) > 5000
+        else docs[0].page_content
+    )
+    chunks_result = chain.invoke({"input": test_segment})
+
+    # Print summary of results
+    print(f"✅ Successfully parsed {len(chunks_result.chunks)} chunks")
+
+    # Display a sample of the first few chunks
+    for i, chunk in enumerate(chunks_result.chunks[:2]):
+        print(f"\nChunk {i + 1}:")
+        print(f"  Section: {chunk.section}")
+        print(f"  Subsection: {chunk.subsection}")
+        print(f"  Type: {chunk.type}")
+        print(f"  Identifier: {chunk.identifier}")
+        print(f"  Text starts with: {chunk.text[:50]}...")
+        if chunk.proof:
+            print(f"  Proof included: Yes ({len(chunk.proof)} characters)")
+
+    # Now process the full document
+    chunks = chain.invoke({"input": docs[0].page_content[1815:10000]})
+    print(f"\nFull document processed: {len(chunks.chunks)} chunks extracted")
+
+except Exception as e:
+    print(f"❌ Error parsing document structure: {str(e)}")
+    print("Trying with hierarchical parsing approach...")
+
+    # Import our specialized hierarchical parser
+    from hierarchical_parser import parse_document
+
+    # Use the hierarchical parser as a fallback
+    try:
+        # Process document using the hierarchical approach
+        chunks = parse_document(docs[0].page_content[1815:10000])
+        print(f"Hierarchical parsing successful: {len(chunks.chunks)} chunks extracted")
+    except Exception as hierarchical_error:
+        print(f"❌ Hierarchical parsing also failed: {str(hierarchical_error)}")
+        print("Using final fallback approach...")
+
+        # Last resort fallback
+        system_prompt_fallback = "Parse this mathematical text and return it in JSON format as chunks with section, subsection, type, and text fields."
+        fallback_prompt = ChatPromptTemplate.from_template(
+            system_prompt_fallback + "\n\n{input}"
+        )
+        chunks = fallback_prompt | llm
 
 
-# https://python.langchain.com/v0.2/docs/how_to/code_splitter/#markdown
-headers_to_split_on = [("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3")]
-header_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
-md_header_splits = header_splitter.split_text(docs[0].page_content)
+# Process the parsed chunks and create knowledge graph
+print("\n" + "=" * 80)
+print("Creating Knowledge Graph from Parsed Chunks")
+print("=" * 80)
 
-for i, split in enumerate(md_header_splits, start=1):
-    print("=" * 80)
-    print("Split :", i)
-    print("-" * 40)
-    print("Metadata:\n")
-    print(split.metadata)
-    print("-" * 40)
-    print(split.page_content[:40])
-    print("=" * 80)
-
-
-text_splitter = RecursiveCharacterTextSplitter(
-    separators=["\n\n", "\n"],
-    chunk_size=1000,
-    chunk_overlap=200,
+pdf_file = ...
+# First, create the document node
+document_name = os.path.basename(pdf_file)
+graph.query(
+    """
+    MERGE (d:Document {id: $document_id})
+    SET d.title = $title
+    """,
+    {"document_id": document_name, "title": f"Mathematical document: {document_name}"},
 )
 
-chunks = text_splitter.split_documents(md_header_splits)
+# Create nodes for each section to establish hierarchy
+sections = {}
+for chunk in chunks.chunks:
+    section_number = chunk.section
+    if section_number not in sections:
+        # Create section node if it doesn't exist
+        sections[section_number] = True
+        graph.query(
+            """
+            MERGE (d:Document {id: $document_id})
+            MERGE (s:Section {id: $section_id, number: $section_number})
+            SET s.title = $title
+            MERGE (s)-[:PART_OF]->(d)
+            """,
+            {
+                "document_id": document_name,
+                "section_id": f"{document_name}.section_{section_number}",
+                "section_number": section_number,
+                "title": f"Section {section_number}",
+            },
+        )
+        print(f"Created section node for Section {section_number}")
 
-doc_transformer.convert_to_graph_documents([md_header_splits[7]])
+# Process each chunk
+for i, chunk in enumerate(chunks.chunks):
+    chunk_id = f"{document_name}.chunk_{i}"
+    section_id = f"{document_name}.section_{chunk.section}"
 
-for chunk in chunks:
-    filename = os.path.basename(chunk.metadata["source"])
-    chunk_id = f"{filename}.{chunk.metadata['page']}"
-    print("Processing -", chunk_id)
+    # Generate embedding for the chunk text
+    try:
+        chunk_embedding = embedding_provider.embed_query(chunk.text)
+    except Exception as e:
+        print(f"Error generating embedding for chunk {i}: {str(e)}")
+        # Use a dummy embedding if there's an error
+        chunk_embedding = [0.0] * 1536
 
-    # Embed the chunk
-    chunk_embedding = embedding_provider.embed_query(chunk.page_content)
-
-    # Add the Document and Chunk nodes to the graph
+    # Prepare properties for the chunk
     properties = {
-        "section": 5,
-        "subsection": filename,
+        "document_id": document_name,
+        "section_id": section_id,
         "chunk_id": chunk_id,
-        "text": chunk.page_content,
+        "text": chunk.text,
+        "type": chunk.type,
+        "section": chunk.section,
         "embedding": chunk_embedding,
     }
 
-    graph.query(
+    # Add additional properties if they exist
+    if chunk.subsection:
+        properties["subsection"] = chunk.subsection
+    if chunk.identifier:
+        properties["identifier"] = chunk.identifier
+    if chunk.proof:
+        properties["proof"] = chunk.proof
+
+    # Create the mathematical entity node
+    print(f"Creating node for {chunk.type} (ID: {chunk_id})")
+
+    # Different handling based on entity type
+    if chunk.type.lower() in ["theorem", "satz"]:
+        # For theorems, we create a specific node with its proof
+        query = """
+        MERGE (d:Document {id: $document_id})
+        MERGE (s:Section {id: $section_id})
+        MERGE (t:Theorem {id: $chunk_id})
+        SET t.text = $text,
+            t.section = $section,
+            t.identifier = $identifier
+        MERGE (t)-[:PART_OF]->(s)
+        WITH t
+        CALL db.create.setNodeVectorProperty(t, 'embedding', $embedding)
         """
-        MERGE (d:Document {id: $filename})
-        MERGE (c:Chunk {id: $chunk_id})
-        SET c.text = $text
-        MERGE (d)<-[:PART_OF]-(c)
+
+        if chunk.proof:
+            # Also create a proof node connected to the theorem
+            query += """
+            WITH t
+            MERGE (p:Proof {id: $chunk_id + '_proof'})
+            SET p.text = $proof
+            MERGE (t)-[:HAS_PROOF]->(p)
+            """
+
+    elif chunk.type.lower() in ["definition"]:
+        # For definitions
+        query = """
+        MERGE (d:Document {id: $document_id})
+        MERGE (s:Section {id: $section_id})
+        MERGE (def:Definition {id: $chunk_id})
+        SET def.text = $text,
+            def.section = $section,
+            def.identifier = $identifier
+        MERGE (def)-[:PART_OF]->(s)
+        WITH def
+        CALL db.create.setNodeVectorProperty(def, 'embedding', $embedding)
+        """
+
+    elif chunk.type.lower() in ["lemma"]:
+        # For lemmas
+        query = """
+        MERGE (d:Document {id: $document_id})
+        MERGE (s:Section {id: $section_id})
+        MERGE (l:Lemma {id: $chunk_id})
+        SET l.text = $text,
+            l.section = $section,
+            l.identifier = $identifier
+        MERGE (l)-[:PART_OF]->(s)
+        WITH l
+        CALL db.create.setNodeVectorProperty(l, 'embedding', $embedding)
+        """
+
+        if chunk.proof:
+            # Also create a proof node for lemmas with proofs
+            query += """
+            WITH l
+            MERGE (p:Proof {id: $chunk_id + '_proof'})
+            SET p.text = $proof
+            MERGE (l)-[:HAS_PROOF]->(p)
+            """
+
+    else:
+        # Generic handling for other types
+        query = """
+        MERGE (d:Document {id: $document_id})
+        MERGE (s:Section {id: $section_id})
+        MERGE (c:MathEntity {id: $chunk_id, type: $type})
+        SET c.text = $text,
+            c.section = $section
+        MERGE (c)-[:PART_OF]->(s)
         WITH c
-        CALL db.create.setNodeVectorProperty(c, 'textEmbedding', $embedding)
-        """,
-        properties,
-    )
+        CALL db.create.setNodeVectorProperty(c, 'embedding', $embedding)
+        """
 
-    # Generate the entities and relationships from the chunk
-    graph_docs = doc_transformer.convert_to_graph_documents([chunk])
+    # Execute the query to create the node
+    try:
+        graph.query(query, properties)
+    except Exception as e:
+        print(f"Error creating node for chunk {i}: {str(e)}")
 
-    # Map the entities in the graph documents to the chunk node
-    for graph_doc in graph_docs:
-        chunk_node = Node(id=chunk_id, type="Chunk")
-
-        for node in graph_doc.nodes:
-            graph_doc.relationships.append(
-                Relationship(source=chunk_node, target=node, type="HAS_ENTITY")
-            )
-
-    # add the graph documents to the graph
-    graph.add_graph_documents(graph_docs)
-
-# Create the vector index
+# Create a vector index for similarity search
+print("Creating vector index for similarity search...")
 graph.query(
     """
-    CREATE VECTOR INDEX `chunkVector`
-    IF NOT EXISTS
-    FOR (c: Chunk) ON (c.textEmbedding)
-    OPTIONS {indexConfig: {
-    `vector.dimensions`: 1536,
-    `vector.similarity_function`: 'cosine'
-    }};"""
+    CREATE VECTOR INDEX math_entity_vector IF NOT EXISTS
+    FOR (c:MathEntity|Theorem|Definition|Lemma) ON (c.embedding)
+    OPTIONS {
+        indexConfig: {
+            `vector.dimensions`: 1536,
+            `vector.similarity_function`: 'cosine'
+        }
+    }
+    """
 )
+
+print("Creating fulltext index for keyword search...")
+graph.query(
+    """
+    CREATE FULLTEXT INDEX math_content IF NOT EXISTS
+    FOR (c:MathEntity|Theorem|Definition|Lemma|Proof) ON EACH [c.text]
+    """
+)
+
+print("\nKnowledge Graph creation complete!")
+print(f"Added {len(chunks.chunks)} mathematical entities to the knowledge graph")
+
+# Display a summary of what was created
+node_counts = graph.query(
+    """
+    MATCH (n)
+    RETURN labels(n)[0] as label, count(*) as count
+    """
+)
+
+print("\nNode Counts in Knowledge Graph:")
+for row in node_counts:
+    print(f"- {row['label']}: {row['count']}")
+
+relationship_counts = graph.query(
+    """
+    MATCH ()-[r]->()
+    RETURN type(r) as type, count(*) as count
+    """
+)
+
+print("\nRelationship Counts in Knowledge Graph:")
+for row in relationship_counts:
+    print(f"- {row['type']}: {row['count']}")
+#         CALL db.create.setNodeVectorProperty(c, 'textEmbedding', $embedding)
+#         """,
+#         properties,
+#     )
+
+#     # Generate the entities and relationships from the chunk
+#     graph_docs = doc_transformer.convert_to_graph_documents([chunk])
+
+#     # Map the entities in the graph documents to the chunk node
+#     for graph_doc in graph_docs:
+#         chunk_node = Node(id=chunk_id, type="Chunk")
+
+#         for node in graph_doc.nodes:
+#             graph_doc.relationships.append(
+#                 Relationship(source=chunk_node, target=node, type="HAS_ENTITY")
+#             )
+
+#     # add the graph documents to the graph
+#     graph.add_graph_documents(graph_docs)
+
+# # Create the vector index
+# graph.query(
+#     """
+#     CREATE VECTOR INDEX `chunkVector`
+#     IF NOT EXISTS
+#     FOR (c: Chunk) ON (c.textEmbedding)
+#     OPTIONS {indexConfig: {
+#     `vector.dimensions`: 1536,
+#     `vector.similarity_function`: 'cosine'
+#     }};"""

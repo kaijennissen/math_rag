@@ -19,6 +19,9 @@ CLAUDE.md
 *.jpg
 *.pdf
 *.mp3
+*.md
+*.txt
+
 
 # +---------------+
 # | JetBrains IDE |
