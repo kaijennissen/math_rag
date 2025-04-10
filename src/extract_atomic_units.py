@@ -1,10 +1,9 @@
 import argparse
-import glob
 import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import coloredlogs
 from dotenv import load_dotenv
@@ -200,12 +199,11 @@ def get_section_files_to_process(
     # Add files for section arguments
     if sections:
         for section_num in sections:
-            # Simple glob for all files in this section
-            pattern = f"section_{section_num}_*.md"
-            section_files = glob.glob(str(SECTIONS_PATH / pattern))
+            # Use pathlib's glob method directly
+            section_files = list(SECTIONS_PATH.glob(f"section_{section_num}_*.md"))
 
             if section_files:
-                files_to_process.extend([Path(f) for f in section_files])
+                files_to_process.extend(section_files)
                 logger.info(
                     f"Found {len(section_files)} files for section {section_num}"
                 )
@@ -217,20 +215,11 @@ def get_section_files_to_process(
         for subsection_id in subsections:
             try:
                 section, subsection = subsection_id.split(".")
-                # Direct file pattern for this specific subsection
-                pattern = f"section_{section}_{subsection}*.md"
-                subsection_files = glob.glob(str(SECTIONS_PATH / pattern))
-
-                if subsection_files:
-                    # If multiple files match, just take the first one
-                    if len(subsection_files) > 1:
-                        logger.warning(
-                            f"Multiple files found for subsection {subsection_id}, using first match"
-                        )
-
-                    files_to_process.append(Path(subsection_files[0]))
+                file_path = SECTIONS_PATH / f"section_{section}_{subsection}.md"
+                if file_path.exists():
+                    files_to_process.append(file_path)
                     logger.info(
-                        f"Found file for subsection {subsection_id}: {Path(subsection_files[0]).name}"
+                        f"Found file for subsection {subsection_id}: {file_path.name}"
                     )
                 else:
                     logger.warning(f"No file found for subsection {subsection_id}")
@@ -239,13 +228,7 @@ def get_section_files_to_process(
                     f"Invalid subsection format: {subsection_id}. Expected format: '5.1'"
                 )
 
-    # Remove duplicates while preserving order
-    unique_files = []
-    seen = set()
-    for file in files_to_process:
-        if str(file) not in seen:
-            seen.add(str(file))
-            unique_files.append(file)
+    unique_files = list(set(files_to_process))
 
     logger.info(f"Total files to process: {len(unique_files)}")
     return unique_files
@@ -274,7 +257,7 @@ def process_file(file_path: Path) -> Optional[Chunks]:
 
     try:
         # Read the file content
-        with open(file_path, "r", encoding="utf-8") as f:
+        with file_path.open("r", encoding="utf-8") as f:
             content = f.read()
 
         # Extract atomic units
@@ -282,7 +265,7 @@ def process_file(file_path: Path) -> Optional[Chunks]:
 
         # Save the result as JSON
         output_file = OUTPUT_PATH / f"section_{section_num}_{subsection_num}_units.json"
-        with open(output_file, "w", encoding="utf-8") as f:
+        with output_file.open("w", encoding="utf-8") as f:
             f.write(result.model_dump_json(indent=2))
 
         logger.info(f"Saved {len(result.chunks)} atomic units to {output_file}")
@@ -291,7 +274,7 @@ def process_file(file_path: Path) -> Optional[Chunks]:
         pickle_output = (
             OUTPUT_PATH / f"section_{section_num}_{subsection_num}_units.pkl"
         )
-        with open(pickle_output, "wb") as f:
+        with pickle_output.open("wb") as f:
             pickle.dump(result, f)
 
         return result
@@ -301,52 +284,6 @@ def process_file(file_path: Path) -> Optional[Chunks]:
         return None
 
 
-def combine_results_by_section(results: Dict[Path, Chunks]) -> None:
-    """
-    Combine results by section and save combined files
-
-    Args:
-        results: Dictionary mapping file paths to results
-    """
-    # Group results by section
-    section_results: Dict[int, List[DocChunk]] = {}
-
-    for file_path, chunks in results.items():
-        if not chunks or not chunks.chunks:
-            continue
-
-        # Extract section number from filename
-        match = re.match(r"section_(\d+)_", file_path.stem)
-        if match:
-            section_num = int(match.group(1))
-
-            if section_num not in section_results:
-                section_results[section_num] = []
-
-            section_results[section_num].extend(chunks.chunks)
-
-    # Save combined results for each section
-    for section_num, chunks_list in section_results.items():
-        if not chunks_list:
-            continue
-
-        combined_chunks = Chunks(chunks=chunks_list)
-
-        # Save as JSON
-        json_output = OUTPUT_PATH / f"section_{section_num}_all_units.json"
-        with open(json_output, "w", encoding="utf-8") as f:
-            f.write(combined_chunks.model_dump_json(indent=2))
-
-        # Save as pickle
-        pickle_output = OUTPUT_PATH / f"section_{section_num}_all_units.pkl"
-        with open(pickle_output, "wb") as f:
-            pickle.dump(combined_chunks, f)
-
-        logger.info(
-            f"Saved combined results for section {section_num} with {len(chunks_list)} units"
-        )
-
-
 def main(sections: List, subsections: List):
     OUTPUT_PATH.mkdir(exist_ok=True)
     # Get files to process
@@ -354,14 +291,10 @@ def main(sections: List, subsections: List):
 
     if not files_to_process:
         logger.error("No files found to process")
-        return 1
 
     # Process each file
-    results = {}
     for file_path in files_to_process:
-        result = process_file(file_path)
-        if result:
-            results[file_path] = result
+        process_file(file_path)
 
     logger.info("✅ Extraction complete!")
 
