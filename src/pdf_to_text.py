@@ -139,6 +139,11 @@ def process_pdf_page(pdf_path: Path, page_num: int) -> Optional[List[Document]]:
                     mathpix_api_key=os.environ.get("MATHPIX_API_KEY"),
                 )
                 result = loader.load()
+
+                # Clean image URLs from the page content
+                for doc in result:
+                    doc.page_content = remove_image_urls(doc.page_content)
+
                 logger.info(f"Successfully processed page {page_num}")
                 return result
             finally:
@@ -228,6 +233,20 @@ def concatenate_docs(docs: List[Document]) -> List[Document]:
     return list(concat_docs.values())
 
 
+def remove_image_urls(text: str) -> str:
+    """Remove image URLs from markdown text.
+
+    Specifically targets image references from MathPix that look like:
+    ![](https://cdn.mathpix.com/cropped/...)
+    """
+    import re
+
+    # Pattern to match markdown image syntax: ![alt text](url)
+    # Focusing on mathpix.com URLs but general enough to catch all images
+    pattern = r"!\[\]\(https?:\/\/cdn\.mathpix\.com\/[^)]+\)"
+    return re.sub(pattern, "", text)
+
+
 def save_processed_document(docs: List[Document], output_file: str) -> None:
     """Save the final processed document as a single text file."""
     output_dir = DOCS_PATH / "processed"
@@ -240,9 +259,9 @@ def save_processed_document(docs: List[Document], output_file: str) -> None:
             # Combine all document contents into a single text file
             full_text = ""
             for i, doc in enumerate(docs):
-                # if i > 0:
-                # full_text += "\n\n" + "-" * 80 + "\n\n"
-                full_text += doc.page_content
+                # Clean the content by removing image URLs
+                cleaned_content = remove_image_urls(doc.page_content)
+                full_text += cleaned_content
             f.write(full_text)
         logger.info(f"Saved processed document as text file to {text_file}")
     except Exception as e:

@@ -70,13 +70,23 @@ def split_document_by_subsection_headers(
             section_num = section_num_match.group(1)
 
             # Create patterns for both regular and LaTeX formatted headers
-            regular_pattern = f"## {header}"
+            regular_pattern_1 = f"## {header}"
+            regular_pattern_2 = f"## {section_num}"
+            regular_pattern_3 = f"### {header}"
             latex_pattern_1 = f"## ${section_num} \\quad"
             latex_pattern_2 = f"## ${section_num} \\mathrm"
+            latex_pattern_3 = f"### ${section_num} \\quad"
+            latex_pattern_4 = f"### ${section_num} \\mathrm"
+            latex_pattern_5 = f"### {section_num}"
 
-            section_patterns.append((regular_pattern, section_num))
+            section_patterns.append((regular_pattern_1, section_num))
+            section_patterns.append((regular_pattern_2, section_num))
+            section_patterns.append((regular_pattern_3, section_num))
             section_patterns.append((latex_pattern_1, section_num))
             section_patterns.append((latex_pattern_2, section_num))
+            section_patterns.append((latex_pattern_3, section_num))
+            section_patterns.append((latex_pattern_4, section_num))
+            section_patterns.append((latex_pattern_5, section_num))
         else:
             # For non-numeric headers like "Einleitung"
             regular_pattern = f"## {header}"
