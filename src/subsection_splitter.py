@@ -60,45 +60,32 @@ def split_document_by_subsection_headers(
     """
     logger.info("Splitting document by specified section headers...")
 
-    # Prepare the section headers for exact matching
-    # We'll look for them in the format "## 5.1 R_{0}-Räume" or "## $5.1 \quad \mathrm{R}_{0}$-Räume"
-    section_patterns = []
-    for header in section_headers:
-        # Extract the section number (e.g., "5.1" from "5.1 R_{0}-Räume")
-        section_num_match = re.match(r"(\d+\.\d+)", header)
-        if section_num_match:
-            section_num = section_num_match.group(1)
-
-            # Create patterns for both regular and LaTeX formatted headers
-            regular_pattern_1 = f"## {header}"
-            regular_pattern_2 = f"## {section_num}"
-            regular_pattern_3 = f"### {header}"
-            latex_pattern_1 = f"## ${section_num} \\quad"
-            latex_pattern_2 = f"## ${section_num} \\mathrm"
-            latex_pattern_3 = f"### ${section_num} \\quad"
-            latex_pattern_4 = f"### ${section_num} \\mathrm"
-            latex_pattern_5 = f"### {section_num}"
-
-            section_patterns.append((regular_pattern_1, section_num))
-            section_patterns.append((regular_pattern_2, section_num))
-            section_patterns.append((regular_pattern_3, section_num))
-            section_patterns.append((latex_pattern_1, section_num))
-            section_patterns.append((latex_pattern_2, section_num))
-            section_patterns.append((latex_pattern_3, section_num))
-            section_patterns.append((latex_pattern_4, section_num))
-            section_patterns.append((latex_pattern_5, section_num))
-        else:
-            # For non-numeric headers like "Einleitung"
-            regular_pattern = f"## {header}"
-            section_patterns.append((regular_pattern, header))
-
     # Find the positions of all section headers in the document
     section_positions = []
 
-    # Process section headers
-    for pattern, section_id in section_patterns:
-        for match in re.finditer(re.escape(pattern), document_content):
-            section_positions.append((match.start(), pattern, section_id))
+    for header in section_headers:
+        # Extract the section number (e.g., "5.1" from "5.1 R_{0}-Räume")
+        section_num_match = re.match(r"(\d+\.\d+)", header)
+
+        if section_num_match:
+            section_num = section_num_match.group(1)
+
+            # Create a single comprehensive regex pattern for both markdown and LaTeX formats
+            # This pattern matches:
+            # 1. ## or ### (markdown heading)
+            # 2. Followed by either:
+            #    a. The exact section number and optional content, OR
+            #    b. $ followed by section number and LaTeX formatting commands
+            pattern = rf"(?:##|###)\s+(?:{re.escape(header)}|{re.escape(section_num)}(?:\s+.*)?|(?:\${re.escape(section_num)}\s+\\(?:quad|mathrm).*?))"
+
+            # Find all matches
+            for match in re.finditer(pattern, document_content):
+                section_positions.append((match.start(), match.group(0), section_num))
+        else:
+            # For non-numeric headers like "Einleitung"
+            pattern = rf"(?:##|###)\s+{re.escape(header)}"
+            for match in re.finditer(pattern, document_content):
+                section_positions.append((match.start(), match.group(0), header))
 
     # Sort positions by their occurrence in the document
     section_positions.sort(key=lambda x: x[0])
