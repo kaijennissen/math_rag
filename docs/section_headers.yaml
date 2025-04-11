@@ -1,50 +1,59 @@
-- 1.0 Einleitung
-- 1.1 Topologien auf einer Menge
-- 1.2 Punkte und Mengen in topologischen Räumen
-- 1.3 Mengensysteme und Überdeckungen
-- 1.4 Beispiele von topologischen Räumen
+1 Topologische Strukturen, Grundbegriffe und Beispiele:
+  - 1.0 Einleitung
+  - 1.1 Topologien auf einer Menge
+  - 1.2 Punkte und Mengen in topologischen Räumen
+  - 1.3 Mengensysteme und Überdeckungen
+  - 1.4 Beispiele von topologischen Räumen
 
-- 2.0 Einleitung
-- 2.1 Konvergenz- und Verdichtungspunkte von Folgen
-- 2.2 Konvergenz- und Berührpunkte von Mengensystemen
-- 2.3 Stapel, Filter, Grills und Ultrafilter
-- 2.4 Existenz und Eindeutigkeit von Konvergenz- und Berührpunkten
+2 Konvergenz:
+  - 2.0 Einleitung
+  - 2.1 Konvergenz- und Verdichtungspunkte von Folgen
+  - 2.2 Konvergenz- und Berührpunkte von Mengensystemen
+  - 2.3 Stapel, Filter, Grills und Ultrafilter
+  - 2.4 Existenz und Eindeutigkeit von Konvergenz- und Berührpunkten
 
-- 3.0 Einleitung
-- 3.1 Stetige Abbildungen
-- 3.2 Folgenstetige Abbildungen
-- 3.3 Reellwertige Abbildungen
-- 3.4 Initiale Quellen und finale Senken
+3 Stetigkeit:
+  - 3.0 Einleitung
+  - 3.1 Stetige Abbildungen
+  - 3.2 Folgenstetige Abbildungen
+  - 3.3 Reellwertige Abbildungen
+  - 3.4 Initiale Quellen und finale Senken
 
-- 4.0 Einleitung
-- 4.1 Quotienten
-- 4.2 Summen
-- 4.3 Teilräume
-- 4.4 Produkte
-- 4.5 Potenzen
-- 4.6 Faktorisierungen
+4 Fundamentalkonstruktionen:
+  - 4.0 Einleitung
+  - 4.1 Quotienten
+  - 4.2 Summen
+  - 4.3 Teilräume
+  - 4.4 Produkte
+  - 4.5 Potenzen
+  - 4.6 Faktorisierungen
 
-- 5.0 Einleitung
-- 5.1 R_{0}-Räume
-- 5.2 T_{0}-Räume
-- 5.3 T_{1}-Räume
-- 5.4 T_{2}-Räume
-- 5.5 T_{3}-Räume und reguläre Räume
-- 5.6 T_{4}-Räume und normale Räume
-- 5.7 T_{3½}-Räume und vollständig reguläre Räume
-- 5.8 Vollnormale und parakompakte Räume
+5 Trennungsaxiome:
+  - 5.0 Einleitung
+  - 5.1 R_{0}-Räume
+  - 5.2 T_{0}-Räume
+  - 5.3 T_{1}-Räume
+  - 5.4 T_{2}-Räume
+  - 5.5 T_{3}-Räume und reguläre Räume
+  - 5.6 T_{4}-Räume und normale Räume
+  - 5.7 T_{3½}-Räume und vollständig reguläre Räume
+  - 5.8 Vollnormale und parakompakte Räume
 
-- 6.0 Einleitung
-- 6.1 Zusammenhangende Räume
-- 6.2 Lokal-zusammenhängende Räume
-- 6.3 Weg-zusammenhängende und einfach-zusammenhängende Räume
-- 6.4 Zusammenhangseigenschaften von Teilräumen des ℝⁿ
-- 6.5 Total-diskontinuierliche Räume
-- 6.6 Nulldimensionale Räume
+6 Zusammenhang:
+  - 6.0 Einleitung
+  - 6.1 Zusammenhangende Räume
+  - 6.2 Lokal-zusammenhängende Räume
+  - 6.3 Weg-zusammenhängende und einfach-zusammenhängende Räume
+  - 6.4 Zusammenhangseigenschaften von Teilräumen des ℝⁿ
+  - 6.5 Total-diskontinuierliche Räume
+  - 6.6 Nulldimensionale Räume
 
-- 7.0 Zukunft
-- 7.1 Kompakte Räume
-- 7.2 Kompakte T_{2}-Räume
-- 7.3 Lokal-kompakte T_{2}-Räume
-- 7.4 Perfekte Abbildungen
-- 7.5 Verallgemeinerungen
+7 Kompaktheit:
+  - 7.0 Zukunft
+  - 7.1 Kompakte Räume
+  - 7.2 Kompakte T_{2}-Räume
+  - 7.3 Lokal-kompakte T_{2}-Räume
+  - 7.4 Perfekte Abbildungen
+  - 7.5 Verallgemeinerungen
+
+Glossar zu Topologische Räume:

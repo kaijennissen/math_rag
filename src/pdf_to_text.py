@@ -229,17 +229,34 @@ def concatenate_docs(docs: List[Document]) -> List[Document]:
 
 
 def save_processed_document(docs: List[Document], pdf_path: Path) -> None:
-    """Save the final processed document."""
+    """Save the final processed document as a single text file."""
     output_dir = DOCS_PATH / "processed"
     output_dir.mkdir(exist_ok=True)
 
-    output_file = output_dir / f"{pdf_path.stem}.pkl"
+    # Save as pickle file (keeping original functionality)
+    pickle_file = output_dir / f"{pdf_path.stem}.pkl"
     try:
-        with open(output_file, "wb") as f:
+        with open(pickle_file, "wb") as f:
             pickle.dump(docs, f)
-        logger.info(f"Saved processed document to {output_file}")
+        logger.info(f"Saved processed document to {pickle_file}")
     except Exception as e:
-        logger.error(f"Error saving processed document: {e}")
+        logger.error(f"Error saving processed document as pickle: {e}")
+
+    # Save as a single text file
+    text_file = output_dir / f"{pdf_path.stem}.txt"
+    try:
+        with open(text_file, "w", encoding="utf-8") as f:
+            # Combine all document contents with section separators
+            full_text = ""
+            for i, doc in enumerate(docs):
+                if i > 0:
+                    full_text += "\n\n" + "-" * 80 + "\n\n"
+                full_text += f"Source: {doc.metadata.get('source', 'Unknown')}\n\n"
+                full_text += doc.page_content
+            f.write(full_text)
+        logger.info(f"Saved processed document as text file to {text_file}")
+    except Exception as e:
+        logger.error(f"Error saving processed document as text: {e}")
 
 
 def process_single_pdf(pdf_path):
@@ -262,6 +279,11 @@ def process_single_pdf(pdf_path):
 
             # Save the final processed document
             save_processed_document(docs, pdf_path)
+
+            # Return path to the text file
+            output_dir = DOCS_PATH / "processed"
+            text_file = output_dir / f"{pdf_path.stem}.txt"
+            logger.info(f"Text output available at: {text_file}")
             return True
         else:
             logger.warning(f"No documents extracted from {pdf_path.name}")

@@ -2,7 +2,7 @@ import argparse
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import coloredlogs
 import pickle
@@ -21,46 +21,49 @@ coloredlogs.install(
 DOCS_PATH = Path("docs")
 SECTIONS_PATH = DOCS_PATH / "sections"
 PROCESSED_PATH = DOCS_PATH / "processed"
-
-# Ensure directories exist
-SECTIONS_PATH.mkdir(exist_ok=True)
-PROCESSED_PATH.mkdir(exist_ok=True)
+SECTION_HEADERS_PATH = DOCS_PATH / "section_headers.yaml"
 
 
-def extract_section_headers_from_document(document_content: str) -> List[str]:
+def load_section_headers() -> List[Tuple[int, str]]:
     """
-    Extract major section headers from the document content.
-
-    Args:
-        document_content: The full text content of the document
+    Load section headers from the YAML file.
 
     Returns:
-        List[str]: List of major section headers found in the document
+        List[Tuple[int, str]]: List of tuples (section_number, section_title)
     """
-    # Pattern to match major section headers (e.g., # 5 Title or ## 5. Title)
-    pattern = r"^#+\s+(\d+)\.?\s+([^\n]+)$"
+    try:
+        with open(SECTION_HEADERS_PATH, "r", encoding="utf-8") as f:
+            yaml_content = yaml.safe_load(f)
 
-    # Find all major section headers
-    section_headers = []
-    for line in document_content.split("\n"):
-        match = re.match(pattern, line.strip())
-        if match:
-            section_number = match.group(1)
-            section_title = match.group(2).strip()
-            section_headers.append((int(section_number), section_title))
+        section_headers = []
+        for key, subsections in yaml_content.items():
+            # Extract the section number and title
+            section_match = re.match(r"(\d+)\s+(.*)", key)
+            if section_match:
+                section_num = int(section_match.group(1))
+                section_title = section_match.group(2)
+                section_headers.append((section_num, section_title))
 
-    # Sort by section number
-    section_headers.sort(key=lambda x: x[0])
+        # Sort by section number
+        section_headers.sort(key=lambda x: x[0])
 
-    logger.info(f"Found {len(section_headers)} major section headers")
-    for num, title in section_headers:
-        logger.info(f"  Section {num}: {title}")
+        logger.info(
+            f"Loaded {len(section_headers)} section headers from {SECTION_HEADERS_PATH}"
+        )
+        for num, title in section_headers:
+            logger.info(f"  Section {num}: {title}")
 
-    return section_headers
+        return section_headers
+    except FileNotFoundError:
+        logger.error(f"Section headers file {SECTION_HEADERS_PATH} not found")
+        return []
+    except Exception as e:
+        logger.error(f"Error loading section headers: {e}")
+        return []
 
 
-def split_document_by_major_sections(
-    document_content: str, section_headers: List[tuple]
+def split_document_by_section_headers(
+    document_content: str, section_headers: List[Tuple[int, str]]
 ) -> Dict[int, str]:
     """
     Split a document into major sections.
@@ -70,38 +73,63 @@ def split_document_by_major_sections(
         section_headers: List of tuples (section_number, section_title)
 
     Returns:
-        Dict[int, str]: A dictionary mapping section numbers to their content
+        Dict[int, str]: A dictionary mapping section numbers or identifiers to their content
     """
+    logger.info("Splitting document by specified section headers...")
+
     if not section_headers:
         logger.warning("No section headers provided")
         return {}
 
+    # Prepare the section headers for exact matching
+    section_patterns = []
+    for section_num, section_title in section_headers:
+        # Create patterns for different header formats
+        regular_pattern = f"## Lektion {section_num}\n\n ##{section_title}"
+        # latex_pattern_1 = f"# ${section_num} \quad"
+        # latex_pattern_2 = f"# ${section_num} \mathrm"
+        # alt_pattern = f"## {section_num}. {section_title}"
+
+        section_patterns.append((regular_pattern, section_num))
+        # section_patterns.append((alt_pattern, section_num))
+        # section_patterns.append((latex_pattern_1, section_num))
+        # section_patterns.append((latex_pattern_2, section_num))
+
+    # Find the positions of all section headers in the document
+    section_positions = []
+
+    # Process section headers
+    for pattern, section_id in section_patterns:
+        for match in re.finditer(re.escape(pattern), document_content):
+            section_positions.append((match.start(), pattern, section_id))
+
+    # Sort positions by their occurrence in the document
+    section_positions.sort(key=lambda x: x[0])
+    if not section_positions:
+        logger.warning("No section headers found in the document!")
+        return {"entire_document": document_content}
+
+    # Split the document based on the positions
     sections = {}
-    lines = document_content.split("\n")
-
-    # Create a list of section starts
-    section_starts = []
-    for i, line in enumerate(lines):
-        for section_num, section_title in section_headers:
-            # Match either "# 5 Title" or "## 5. Title" format
-            if re.match(
-                r"^#+\s+{}\.?\s+{}".format(section_num, re.escape(section_title)),
-                line.strip(),
-            ):
-                section_starts.append((i, section_num, section_title))
-                break
-
-    # Sort by line number
-    section_starts.sort(key=lambda x: x[0])
-
-    # Extract each section's content
-    for i, (start_line, section_num, section_title) in enumerate(section_starts):
-        end_line = (
-            section_starts[i + 1][0] if i < len(section_starts) - 1 else len(lines)
+    for i, (pos, pattern, section_id) in enumerate(section_positions):
+        # Find the end of this section (start of next section or end of document)
+        next_pos = (
+            section_positions[i + 1][0]
+            if i < len(section_positions) - 1
+            else len(document_content)
         )
-        content = "\n".join(lines[start_line:end_line])
-        sections[section_num] = content
-        logger.info(f"Extracted section {section_num} ({len(content)} characters)")
+
+        # Extract the section content
+        section_content = document_content[pos:next_pos].strip()
+
+        # Use the section ID as the key
+        if (
+            section_id not in sections
+        ):  # Only add if not already present (avoid duplicates)
+            sections[section_id] = section_content
+            logger.info(
+                f"Extracted section {section_id} ({len(section_content)} characters)"
+            )
 
     return sections
 
@@ -134,12 +162,14 @@ def save_sections_to_files(sections: Dict[int, str]) -> None:
 
 def main(input_file: str, section_numbers: Optional[List[int]] = None) -> None:
     """
-    Main function to split a document into major sections.
+    Main function to split a document into major sections using predefined headers.
 
     Args:
         input_file: Path to the processed document
         section_numbers: Optional list of specific section numbers to extract
     """
+    SECTIONS_PATH.mkdir(exist_ok=True)
+    PROCESSED_PATH.mkdir(exist_ok=True)
     input_path = Path(input_file)
 
     # Load the document
@@ -162,8 +192,8 @@ def main(input_file: str, section_numbers: Optional[List[int]] = None) -> None:
         logger.error(f"Error loading document: {e}")
         return
 
-    # Extract section headers
-    headers = extract_section_headers_from_document(document_content)
+    # Load section headers from YAML file
+    headers = load_section_headers()
 
     # Filter sections if specific ones were requested
     if section_numbers:
@@ -175,34 +205,11 @@ def main(input_file: str, section_numbers: Optional[List[int]] = None) -> None:
         return
 
     # Split the document
-    sections = split_document_by_major_sections(document_content, headers)
+    sections = split_document_by_section_headers(document_content, headers)
 
     # Save the sections
     save_sections_to_files(sections)
 
-    # Save the headers to YAML for use by the subsection splitter
-    headers_yaml = DOCS_PATH / "section_headers.yaml"
-    subsection_headers = []
-
-    # Extract subsection headers from each section
-    for section_num, content in sections.items():
-        # Pattern to match subsection headers (e.g., ## 5.1 Title)
-        pattern = r"^#+\s+{}\.(\d+)\.?\s+([^\n]+)$".format(section_num)
-
-        for line in content.split("\n"):
-            match = re.match(pattern, line.strip())
-            if match:
-                subsection_num = match.group(1)
-                subsection_title = match.group(2).strip()
-                subsection_headers.append(
-                    f"{section_num}.{subsection_num} {subsection_title}"
-                )
-
-    # Save to YAML
-    with open(headers_yaml, "w", encoding="utf-8") as f:
-        yaml.dump(subsection_headers, f, default_flow_style=False)
-
-    logger.info(f"Saved {len(subsection_headers)} subsection headers to {headers_yaml}")
     logger.info("✅ Document successfully split into major sections")
 
 

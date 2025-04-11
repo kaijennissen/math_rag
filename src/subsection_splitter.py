@@ -44,7 +44,7 @@ def strip_loesungshinweise(document_content: str) -> tuple:
     return document_content, None
 
 
-def split_document_by_section_headers(
+def split_document_by_subsection_headers(
     document_content: str, section_headers: List[str]
 ) -> Dict[str, str]:
     """
@@ -170,7 +170,7 @@ def process_and_save_document(
     main_content, loesungshinweise_content = strip_loesungshinweise(document_content)
 
     # Process main content
-    main_sections = split_document_by_section_headers(main_content, section_headers)
+    main_sections = split_document_by_subsection_headers(main_content, section_headers)
 
     # Save main sections
     save_sections_to_files(main_sections, output_dir, prefix="section_")
@@ -220,7 +220,7 @@ def main(
     section_numbers: list[int],
     input_file: str,
     yaml_file: str = "docs/section_headers.yaml",
-    output_dir: str = "docs/sections",
+    output_dir: str = "docs/subsections",
 ):
     """
     Main function to process a document for multiple section numbers.
