@@ -24,6 +24,34 @@ PROCESSED_PATH = DOCS_PATH / "processed"
 SECTION_HEADERS_PATH = DOCS_PATH / "section_headers.yaml"
 
 
+def strip_glossary(document_content: str) -> tuple:
+    """
+    Remove 'Glossar zu...' sections from the document content and return both parts.
+    Assumption is, that the 'Glossar' sections appear at the end of the document.
+
+    Args:
+        document_content: The full text content of the document
+
+    Returns:
+        tuple: (main_content, glossary_content)
+    """
+    # Pattern to match any Glossar section
+    glossary_pattern = r"## Glossar zu Topologische Räume"
+
+    # Search for the pattern in the document content
+    match = re.search(glossary_pattern, document_content)
+
+    # If found, split the document
+    if match:
+        logger.info(f"Found Glossar section at position {match.start()}")
+        main_content = document_content[: match.start()]
+        glossary_content = document_content[match.start() :]
+        return main_content, glossary_content
+
+    # If not found, return the original content and None
+    return document_content, None
+
+
 def load_section_headers() -> List[Tuple[int, str]]:
     """
     Load section headers from the YAML file.
@@ -85,22 +113,16 @@ def split_document_by_section_headers(
     section_patterns = []
     for section_num, section_title in section_headers:
         # Create patterns for different header formats
-        regular_pattern = f"## Lektion {section_num}\n\n ##{section_title}"
-        # latex_pattern_1 = f"# ${section_num} \quad"
-        # latex_pattern_2 = f"# ${section_num} \mathrm"
-        # alt_pattern = f"## {section_num}. {section_title}"
+        regular_pattern = f"## Lektion {section_num}\n\n## {section_title}"
 
         section_patterns.append((regular_pattern, section_num))
-        # section_patterns.append((alt_pattern, section_num))
-        # section_patterns.append((latex_pattern_1, section_num))
-        # section_patterns.append((latex_pattern_2, section_num))
 
     # Find the positions of all section headers in the document
     section_positions = []
 
     # Process section headers
     for pattern, section_id in section_patterns:
-        for match in re.finditer(re.escape(pattern), document_content):
+        for match in re.finditer(pattern, document_content):
             section_positions.append((match.start(), pattern, section_id))
 
     # Sort positions by their occurrence in the document
@@ -204,11 +226,18 @@ def main(input_file: str, section_numbers: Optional[List[int]] = None) -> None:
         logger.warning("No matching section headers found")
         return
 
-    # Split the document
-    sections = split_document_by_section_headers(document_content, headers)
+    # Remove glossary section
+    main_content, glossary_content = strip_glossary(document_content)
+    sections = split_document_by_section_headers(main_content, headers)
 
     # Save the sections
     save_sections_to_files(sections)
+
+    # Save glossary
+    if glossary_content:
+        logger.info(f"Saving glossary to {SECTIONS_PATH / 'glossary.md'}")
+        with open(SECTIONS_PATH / "glossary.md", "w", encoding="utf-8") as f:
+            f.write(glossary_content)
 
     logger.info("✅ Document successfully split into major sections")
 

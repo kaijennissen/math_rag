@@ -1,4 +1,5 @@
 import argparse
+from functools import reduce
 import os
 import re
 import yaml
@@ -168,12 +169,10 @@ def process_and_save_document(
 
     # Split the document into main content and Lösungshinweise
     main_content, loesungshinweise_content = strip_loesungshinweise(document_content)
+    subsections = split_document_by_subsection_headers(main_content, section_headers)
 
-    # Process main content
-    main_sections = split_document_by_subsection_headers(main_content, section_headers)
-
-    # Save main sections
-    save_sections_to_files(main_sections, output_dir, prefix="section_")
+    # Save subsections
+    save_sections_to_files(subsections, output_dir, prefix="section_")
 
     # Save Lösungshinweise if found
     if loesungshinweise_content:
@@ -183,12 +182,13 @@ def process_and_save_document(
         save_sections_to_files(loesungshinweise_sections, output_dir)
 
 
-def load_section_headers_from_yaml(yaml_file: str) -> List[str]:
+def load_section_headers_from_yaml(yaml_file: str, section_number: int) -> List[str]:
     """
     Load section headers from a YAML file.
 
     Args:
         yaml_file: Path to the YAML file containing section headers
+        section_number: Section number to filter headers for
 
     Returns:
         List[str]: List of section headers
@@ -202,6 +202,12 @@ def load_section_headers_from_yaml(yaml_file: str) -> List[str]:
     try:
         with open(yaml_file, "r") as f:
             section_headers = yaml.safe_load(f)
+            section_headers = [
+                v
+                for k, v in section_headers.items()
+                if k.startswith(str(section_number))
+            ]
+            section_headers = reduce(lambda x, y: x + y, section_headers)
 
         if not isinstance(section_headers, list):
             logger.warning(
@@ -218,7 +224,6 @@ def load_section_headers_from_yaml(yaml_file: str) -> List[str]:
 
 def main(
     section_numbers: list[int],
-    input_file: str,
     yaml_file: str = "docs/section_headers.yaml",
     output_dir: str = "docs/subsections",
 ):
@@ -227,33 +232,33 @@ def main(
 
     Args:
         section_numbers: List of section numbers to process (e.g., [5, 6] for KE_5 and KE_6)
-        input_file: Path to the input file containing processed document
         yaml_file: Path to the YAML file containing section headers
         output_dir: Directory to save the processed sections
     """
-    logger.info(f"Processing sections {section_numbers} from {input_file}")
+    logger.info(f"Processing sections {section_numbers}")
 
     # Load the document once for all sections
-    try:
-        docs = pickle.load(open(input_file, "rb"))
-        document_content = docs[0].page_content
-        logger.info(f"Loaded document content ({len(document_content)} characters)")
-    except FileNotFoundError:
-        logger.error(f"Document file {input_file} not found")
-        return
-    except Exception as e:
-        logger.error(f"Error loading document: {e}")
-        return
 
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
 
     # Load section headers from YAML file once
-    section_headers = load_section_headers_from_yaml(yaml_file)
 
     # Process each section with the already loaded document
     for section_number in section_numbers:
         logger.info(f"Processing section {section_number}")
+        input_file = f"docs/sections/section_{section_number}.pkl"
+        try:
+            docs = pickle.load(open(input_file, "rb"))
+            document_content = docs[0].page_content
+            logger.info(f"Loaded document content ({len(document_content)} characters)")
+        except FileNotFoundError:
+            logger.error(f"Document file {input_file} not found")
+            return
+        except Exception as e:
+            logger.error(f"Error loading document: {e}")
+            return
+        section_headers = load_section_headers_from_yaml(yaml_file, section_number)
 
         # Filter headers for the current section number
         filtered_headers = [
@@ -297,12 +302,8 @@ if __name__ == "__main__":
         help="Path to YAML file with section headers",
     )
     parser.add_argument(
-        "--input",
-        help="Input file for processed sections",
-    )
-    parser.add_argument(
         "--output",
-        default="docs/sections",
+        default="docs/subsections",
         help="Output directory for processed sections",
     )
 
@@ -311,6 +312,5 @@ if __name__ == "__main__":
     main(
         section_numbers=args.section,
         yaml_file=args.yaml,
-        input_file=args.input,
         output_dir=args.output,
     )
