@@ -61,8 +61,8 @@ Key features:
 
    ```
    # Complete workflow to create a knowledge graph
-   python src/pdf_to_text.py path/to/your/document.pdf                # Step 1: Parse PDF with MathPix
-   python src/section_splitter.py --input docs/processed/document.pkl  # Step 2: Split document into major sections
+   python src/pdf_to_text.py path/to/your/document.pdf                 # Step 1: Parse PDF with MathPix
+   python src/section_splitter.py --input docs/processed/document.pkl  # Step 2: Split document into sections
    python src/subsection_splitter.py --section 5                       # Step 3: Split sections into subsections
    python src/extract_atomic_units.py --section 5                      # Step 4: Extract definitions, theorems, etc. with LLM
    python src/build_knowledge_graph.py                                 # Step 5: Create the knowledge graph
@@ -81,7 +81,6 @@ Key features:
    python src/pdf_to_text.py /absolute/path/to/your/document.pdf
 
    # Split document into major sections
-   python src/section_splitter.py --input docs/processed/document.pkl                # Process all sections
    python src/section_splitter.py --input docs/processed/document.pkl --section 5    # Process specific section
 
    # Split sections into subsections
