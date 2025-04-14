@@ -25,6 +25,7 @@ load_dotenv()
 # Constants
 DOCS_PATH = Path("docs")
 SECTIONS_PATH = DOCS_PATH / "sections"
+SUBSECTIONS_PATH = DOCS_PATH / "subsections"
 OUTPUT_PATH = DOCS_PATH / "atomic_units"
 
 
@@ -181,7 +182,7 @@ def extract_atomic_units(content: str) -> Chunks:
         return Chunks(chunks=[])
 
 
-def get_section_files_to_process(
+def get_subsection_files_to_process(
     sections: List[int], subsections: List[str]
 ) -> List[Path]:
     """
@@ -200,7 +201,9 @@ def get_section_files_to_process(
     if sections:
         for section_num in sections:
             # Use pathlib's glob method directly
-            section_files = list(SECTIONS_PATH.glob(f"section_{section_num}_*.md"))
+            section_files = list(
+                SUBSECTIONS_PATH.glob(f"subsection_{section_num}_*.md")
+            )
 
             if section_files:
                 files_to_process.extend(section_files)
@@ -215,7 +218,7 @@ def get_section_files_to_process(
         for subsection_id in subsections:
             try:
                 section, subsection = subsection_id.split(".")
-                file_path = SECTIONS_PATH / f"section_{section}_{subsection}.md"
+                file_path = SUBSECTIONS_PATH / f"subsection_{section}_{subsection}.md"
                 if file_path.exists():
                     files_to_process.append(file_path)
                     logger.info(
@@ -247,7 +250,7 @@ def process_file(file_path: Path) -> Optional[Chunks]:
     logger.info(f"Processing file: {file_path.name}")
 
     # Extract section and subsection from filename
-    match = re.match(r"section_(\d+)_(\d+)", file_path.stem)
+    match = re.match(r"subsection_(\d+)_(\d+)", file_path.stem)
     if not match:
         logger.error(f"Invalid file naming pattern: {file_path.name}")
         return None
@@ -264,7 +267,9 @@ def process_file(file_path: Path) -> Optional[Chunks]:
         result = extract_atomic_units(content)
 
         # Save the result as JSON
-        output_file = OUTPUT_PATH / f"section_{section_num}_{subsection_num}_units.json"
+        output_file = (
+            OUTPUT_PATH / f"subsection_{section_num}_{subsection_num}_units.json"
+        )
         with output_file.open("w", encoding="utf-8") as f:
             f.write(result.model_dump_json(indent=2))
 
@@ -287,7 +292,7 @@ def process_file(file_path: Path) -> Optional[Chunks]:
 def main(sections: List, subsections: List):
     OUTPUT_PATH.mkdir(exist_ok=True)
     # Get files to process
-    files_to_process = get_section_files_to_process(sections, subsections)
+    files_to_process = get_subsection_files_to_process(sections, subsections)
 
     if not files_to_process:
         logger.error("No files found to process")

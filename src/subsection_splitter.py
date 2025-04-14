@@ -65,7 +65,7 @@ def split_document_by_subsection_headers(
 
     for header in section_headers:
         # Extract the section number (e.g., "5.1" from "5.1 R_{0}-Räume")
-        section_num_match = re.match(r"(\d+\.\d+)", header)
+        section_num_match = re.match(r"(\d+\.\d)", header)
 
         if section_num_match:
             section_num = section_num_match.group(1)
@@ -76,16 +76,18 @@ def split_document_by_subsection_headers(
             # 2. Followed by either:
             #    a. The exact section number and optional content, OR
             #    b. $ followed by section number and LaTeX formatting commands
-            pattern = rf"(?:##|###)\s+(?:{re.escape(header)}|{re.escape(section_num)}(?:\s+.*)?|(?:\${re.escape(section_num)}\s+\\(?:quad|mathrm).*?))"
+            # Ensure we only match the exact section number pattern (e.g., 7.4 but not 7.4.3)
+            # Using word boundaries and negative lookahead to prevent matching subsubsections
+            pattern = rf"(?:##|###)\s+(?:{re.escape(header)}|{re.escape(section_num)}\b(?!\.)(?:\s+.*)?|(?:\${re.escape(section_num)}\b(?!\.)\s+\\(?:quad|mathrm).*?))"
 
             # Find all matches
             for match in re.finditer(pattern, document_content):
                 section_positions.append((match.start(), match.group(0), section_num))
-        else:
-            # For non-numeric headers like "Einleitung"
-            pattern = rf"(?:##|###)\s+{re.escape(header)}"
-            for match in re.finditer(pattern, document_content):
-                section_positions.append((match.start(), match.group(0), header))
+        # else:
+        #     # For non-numeric headers like "Einleitung"
+        #     pattern = rf"(?:##|###)\s+{re.escape(header)}"
+        #     for match in re.finditer(pattern, document_content):
+        #         section_positions.append((match.start(), match.group(0), header))
 
     # Sort positions by their occurrence in the document
     section_positions.sort(key=lambda x: x[0])
@@ -119,9 +121,11 @@ def split_document_by_subsection_headers(
     return sections
 
 
-def save_sections_to_files(sections: Dict[str, str], output_dir: str, prefix: str = ""):
+def save_subsections_to_files(
+    sections: Dict[str, str], output_dir: str, prefix: str = ""
+):
     """
-    Save sections to individual files.
+    Save subsections to individual files.
 
     Args:
         sections: Dictionary mapping section IDs to content
@@ -169,14 +173,14 @@ def process_and_save_document(
     subsections = split_document_by_subsection_headers(main_content, section_headers)
 
     # Save subsections
-    save_sections_to_files(subsections, output_dir, prefix="section_")
+    save_subsections_to_files(subsections, output_dir, prefix="subsection_")
 
     # Save Lösungshinweise if found
     if loesungshinweise_content:
         loesungshinweise_sections = {
             f"solutions_{section_number}": loesungshinweise_content
         }
-        save_sections_to_files(loesungshinweise_sections, output_dir)
+        save_subsections_to_files(loesungshinweise_sections, output_dir)
 
 
 def load_section_headers_from_yaml(yaml_file: str, section_number: int) -> List[str]:
