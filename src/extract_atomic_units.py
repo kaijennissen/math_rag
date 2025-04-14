@@ -277,7 +277,7 @@ def process_file(file_path: Path) -> Optional[Chunks]:
 
         # Also save as pickle for compatibility
         pickle_output = (
-            OUTPUT_PATH / f"section_{section_num}_{subsection_num}_units.pkl"
+            OUTPUT_PATH / f"subsection_{section_num}_{subsection_num}_units.pkl"
         )
         with pickle_output.open("wb") as f:
             pickle.dump(result, f)

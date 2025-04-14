@@ -1,13 +1,22 @@
 import os
-
+from pathlib import Path
+import logging
+import coloredlogs
 from langchain_openai import OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+# Configure logger
+logger = logging.getLogger(__name__)
+coloredlogs.install(
+    level="INFO",
+    logger=logger,
+    fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
-DOCS_PATH = "docs/"
+DOCS_PATH = Path("docs/atomic_units/")
 
 llm = ChatOpenAI(
     openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.5-preview"
@@ -23,14 +32,8 @@ graph = Neo4jGraph(
     password=os.getenv("NEO4J_PASSWORD"),
 )
 
-# Process the parsed chunks and create knowledge graph
-print("\n" + "=" * 80)
-print("Creating Knowledge Graph from Parsed Chunks")
-print("=" * 80)
-
-pdf_file = ...
 # First, create the document node
-document_name = os.path.basename(pdf_file)
+document_name = "Topologische Räume"
 graph.query(
     """
     MERGE (d:Document {id: $document_id})
@@ -40,194 +43,247 @@ graph.query(
 )
 
 
-with open("docs/sections/section_5_0.md", "r") as f:
-    chunks = f.read()
-# Create nodes for each section to establish hierarchy
-sections = {}
-for chunk in chunks.chunks:
-    section_number = chunk.section
-    if section_number not in sections:
-        # Create section node if it doesn't exist
-        sections[section_number] = True
+def link_previous_section(graph: Neo4jGraph, document_name: str, section_number: int):
+    previous_section_id = f"{document_name}.section_{section_number - 1}"
+    if section_number > 1 and graph.exists_node(previous_section_id):
         graph.query(
             """
-            MERGE (d:Document {id: $document_id})
-            MERGE (s:Section {id: $section_id, number: $section_number})
+            MATCH (s1:Section {id: $previous_section_id}),
+                  (s2:Section {id: $section_id})
+            MERGE (s1)-[:NEXT]->(s2)
+            """,
+            {
+                "section_id": f"{document_name}.section_{section_number}",
+                "previous_section_id": previous_section_id,
+            },
+        )
+
+
+# Create nodes for each section to establish hierarchy
+def create_section_nodes(graph: Neo4jGraph, document_name: str, section_number: int):
+    # Create section node if it doesn't exist
+    link_previous_section(graph, document_name, section_number)
+    # Create section node
+    graph.query(
+        """
+        MERGE (d:Document {id: $document_id})
+        MERGE (s:Section {id: $section_id, number: $section_number})
             SET s.title = $title
             MERGE (s)-[:PART_OF]->(d)
             """,
-            {
-                "document_id": document_name,
-                "section_id": f"{document_name}.section_{section_number}",
-                "section_number": section_number,
-                "title": f"Section {section_number}",
-            },
-        )
-        print(f"Created section node for Section {section_number}")
+        {
+            "document_id": document_name,
+            "section_id": f"{document_name}.section_{section_number}",
+            "section_number": section_number,
+            "title": f"Section {section_number}",
+        },
+    )
+    logger.info(f"Created section node for Section {section_number}")
 
-# Process each chunk
-for i, chunk in enumerate(chunks.chunks):
-    chunk_id = f"{document_name}.chunk_{i}"
-    section_id = f"{document_name}.section_{chunk.section}"
 
-    # Generate embedding for the chunk text
-    try:
-        chunk_embedding = embedding_provider.embed_query(chunk.text)
-    except Exception as e:
-        print(f"Error generating embedding for chunk {i}: {str(e)}")
-        # Use a dummy embedding if there's an error
-        chunk_embedding = [0.0] * 1536
-
-    # Prepare properties for the chunk
-    properties = {
-        "document_id": document_name,
-        "section_id": section_id,
-        "chunk_id": chunk_id,
-        "text": chunk.text,
-        "type": chunk.type,
-        "section": chunk.section,
-        "embedding": chunk_embedding,
-    }
-
-    # Add additional properties if they exist
-    if chunk.subsection:
-        properties["subsection"] = chunk.subsection
-    if chunk.identifier:
-        properties["identifier"] = chunk.identifier
-    if chunk.proof:
-        properties["proof"] = chunk.proof
-
-    # Create the mathematical entity node
-    print(f"Creating node for {chunk.type} (ID: {chunk_id})")
-
-    # Different handling based on entity type
-    if chunk.type.lower() in ["theorem", "satz"]:
-        # For theorems, we create a specific node with its proof
-        query = """
-        MERGE (d:Document {id: $document_id})
-        MERGE (s:Section {id: $section_id})
-        MERGE (t:Theorem {id: $chunk_id})
-        SET t.text = $text,
-            t.section = $section,
-            t.identifier = $identifier
-        MERGE (t)-[:PART_OF]->(s)
-        WITH t
-        CALL db.create.setNodeVectorProperty(t, 'embedding', $embedding)
+def create_subsection_nodes(
+    graph: Neo4jGraph, document_name: str, section_number: int, subsection_number: int
+):
+    # Create section node if it doesn't exist
+    link_previous_section(graph, document_name, section_number)
+    # Create subsection node
+    graph.query(
         """
+        MERGE (s:Section {id: $section_id, number: $section_number})
+        MERGE (s:Subsection {id: $subsection_id, number: $subsection_number})
+            SET s.title = $title
+            MERGE (s)-[:PART_OF]->(d)
+            """,
+        {
+            "document_id": document_name,
+            "section_id": f"{document_name}.section_{section_number}",
+            "section_number": section_number,
+            "subsection_id": f"{document_name}.subsection_{section_number}_{subsection_number}",
+            "subsection_number": subsection_number,
+            "title": f"Subsection {subsection_number}",
+        },
+    )
+    logger.info(f"Created subsection node for Subsection {subsection_number}")
 
-        if chunk.proof:
-            # Also create a proof node connected to the theorem
-            query += """
-            WITH t
-            MERGE (p:Proof {id: $chunk_id + '_proof'})
-            SET p.text = $proof
-            MERGE (t)-[:HAS_PROOF]->(p)
-            """
 
-    elif chunk.type.lower() in ["definition"]:
-        # For definitions
-        query = """
-        MERGE (d:Document {id: $document_id})
-        MERGE (s:Section {id: $section_id})
-        MERGE (def:Definition {id: $chunk_id})
-        SET def.text = $text,
-            def.section = $section,
-            def.identifier = $identifier
-        MERGE (def)-[:PART_OF]->(s)
-        WITH def
-        CALL db.create.setNodeVectorProperty(def, 'embedding', $embedding)
-        """
+sections = {}
+for filepath in Path(DOCS_PATH).glob("subsection_*_*_units.pkl"):
+    _, section_str, subsection_str, _ = filepath.stem.split("_")
+    section_number = int(section_str)
+    subsection_number = float(f"{section_str}.{subsection_str}")
+    if section_number not in sections:
+        sections[section_number] = []
+    sections[section_number].append(subsection_number)
 
-    elif chunk.type.lower() in ["lemma"]:
-        # For lemmas
-        query = """
-        MERGE (d:Document {id: $document_id})
-        MERGE (s:Section {id: $section_id})
-        MERGE (l:Lemma {id: $chunk_id})
-        SET l.text = $text,
-            l.section = $section,
-            l.identifier = $identifier
-        MERGE (l)-[:PART_OF]->(s)
-        WITH l
-        CALL db.create.setNodeVectorProperty(l, 'embedding', $embedding)
-        """
+for section_number in sections:
+    create_section_nodes(graph, document_name, section_number)
+    subsections = range(1, 4)
+    for subsection_number in subsections:
+        create_subsection_nodes(graph, document_name, section_number, subsection_number)
 
-        if chunk.proof:
-            # Also create a proof node for lemmas with proofs
-            query += """
-            WITH l
-            MERGE (p:Proof {id: $chunk_id + '_proof'})
-            SET p.text = $proof
-            MERGE (l)-[:HAS_PROOF]->(p)
-            """
+# # Process each chunk
+# for i, chunk in enumerate(chunks.chunks):
+#     chunk_id = f"{document_name}.chunk_{i}"
+#     section_id = f"{document_name}.section_{chunk.section}"
 
-    else:
-        # Generic handling for other types
-        query = """
-        MERGE (d:Document {id: $document_id})
-        MERGE (s:Section {id: $section_id})
-        MERGE (c:MathEntity {id: $chunk_id, type: $type})
-        SET c.text = $text,
-            c.section = $section
-        MERGE (c)-[:PART_OF]->(s)
-        WITH c
-        CALL db.create.setNodeVectorProperty(c, 'embedding', $embedding)
-        """
+#     # Generate embedding for the chunk text
+#     try:
+#         chunk_embedding = embedding_provider.embed_query(chunk.text)
+#     except Exception as e:
+#         print(f"Error generating embedding for chunk {i}: {str(e)}")
+#         # Use a dummy embedding if there's an error
+#         chunk_embedding = [0.0] * 1536
 
-    # Execute the query to create the node
-    try:
-        graph.query(query, properties)
-    except Exception as e:
-        print(f"Error creating node for chunk {i}: {str(e)}")
+#     # Prepare properties for the chunk
+#     properties = {
+#         "document_id": document_name,
+#         "section_id": section_id,
+#         "chunk_id": chunk_id,
+#         "text": chunk.text,
+#         "type": chunk.type,
+#         "section": chunk.section,
+#         "embedding": chunk_embedding,
+#     }
 
-# Create a vector index for similarity search
-print("Creating vector index for similarity search...")
-graph.query(
-    """
-    CREATE VECTOR INDEX math_entity_vector IF NOT EXISTS
-    FOR (c:MathEntity|Theorem|Definition|Lemma) ON (c.embedding)
-    OPTIONS {
-        indexConfig: {
-            `vector.dimensions`: 1536,
-            `vector.similarity_function`: 'cosine'
-        }
-    }
-    """
-)
+#     # Add additional properties if they exist
+#     if chunk.subsection:
+#         properties["subsection"] = chunk.subsection
+#     if chunk.identifier:
+#         properties["identifier"] = chunk.identifier
+#     if chunk.proof:
+#         properties["proof"] = chunk.proof
 
-print("Creating fulltext index for keyword search...")
-graph.query(
-    """
-    CREATE FULLTEXT INDEX math_content IF NOT EXISTS
-    FOR (c:MathEntity|Theorem|Definition|Lemma|Proof) ON EACH [c.text]
-    """
-)
+#     # Create the mathematical entity node
+#     print(f"Creating node for {chunk.type} (ID: {chunk_id})")
 
-print("\nKnowledge Graph creation complete!")
-print(f"Added {len(chunks.chunks)} mathematical entities to the knowledge graph")
+#     # Different handling based on entity type
+#     if chunk.type.lower() in ["theorem", "satz"]:
+#         # For theorems, we create a specific node with its proof
+#         query = """
+#         MERGE (d:Document {id: $document_id})
+#         MERGE (s:Section {id: $section_id})
+#         MERGE (t:Theorem {id: $chunk_id})
+#         SET t.text = $text,
+#             t.section = $section,
+#             t.identifier = $identifier
+#         MERGE (t)-[:PART_OF]->(s)
+#         WITH t
+#         CALL db.create.setNodeVectorProperty(t, 'embedding', $embedding)
+#         """
 
-# Display a summary of what was created
-node_counts = graph.query(
-    """
-    MATCH (n)
-    RETURN labels(n)[0] as label, count(*) as count
-    """
-)
+#         if chunk.proof:
+#             # Also create a proof node connected to the theorem
+#             query += """
+#             WITH t
+#             MERGE (p:Proof {id: $chunk_id + '_proof'})
+#             SET p.text = $proof
+#             MERGE (t)-[:HAS_PROOF]->(p)
+#             """
 
-print("\nNode Counts in Knowledge Graph:")
-for row in node_counts:
-    print(f"- {row['label']}: {row['count']}")
+#     elif chunk.type.lower() in ["definition"]:
+#         # For definitions
+#         query = """
+#         MERGE (d:Document {id: $document_id})
+#         MERGE (s:Section {id: $section_id})
+#         MERGE (def:Definition {id: $chunk_id})
+#         SET def.text = $text,
+#             def.section = $section,
+#             def.identifier = $identifier
+#         MERGE (def)-[:PART_OF]->(s)
+#         WITH def
+#         CALL db.create.setNodeVectorProperty(def, 'embedding', $embedding)
+#         """
 
-relationship_counts = graph.query(
-    """
-    MATCH ()-[r]->()
-    RETURN type(r) as type, count(*) as count
-    """
-)
+#     elif chunk.type.lower() in ["lemma"]:
+#         # For lemmas
+#         query = """
+#         MERGE (d:Document {id: $document_id})
+#         MERGE (s:Section {id: $section_id})
+#         MERGE (l:Lemma {id: $chunk_id})
+#         SET l.text = $text,
+#             l.section = $section,
+#             l.identifier = $identifier
+#         MERGE (l)-[:PART_OF]->(s)
+#         WITH l
+#         CALL db.create.setNodeVectorProperty(l, 'embedding', $embedding)
+#         """
 
-print("\nRelationship Counts in Knowledge Graph:")
-for row in relationship_counts:
-    print(f"- {row['type']}: {row['count']}")
+#         if chunk.proof:
+#             # Also create a proof node for lemmas with proofs
+#             query += """
+#             WITH l
+#             MERGE (p:Proof {id: $chunk_id + '_proof'})
+#             SET p.text = $proof
+#             MERGE (l)-[:HAS_PROOF]->(p)
+#             """
+
+#     else:
+#         # Generic handling for other types
+#         query = """
+#         MERGE (d:Document {id: $document_id})
+#         MERGE (s:Section {id: $section_id})
+#         MERGE (c:MathEntity {id: $chunk_id, type: $type})
+#         SET c.text = $text,
+#             c.section = $section
+#         MERGE (c)-[:PART_OF]->(s)
+#         WITH c
+#         CALL db.create.setNodeVectorProperty(c, 'embedding', $embedding)
+#         """
+
+#     # Execute the query to create the node
+#     try:
+#         graph.query(query, properties)
+#     except Exception as e:
+#         print(f"Error creating node for chunk {i}: {str(e)}")
+
+# # Create a vector index for similarity search
+# print("Creating vector index for similarity search...")
+# graph.query(
+#     """
+#     CREATE VECTOR INDEX math_entity_vector IF NOT EXISTS
+#     FOR (c:MathEntity|Theorem|Definition|Lemma) ON (c.embedding)
+#     OPTIONS {
+#         indexConfig: {
+#             `vector.dimensions`: 1536,
+#             `vector.similarity_function`: 'cosine'
+#         }
+#     }
+#     """
+# )
+
+# print("Creating fulltext index for keyword search...")
+# graph.query(
+#     """
+#     CREATE FULLTEXT INDEX math_content IF NOT EXISTS
+#     FOR (c:MathEntity|Theorem|Definition|Lemma|Proof) ON EACH [c.text]
+#     """
+# )
+
+# print("\nKnowledge Graph creation complete!")
+# print(f"Added {len(chunks.chunks)} mathematical entities to the knowledge graph")
+
+# # Display a summary of what was created
+# node_counts = graph.query(
+#     """
+#     MATCH (n)
+#     RETURN labels(n)[0] as label, count(*) as count
+#     """
+# )
+
+# print("\nNode Counts in Knowledge Graph:")
+# for row in node_counts:
+#     print(f"- {row['label']}: {row['count']}")
+
+# relationship_counts = graph.query(
+#     """
+#     MATCH ()-[r]->()
+#     RETURN type(r) as type, count(*) as count
+#     """
+# )
+
+# print("\nRelationship Counts in Knowledge Graph:")
+# for row in relationship_counts:
+#     print(f"- {row['type']}: {row['count']}")
 #         CALL db.create.setNodeVectorProperty(c, 'textEmbedding', $embedding)
 #         """,
 #         properties,
