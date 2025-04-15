@@ -19,6 +19,7 @@ coloredlogs.install(
 
 DOCS_PATH = Path("docs/atomic_units/")
 SECTION_HEADERS_PATH = "docs/section_headers.yaml"
+DOCUMENT_NAME = "Topologische Räume"
 
 llm = ChatOpenAI(
     openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.5-preview"
@@ -32,16 +33,6 @@ graph = Neo4jGraph(
     url=os.getenv("NEO4J_URI"),
     username=os.getenv("NEO4J_USERNAME"),
     password=os.getenv("NEO4J_PASSWORD"),
-)
-
-# First, create the document node
-document_name = "Topologische Räume"
-graph.query(
-    """
-    MERGE (d:Document {id: $document_id})
-    SET d.title = $title
-    """,
-    {"document_id": document_name, "title": f"Mathematical document: {document_name}"},
 )
 
 
@@ -141,20 +132,39 @@ def create_next_relationship(
 
 
 def main():
+    logger.info("Starting knowledge graph construction.")
     section_headers = SectionHeaders(SECTION_HEADERS_PATH)
 
+    # First, create the document node
+    logger.info(f"Creating document node for '{DOCUMENT_NAME}'")
+    graph.query(
+        """
+        MERGE (d:Document {id: $document_id})
+        SET d.title = $title
+        """,
+        {
+            "document_id": DOCUMENT_NAME,
+            "title": f"Mathematical document: {DOCUMENT_NAME}",
+        },
+    )
+
     # Step 1: Create nodes and PART_OF relationships
+    logger.info("Creating section and subsection nodes with PART_OF relationships...")
     for section in section_headers.all_sections():
+        logger.info(f"Creating section node: {section.number} '{section.title}'")
         create_section_node(
             graph=graph,
-            document_name=document_name,
+            document_name=DOCUMENT_NAME,
             section_number=section.number,
             title=section.title,
         )
         for subsection in section.subsections:
+            logger.info(
+                f"  Creating subsection node: {subsection.number} '{subsection.title}' (parent section: {section.number})"
+            )
             create_subsection_node(
                 graph=graph,
-                document_name=document_name,
+                document_name=DOCUMENT_NAME,
                 section_number=section.number,
                 subsection_number=subsection.number,
                 title=subsection.title,
@@ -162,34 +172,38 @@ def main():
             # Add PART_OF relationship: subsection -> section
 
     # Step 2: Create NEXT relationships
-    # Sections
+    logger.info("Creating NEXT/PREVIOUS relationships for sections...")
     sorted_sections = sorted(section_headers.all_sections(), key=lambda x: x.number)
     for current, next in zip(sorted_sections[:-1], sorted_sections[1:]):
+        logger.info(
+            f"  Linking section {current.number} -> {next.number} (NEXT/PREVIOUS)"
+        )
         create_next_relationship(
             graph=graph,
-            document_name=document_name,
+            document_name=DOCUMENT_NAME,
             node_type="section",
             current_number=current.number,
             next_number=next.number,
         )
 
-    # Subsections within each section
-    for section_number in section_headers.all_sections():
+    logger.info("Creating NEXT/PREVIOUS relationships for subsections...")
+    for section in section_headers.all_sections():
         sorted_subs = sorted(
-            section_headers.all_subsections(section_number), key=lambda x: x.number
+            section_headers.all_subsections(section.number), key=lambda x: x.number
         )
         for current, next in zip(sorted_subs[:-1], sorted_subs[1:]):
-            print(
-                f"Creating next relationship for section {section_number} and subsection {current.number}"
+            logger.info(
+                f"  Linking subsection {current.number} -> {next.number} (NEXT/PREVIOUS) in section {section.number}"
             )
-        create_next_relationship(
-            graph,
-            document_name,
-            "subsection",
-            current.number,
-            next.number,
-            section_number,
-        )
+            create_next_relationship(
+                graph,
+                document_name=DOCUMENT_NAME,
+                node_type="subsection",
+                current_number=current.number,
+                next_number=next.number,
+                section_number=section.number,
+            )
+    logger.info("Knowledge graph construction completed.")
 
 
 if __name__ == "__main__":
