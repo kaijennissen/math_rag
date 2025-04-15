@@ -84,7 +84,11 @@ def create_section_node(
 
 
 def create_subsection_node(
-    graph: Neo4jGraph, document_name: str, section_number: int, subsection_number: int
+    graph: Neo4jGraph,
+    document_name: str,
+    section_number: int,
+    subsection_number: int,
+    title: str,
 ):
     # Create subsection node
     graph.query(
@@ -100,7 +104,7 @@ def create_subsection_node(
             "section_number": section_number,
             "subsection_id": f"{document_name}.subsection_{section_number}_{subsection_number}",
             "subsection_number": subsection_number,
-            "title": subsection_number,
+            "title": title,
         },
     )
     logger.info(f"Created subsection node for Subsection {subsection_number}")
@@ -136,47 +140,48 @@ def create_next_relationship(
     )
 
 
-section_headers = SectionHeaders(SECTION_HEADERS_PATH)
+def main():
+    section_headers = SectionHeaders(SECTION_HEADERS_PATH)
 
-# Step 1: Create nodes and PART_OF relationships
-for section in section_headers.all_sections():
-    create_section_node(
-        graph=graph,
-        document_name=document_name,
-        section_number=section.number,
-        title=section.title,
-    )
-    for subsection in section.subsections:
-        create_subsection_node(
+    # Step 1: Create nodes and PART_OF relationships
+    for section in section_headers.all_sections():
+        create_section_node(
             graph=graph,
             document_name=document_name,
             section_number=section.number,
-            subsection_number=subsection.number,
-            title=subsection.title,
+            title=section.title,
         )
-        # Add PART_OF relationship: subsection -> section
+        for subsection in section.subsections:
+            create_subsection_node(
+                graph=graph,
+                document_name=document_name,
+                section_number=section.number,
+                subsection_number=subsection.number,
+                title=subsection.title,
+            )
+            # Add PART_OF relationship: subsection -> section
 
-# Step 2: Create NEXT relationships
-# Sections
-sorted_sections = sorted(section_headers.all_sections(), key=lambda x: x.number)
-for current, next in zip(sorted_sections[:-1], sorted_sections[1:]):
-    create_next_relationship(
-        graph=graph,
-        document_name=document_name,
-        node_type="section",
-        current_number=current.number,
-        next_number=next.number,
-    )
-
-# Subsections within each section
-for section_number in section_headers.all_sections():
-    sorted_subs = sorted(
-        section_headers.all_subsections(section_number), key=lambda x: x.number
-    )
-    for current, next in zip(sorted_subs[:-1], sorted_subs[1:]):
-        print(
-            f"Creating next relationship for section {section_number} and subsection {current.number}"
+    # Step 2: Create NEXT relationships
+    # Sections
+    sorted_sections = sorted(section_headers.all_sections(), key=lambda x: x.number)
+    for current, next in zip(sorted_sections[:-1], sorted_sections[1:]):
+        create_next_relationship(
+            graph=graph,
+            document_name=document_name,
+            node_type="section",
+            current_number=current.number,
+            next_number=next.number,
         )
+
+    # Subsections within each section
+    for section_number in section_headers.all_sections():
+        sorted_subs = sorted(
+            section_headers.all_subsections(section_number), key=lambda x: x.number
+        )
+        for current, next in zip(sorted_subs[:-1], sorted_subs[1:]):
+            print(
+                f"Creating next relationship for section {section_number} and subsection {current.number}"
+            )
         create_next_relationship(
             graph,
             document_name,
@@ -185,6 +190,10 @@ for section_number in section_headers.all_sections():
             next.number,
             section_number,
         )
+
+
+if __name__ == "__main__":
+    main()
 
 # # Process each chunk
 # for i, chunk in enumerate(chunks.chunks):
