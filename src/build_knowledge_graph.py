@@ -61,8 +61,6 @@ def link_previous_section(graph: Neo4jGraph, document_name: str, section_number:
 
 # Create nodes for each section to establish hierarchy
 def create_section_node(graph: Neo4jGraph, document_name: str, section_number: int):
-    # Create section node if it doesn't exist
-    link_previous_section(graph, document_name, section_number)
     # Create section node
     graph.query(
         """
@@ -84,8 +82,6 @@ def create_section_node(graph: Neo4jGraph, document_name: str, section_number: i
 def create_subsection_node(
     graph: Neo4jGraph, document_name: str, section_number: int, subsection_number: int
 ):
-    # Create section node if it doesn't exist
-    link_previous_section(graph, document_name, section_number)
     # Create subsection node
     graph.query(
         """
