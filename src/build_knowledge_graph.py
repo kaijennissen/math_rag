@@ -60,7 +60,7 @@ def link_previous_section(graph: Neo4jGraph, document_name: str, section_number:
 
 
 # Create nodes for each section to establish hierarchy
-def create_section_nodes(graph: Neo4jGraph, document_name: str, section_number: int):
+def create_section_node(graph: Neo4jGraph, document_name: str, section_number: int):
     # Create section node if it doesn't exist
     link_previous_section(graph, document_name, section_number)
     # Create section node
@@ -81,7 +81,7 @@ def create_section_nodes(graph: Neo4jGraph, document_name: str, section_number: 
     logger.info(f"Created section node for Section {section_number}")
 
 
-def create_subsection_nodes(
+def create_subsection_node(
     graph: Neo4jGraph, document_name: str, section_number: int, subsection_number: int
 ):
     # Create section node if it doesn't exist
@@ -106,6 +106,35 @@ def create_subsection_nodes(
     logger.info(f"Created subsection node for Subsection {subsection_number}")
 
 
+def create_next_relationship(
+    graph: Neo4jGraph,
+    document_name: str,
+    node_type: str,  # "section" or "subsection"
+    current_number,
+    next_number,
+    section_number=None,  # Only needed for subsections
+):
+    if node_type == "section":
+        current_id = f"{document_name}.section_{current_number}"
+        next_id = f"{document_name}.section_{next_number}"
+        label = "Section"
+    elif node_type == "subsection":
+        current_id = f"{document_name}.subsection_{section_number}_{current_number}"
+        next_id = f"{document_name}.subsection_{section_number}_{next_number}"
+        label = "Subsection"
+    else:
+        raise ValueError("node_type must be 'section' or 'subsection'")
+
+    graph.query(
+        f"""
+        MATCH (a:{label} {{id: $current_id}})
+        MATCH (b:{label} {{id: $next_id}})
+        MERGE (a)-[:NEXT]->(b)
+        """,
+        {"current_id": current_id, "next_id": next_id},
+    )
+
+
 sections = {}
 for filepath in Path(DOCS_PATH).glob("subsection_*_*_units.pkl"):
     _, section_str, subsection_str, _ = filepath.stem.split("_")
@@ -115,11 +144,33 @@ for filepath in Path(DOCS_PATH).glob("subsection_*_*_units.pkl"):
         sections[section_number] = []
     sections[section_number].append(subsection_number)
 
+# Step 1: Create nodes and PART_OF relationships
 for section_number in sections:
-    create_section_nodes(graph, document_name, section_number)
-    subsections = range(1, 4)
-    for subsection_number in subsections:
-        create_subsection_nodes(graph, document_name, section_number, subsection_number)
+    create_section_node(graph, document_name, section_number)
+    for subsection_number in sorted(sections[section_number]):
+        create_subsection_node(graph, document_name, section_number, subsection_number)
+        # Add PART_OF relationship: subsection -> section
+
+# Step 2: Create NEXT relationships
+# Sections
+sorted_sections = sorted(sections.keys())
+for i in range(len(sorted_sections) - 1):
+    create_next_relationship(
+        graph, document_name, "section", sorted_sections[i], sorted_sections[i + 1]
+    )
+
+# Subsections within each section
+for section_number in sections:
+    sorted_subs = sorted(sections[section_number])
+    for i in range(len(sorted_subs) - 1):
+        create_next_relationship(
+            graph,
+            document_name,
+            "subsection",
+            sorted_subs[i],
+            sorted_subs[i + 1],
+            section_number,
+        )
 
 # # Process each chunk
 # for i, chunk in enumerate(chunks.chunks):
