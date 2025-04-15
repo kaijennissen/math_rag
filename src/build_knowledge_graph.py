@@ -6,6 +6,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
+from section_headers import SectionHeaders
 
 load_dotenv()
 # Configure logger
@@ -17,6 +18,7 @@ coloredlogs.install(
 )
 
 DOCS_PATH = Path("docs/atomic_units/")
+SECTION_HEADERS_PATH = "docs/section_headers.yaml"
 
 llm = ChatOpenAI(
     openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.5-preview"
@@ -60,20 +62,22 @@ def link_previous_section(graph: Neo4jGraph, document_name: str, section_number:
 
 
 # Create nodes for each section to establish hierarchy
-def create_section_node(graph: Neo4jGraph, document_name: str, section_number: int):
+def create_section_node(
+    graph: Neo4jGraph, document_name: str, section_number: int, title: str
+):
     # Create section node
     graph.query(
         """
         MERGE (d:Document {id: $document_id})
         MERGE (s:Section {id: $section_id, number: $section_number})
-            SET s.title = $title
-            MERGE (s)-[:PART_OF]->(d)
-            """,
+        SET s.title = $title
+        MERGE (s)-[:PART_OF]->(d)
+        """,
         {
             "document_id": document_name,
             "section_id": f"{document_name}.section_{section_number}",
             "section_number": section_number,
-            "title": f"Section {section_number}",
+            "title": title,
         },
     )
     logger.info(f"Created section node for Section {section_number}")
@@ -85,18 +89,18 @@ def create_subsection_node(
     # Create subsection node
     graph.query(
         """
-        MERGE (s:Section {id: $section_id, number: $section_number})
-        MERGE (s:Subsection {id: $subsection_id, number: $subsection_number})
-            SET s.title = $title
-            MERGE (s)-[:PART_OF]->(d)
-            """,
+        MERGE (s1:Section {id: $section_id, number: $section_number})
+        MERGE (s2:Subsection {id: $subsection_id, number: $subsection_number})
+        SET s2.title = $title
+        MERGE (s2)-[:PART_OF]->(s1)
+        """,
         {
             "document_id": document_name,
             "section_id": f"{document_name}.section_{section_number}",
             "section_number": section_number,
             "subsection_id": f"{document_name}.subsection_{section_number}_{subsection_number}",
             "subsection_number": subsection_number,
-            "title": f"Subsection {subsection_number}",
+            "title": subsection_number,
         },
     )
     logger.info(f"Created subsection node for Subsection {subsection_number}")
@@ -126,45 +130,59 @@ def create_next_relationship(
         MATCH (a:{label} {{id: $current_id}})
         MATCH (b:{label} {{id: $next_id}})
         MERGE (a)-[:NEXT]->(b)
+        MERGE (a)<-[:PREVIOUS]->(b)
         """,
         {"current_id": current_id, "next_id": next_id},
     )
 
 
-sections = {}
-for filepath in Path(DOCS_PATH).glob("subsection_*_*_units.pkl"):
-    _, section_str, subsection_str, _ = filepath.stem.split("_")
-    section_number = int(section_str)
-    subsection_number = float(f"{section_str}.{subsection_str}")
-    if section_number not in sections:
-        sections[section_number] = []
-    sections[section_number].append(subsection_number)
+section_headers = SectionHeaders(SECTION_HEADERS_PATH)
 
 # Step 1: Create nodes and PART_OF relationships
-for section_number in sections:
-    create_section_node(graph, document_name, section_number)
-    for subsection_number in sorted(sections[section_number]):
-        create_subsection_node(graph, document_name, section_number, subsection_number)
+for section in section_headers.all_sections():
+    create_section_node(
+        graph=graph,
+        document_name=document_name,
+        section_number=section.number,
+        title=section.title,
+    )
+    for subsection in section.subsections:
+        create_subsection_node(
+            graph=graph,
+            document_name=document_name,
+            section_number=section.number,
+            subsection_number=subsection.number,
+            title=subsection.title,
+        )
         # Add PART_OF relationship: subsection -> section
 
 # Step 2: Create NEXT relationships
 # Sections
-sorted_sections = sorted(sections.keys())
-for i in range(len(sorted_sections) - 1):
+sorted_sections = sorted(section_headers.all_sections(), key=lambda x: x.number)
+for current, next in zip(sorted_sections[:-1], sorted_sections[1:]):
     create_next_relationship(
-        graph, document_name, "section", sorted_sections[i], sorted_sections[i + 1]
+        graph=graph,
+        document_name=document_name,
+        node_type="section",
+        current_number=current.number,
+        next_number=next.number,
     )
 
 # Subsections within each section
-for section_number in sections:
-    sorted_subs = sorted(sections[section_number])
-    for i in range(len(sorted_subs) - 1):
+for section_number in section_headers.all_sections():
+    sorted_subs = sorted(
+        section_headers.all_subsections(section_number), key=lambda x: x.number
+    )
+    for current, next in zip(sorted_subs[:-1], sorted_subs[1:]):
+        print(
+            f"Creating next relationship for section {section_number} and subsection {current.number}"
+        )
         create_next_relationship(
             graph,
             document_name,
             "subsection",
-            sorted_subs[i],
-            sorted_subs[i + 1],
+            current.number,
+            next.number,
             section_number,
         )
 

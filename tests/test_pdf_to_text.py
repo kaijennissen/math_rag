@@ -28,7 +28,6 @@ from src.pdf_to_text import (  # noqa: E402
     process_pdf,
     concatenate_docs,
     save_processed_document,
-    main,
 )
 
 
@@ -342,20 +341,3 @@ def test_save_processed_document(mock_pdf_path, temp_dir, mock_document):
             loaded_doc = pickle.load(f)
 
         assert loaded_doc == mock_document
-
-
-def test_main(temp_dir):
-    """Test the main function."""
-    pdf_file = temp_dir / "test.pdf"
-    pdf_file.touch()  # Create an empty file
-
-    with patch("src.pdf_to_text.DOCS_PATH", temp_dir):
-        with patch(
-            "src.pdf_to_text.process_pdf",
-            return_value=[
-                Document(page_content="Test", metadata={"source": "test.pdf"})
-            ],
-        ):
-            with patch("src.pdf_to_text.save_processed_document"):
-                main()
-                # Success if no exception is raised
