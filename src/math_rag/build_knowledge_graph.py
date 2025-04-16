@@ -22,7 +22,7 @@ coloredlogs.install(
 DOCS_PATH = Path("docs/atomic_units/")
 SECTION_HEADERS_PATH = Path("docs/section_headers.yaml")
 ATOMIC_UNITS_PATH = Path("docs/atomic_units")
-DOCUMENT_NAME = "Topologische Räume"
+DOCUMENT_NAME = "topological_spaces"
 
 llm = ChatOpenAI(
     openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.5-preview"
@@ -69,7 +69,7 @@ def create_section_node(
         """,
         {
             "document_id": document_name,
-            "section_id": f"{document_name}.section_{section_number}",
+            "section_id": f"{document_name}_{section_number}",
             "section_number": section_number,
             "title": title,
         },
@@ -94,9 +94,9 @@ def create_subsection_node(
         """,
         {
             "document_id": document_name,
-            "section_id": f"{document_name}.section_{section_number}",
+            "section_id": f"{document_name}_{section_number}",
             "section_number": section_number,
-            "subsection_id": f"{document_name}.subsection_{subsection_number}",
+            "subsection_id": f"{document_name}_{subsection_number}",
             "subsection_number": subsection_number,
             "title": title,
         },
@@ -124,8 +124,8 @@ def add_chunk_to_graph(graph: Neo4jGraph, document_name: str, chunk: AtomicUnit)
     graph.query(
         query,
         {
-            "subsection_id": f"{document_name}.subsection_{subsection_number}",
-            "subsubsection_id": f"{document_name}.subsubsection_{subsubsection_number}",
+            "subsection_id": f"{document_name}_{subsection_number}",
+            "subsubsection_id": f"{document_name}_{subsubsection_number}",
             "subsubsection_number": subsubsection_number,
             "text": chunk.text,
             "type": chunk.type,
@@ -143,12 +143,12 @@ def create_next_relationship(
     next_number,
 ):
     if node_type == "section":
-        current_id = f"{document_name}.section_{current_number}"
-        next_id = f"{document_name}.section_{next_number}"
+        current_id = f"{document_name}_{current_number}"
+        next_id = f"{document_name}_{next_number}"
         label = "Section"
     elif node_type == "subsection":
-        current_id = f"{document_name}.subsection_{current_number}"
-        next_id = f"{document_name}.subsection_{next_number}"
+        current_id = f"{document_name}_{current_number}"
+        next_id = f"{document_name}_{next_number}"
         label = "Subsection"
     else:
         raise ValueError("node_type must be 'section' or 'subsection'")
@@ -170,8 +170,8 @@ def create_previous_relationship_atomic_units(
     current_number,
     next_number,
 ):
-    current_id = f"{document_name}.subsubsection_{current_number}"
-    next_id = f"{document_name}.subsubsection_{next_number}"
+    current_id = f"{document_name}_{current_number}"
+    next_id = f"{document_name}_{next_number}"
 
     graph.query(
         """

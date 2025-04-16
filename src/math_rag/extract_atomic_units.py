@@ -63,7 +63,7 @@ class DocChunk(BaseModel):
     )
     identifier: Optional[str] = Field(
         default=None,
-        description="The identifier of the entity (e.g., 'Theorem 5.1.2', 'Definition 5.2.2')",
+        description="The 'german' identifier of the entity (e.g., 'Satz 5.1.2', 'Definition 5.2.2', 'Beispiel 5.3.2', 'Lemma 5.4.2')",
     )
     text: str = Field(description="The text contained in the chunk")
     proof: Optional[str] = Field(
@@ -81,12 +81,20 @@ class Chunks(BaseModel):
 
 # Create a more explicit system prompt
 system_prompt = """
-You are a precise mathematical document parser. Your task is to parse German mathematical documents into
-structured chunks that preserve their hierarchical organization.
+You are a precise mathematical document parser specializing in translating German mathematical documents into structured JSON. Your task is to analyze each document and create a hierarchical representation that maintains all mathematical content with perfect fidelity.
 
-YOU MUST RETURN A VALID JSON OBJECT that follows the schema EXACTLY. Do not include explanations or notes
-outside the JSON structure.
+## OUTPUT FORMAT
+Return ONLY a valid JSON object matching the schema exactly - no explanations, comments or markdown outside the JSON structure.
 
+<<<<<<< HEAD
+## PARSING RULES
+
+### Hierarchical Structure:
+- Extract sections (e.g., 5, 6), subsections (e.g., 5.1, 5.2), and subsubsections (e.g., 5.1.1, 5.1.2)
+- Capture their respective titles (e.g., 'Trennungsaxiome')
+- Maintain correct hierarchical relationships: 5.1.2 is a subsubsection of 5.1, which is a subsection of 5
+- Subsections and mathematical entities have the same level of hierarchy (e.g., Theorem 3.1.2 is equivalent to subsubsection 3.1.2)
+=======
 Parsing guidelines:
 1. Extract sections (like 5, 6), subsections (like 5.1, 5.2), and subsubsections (like 5.1.1, 5.1.2) and the respective titles (like 'Trennungsaxiome')
 2. Identify mathematical entities: Satz (Theorem), Definition, Lemma, Aufgabe (Exercise), etc.
@@ -111,26 +119,57 @@ Mathematical terminology in German:
 - "Einleitung" = Introduction
 - "Folgerung" = Corollary
 - "Korollar" = Corollary
+>>>>>>> main
 
-Remember to:
-- Use integer numbers for section numbers (5, 6, 7)
-- Capture the full text of each entity WITH ALL MATHEMATICAL NOTATION INTACT
-- Keep ALL LaTeX notation exactly as is, including all backslashes (\\) and special characters
-- NEVER remove, simplify, or escape any LaTeX code - copy it verbatim
-- Include proofs with their theorems, remarks, examples, etc.
-- Always use singular forms for types (Definition, Theorem, Example, etc.)
-- Set proper types for each mathematical entity
-- Return your response as valid JSON that follows the schema exactly
-"""
+### Mathematical Entities:
+- Identify mathematical entities by their German names: Satz, Definition, Lemma, Beispiel, etc.
+- Convert to appropriate English types as specified in the terminology mapping
+- Use 'Remark' as the type if unable to identify the mathematical entity type
+- Use singular forms for all types, even when the German term is plural (e.g., 'Beispiele' → 'Example')
+- For verbose theorem names like "Satz von Pythagoras", use the entire phrase as the identifier
 
-# Use a more structured prompt with example schema
-chat_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system_prompt),
-        (
-            "human",
-            """Please parse the following mathematical text into structured chunks following the schema:
+### Content Rules:
+- Preserve ALL LaTeX mathematical notation EXACTLY - this is CRITICAL
+- Do not modify, simplify, or escape any LaTeX code
+- Retain all backslashes (\\), special characters, and command structures exactly as they appear
+- Include proofs with their associated theorems, lemmas, etc.
+- Skip notation comments that appear at the beginning of sections/subsections
+- Introductions ("Einleitung") are only allowed at the beginning of a section
 
+### Special Cases:
+- When multiple entities appear consecutively without clear separation, create separate chunks
+- For content that doesn't match a standard pattern, use the most appropriate type based on context
+- If no identifier is present but the content is clearly a mathematical entity, generate an appropriate identifier
+
+## GERMAN TO ENGLISH TERMINOLOGY
+- "Satz" → "Theorem"
+- "Definition"/"Definitionen" → "Definition"
+- "Lemma" → "Lemma"
+- "Korollar"/"Folgerung"/"Folgerungen" → "Corollary"
+- "Beispiel"/"Beispiele" → "Example"
+- "Bemerkung"/"Bemerkungen" → "Remark"
+- "Aufgabe"/"Aufgaben" → "Exercise"
+- "Vorbemerkung" → "Remark"
+- "Proposition"/"Propositionen" → "Proposition"
+- "Einleitung" → "Introduction"
+
+## EXAMPLE TRANSFORMATION
+
+German Source:
+```
+5 Trennungsaxiome
+
+5.1 R_{{0}}-Räume
+
+Wir betrachten nun...
+
+Satz 5.1.1. Sei (X,T) ein topologischer Raum. X ist ein R_{{0}}-Raum genau dann, wenn für alle $x,y \in X$ gilt: $\overline{{x}} = \overline{{y}} \iff x = y$.
+
+Beweis. Sei X ein R_{{0}}-Raum und seien $x,y \in X$ mit $\overline{{x}} = \overline{{y}}$...
+```
+
+JSON Output:
+```json
 {{
   "chunks": [
     {{
@@ -139,28 +178,27 @@ chat_prompt = ChatPromptTemplate.from_messages(
       "subsection": 1,
       "subsection_title": "R_{{0}}-Räume",
       "subsubsection": 1,
-      "type": "Introduction",
-      "identifier": "Vorbemerkung 5.1.1",
-      "text": "The full text of this introduction...",
-      "proof": null
-    }},
-    {{
-      "section": 5,
-      "section_title": "Trennungsaxiome",
-      "subsection": 1,
-      "subsection_title": "R_{{0}}-Räume",
-      "subsubsection": 2,
       "type": "Theorem",
-      "identifier": "Satz 5.1.2",
-      "text": "Ist $f: \\underline{{X}} \\rightarrow \\underline{{Y}}$ surjektiv, stetig und abgeschlossen, ...",
-      "proof": "Seien $y_{{1}}$ und $y_{{2}}$ Punkte von ..."
+      "identifier": "Satz 5.1.1",
+      "text": "Sei (X,T) ein topologischer Raum. X ist ein R_{{0}}-Raum genau dann, wenn für alle $x,y \\in X$ gilt: $\\overline{{x}} = \\overline{{y}} \\iff x = y$.",
+      "proof": "Sei X ein R_{{0}}-Raum und seien $x,y \\in X$ mit $\\overline{{x}} = \\overline{{y}}$..."
     }}
   ]
 }}
+```
+"""
 
-Here's the text to parse:
+# Create prompt template without redundant schema definition
+chat_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", system_prompt),
+        (
+            "human",
+            """Parse the following German mathematical text into structured chunks according to the guidelines. Remember to preserve all LaTeX notation exactly as it appears in the text.
 
-{input}""",
+        Text to parse:
+
+        {input}""",
         ),
     ]
 )
