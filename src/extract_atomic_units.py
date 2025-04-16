@@ -30,7 +30,7 @@ OUTPUT_PATH = DOCS_PATH / "atomic_units"
 
 
 # Initialize the LLM (allow override via environment variable)
-llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4o-mini")
+llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.1")
 
 
 class DocChunk(BaseModel):
@@ -88,11 +88,12 @@ outside the JSON structure.
 Parsing guidelines:
 1. Extract sections (like 5, 6), subsections (like 5.1, 5.2), and subsubsections (like 5.1.1, 5.1.2) and the respective titles (like 'Trennungsaxiome')
 2. Identify mathematical entities: Satz (Theorem), Definition, Lemma, Aufgabe (Exercise), etc.
-3. Maintain the hierarchical relationships between sections, subsections, and subsubsections. I.e. 5.1.2 is a subsubsection of 5.1 and 5.1 is a subsection of 5.
-4. Include proofs with their associated theorems
-5. CRITICALLY IMPORTANT: Preserve ALL LaTeX mathematical notation EXACTLY as it appears in the text. Do NOT modify, simplify, or escape ANY LaTeX code. All mathematical symbols, commands, and structures must be preserved perfectly.
-6. In some cases, the title of a theorem is more verbose, like "Satz von ...". In such cases, use the verbose title as the identifier.
-7. Subsections and mathematical entities have the same level of hierarchy, i.e. Theorem 3.1.2 is equivalent to subsubsection 3.1.2
+3. In case you cannot identify the mathematical entity, use 'Remark' as the type.
+4. Maintain the hierarchical relationships between sections, subsections, and subsubsections. I.e. 5.1.2 is a subsubsection of 5.1 and 5.1 is a subsection of 5.
+5. Include proofs with their associated theorems
+6. CRITICALLY IMPORTANT: Preserve ALL LaTeX mathematical notation EXACTLY as it appears in the text. Do NOT modify, simplify, or escape ANY LaTeX code. All mathematical symbols, commands, and structures must be preserved perfectly.
+7. In some cases, the title of a theorem is more verbose, like "Satz von ...". In such cases, use the verbose title as the identifier.
+8. Subsections and mathematical entities have the same level of hierarchy, i.e. Theorem 3.1.2 is equivalent to subsubsection 3.1.2
 
 Mathematical terminology in German:
 - "Satz" = Theorem
@@ -111,6 +112,7 @@ Remember to:
 - Keep ALL LaTeX notation exactly as is, including all backslashes (\\) and special characters
 - NEVER remove, simplify, or escape any LaTeX code - copy it verbatim
 - Include proofs with their theorems, remarks, examples, etc.
+- Always use singular forms for types (Definition, Theorem, Example, etc.)
 - Set proper types for each mathematical entity
 - Return your response as valid JSON that follows the schema exactly
 """

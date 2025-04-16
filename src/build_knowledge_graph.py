@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import logging
+from atomic_unit import AtomicUnit
 import coloredlogs
 from langchain_openai import OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
@@ -13,13 +14,14 @@ load_dotenv()
 # Configure logger
 logger = logging.getLogger(__name__)
 coloredlogs.install(
-    level="INFO",
+    level="WARNING",
     logger=logger,
     fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
 DOCS_PATH = Path("docs/atomic_units/")
-SECTION_HEADERS_PATH = "docs/section_headers.yaml"
+SECTION_HEADERS_PATH = Path("docs/section_headers.yaml")
+ATOMIC_UNITS_PATH = Path("docs/atomic_units")
 DOCUMENT_NAME = "Topologische Räume"
 
 llm = ChatOpenAI(
@@ -102,20 +104,11 @@ def create_subsection_node(
     logger.info(f"Created subsection node for Subsection {subsection_number}")
 
 
-def add_chunk_to_graph(graph: Neo4jGraph, document_name: str, chunk: dict):
-    section_id = chunk.get("section")
-    subsection_id = chunk.get("subsection")
-    subsubsection_id = chunk.get("subsubsection")
-    subsubsection_number = ".".join(
-        [str(section_id), str(subsection_id), str(subsubsection_id)]
-    )
+def add_chunk_to_graph(graph: Neo4jGraph, document_name: str, chunk: AtomicUnit):
+    subsection_number = chunk.get_subsection_number()
+    subsubsection_number = chunk.get_full_number()
     logger.info(f"Adding subsubsection: {subsubsection_number}")
-
-    chunk_type = chunk.get("type", "ContentUnit")  # Default label
-    # Sanitize for Neo4j label (e.g., capitalize, no spaces)
-    sanitized_label = (
-        chunk_type.replace(" ", "_").capitalize() if chunk_type else "ContentUnit"
-    )
+    sanitized_label = chunk.type
 
     # Construct the MERGE query dynamically with the sanitized label
     query = f"""
@@ -131,13 +124,13 @@ def add_chunk_to_graph(graph: Neo4jGraph, document_name: str, chunk: dict):
     graph.query(
         query,
         {
-            "subsection_id": f"{document_name}.subsection_{section_id}.{subsection_id}",
-            "subsubsection_id": f"{document_name}.subsection_{section_id}.{subsection_id}.{subsubsection_id}",
+            "subsection_id": f"{document_name}.subsection_{subsection_number}",
+            "subsubsection_id": f"{document_name}.subsubsection_{subsubsection_number}",
             "subsubsection_number": subsubsection_number,
-            "text": chunk.get("text"),
-            "type": chunk.get("type"),
-            "title": chunk.get("identifier"),
-            "proof": chunk.get("proof"),
+            "text": chunk.text,
+            "type": chunk.type,
+            "title": chunk.identifier,
+            "proof": chunk.proof,
         },
     )
 
@@ -148,7 +141,6 @@ def create_next_relationship(
     node_type: str,  # "section" or "subsection"
     current_number,
     next_number,
-    section_number=None,  # Only needed for subsections
 ):
     if node_type == "section":
         current_id = f"{document_name}.section_{current_number}"
@@ -166,7 +158,27 @@ def create_next_relationship(
         MATCH (a:{label} {{id: $current_id}})
         MATCH (b:{label} {{id: $next_id}})
         MERGE (a)-[:NEXT]->(b)
-        MERGE (a)<-[:PREVIOUS]->(b)
+        MERGE (a)<-[:PREVIOUS]-(b)
+        """,
+        {"current_id": current_id, "next_id": next_id},
+    )
+
+
+def create_previous_relationship_atomic_units(
+    graph: Neo4jGraph,
+    document_name: str,
+    current_number,
+    next_number,
+):
+    current_id = f"{document_name}.subsubsection_{current_number}"
+    next_id = f"{document_name}.subsubsection_{next_number}"
+
+    graph.query(
+        """
+        MATCH (a WHERE a.id = $current_id)
+        MATCH (b WHERE b.id= $next_id)
+        MERGE (a)-[:NEXT]->(b)
+        MERGE (a)<-[:PREVIOUS]-(b)
         """,
         {"current_id": current_id, "next_id": next_id},
     )
@@ -242,20 +254,35 @@ def main():
                 node_type="subsection",
                 current_number=current.number,
                 next_number=next.number,
-                section_number=section.number,
             )
     logger.info("Knowledge graph construction completed.")
 
     # Add atomic unit chunks from docs/atomic_units
     logger.info("Adding atomic unit chunks from docs/atomic_units...")
-    atomic_units_path = Path("docs/atomic_units")
-    for json_file in atomic_units_path.glob("subsection_*_*_units.json"):
+
+    for json_file in ATOMIC_UNITS_PATH.glob("subsection_*_*_units.json"):
         logger.info(f"  Processing file: {json_file.name}")
         with open(json_file, "r") as f:
             data = json.load(f)
 
-        for chunk in data.get("chunks", []):
-            add_chunk_to_graph(graph=graph, document_name=DOCUMENT_NAME, chunk=chunk)
+        atomic_units = data.get("chunks", [])
+
+    for json_file in ATOMIC_UNITS_PATH.glob("subsection_*_*_units.json"):
+        logger.info(f"  Processing file: {json_file.name}")
+        with open(json_file, "r") as f:
+            data = json.load(f)
+        atomic_units = [AtomicUnit.from_dict(unit) for unit in data.get("chunks")]
+
+        for unit in atomic_units:
+            add_chunk_to_graph(graph=graph, document_name=DOCUMENT_NAME, chunk=unit)
+
+        for current, next in zip(atomic_units[:-1], atomic_units[1:]):
+            create_previous_relationship_atomic_units(
+                graph,
+                document_name=DOCUMENT_NAME,
+                current_number=current.get_full_number(),
+                next_number=next.get_full_number(),
+            )
 
     logger.info("All atomic unit chunks have been added to the graph.")
 
