@@ -60,7 +60,9 @@ class SectionHeaders:
         self, section_number: int, subsection_number: int
     ) -> Optional[str]:
         subs = self.get_subsections(section_number)
-        sub = next((sub for sub in subs if sub.number == subsection_number), None)
+        # Convert subsection number to float for comparison (e.g., 1.2 for section 1, subsection 2)
+        target_number = float(f"{section_number}.{subsection_number}")
+        sub = next((sub for sub in subs if sub.number == target_number), None)
         return sub.title if sub else None
 
     def get_all_sections(self) -> List[int]:

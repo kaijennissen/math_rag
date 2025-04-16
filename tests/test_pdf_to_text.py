@@ -183,7 +183,16 @@ def test_process_pdf_page_success(mock_pdf_path):
         Document(page_content="Test content", metadata={"source": "test.pdf"})
     ]
 
-    with patch("math_rag.pdf_to_text.MathpixPDFLoader") as mock_loader:
+    # Create the mock PDF file so it exists
+    mock_pdf_path.touch()
+
+    with (
+        patch("math_rag.pdf_to_text.MathpixPDFLoader") as mock_loader,
+        patch("fitz.open"),
+        patch("fitz.Document.insert_pdf"),
+        patch("fitz.Document.save"),
+        patch("fitz.Document.close"),
+    ):
         mock_loader_instance = MagicMock()
         mock_loader_instance.load.return_value = mock_result
         mock_loader.return_value = mock_loader_instance
@@ -201,7 +210,16 @@ def test_process_pdf_page_retry_then_success(mock_pdf_path):
         Document(page_content="Test content", metadata={"source": "test.pdf"})
     ]
 
-    with patch("math_rag.pdf_to_text.MathpixPDFLoader") as mock_loader:
+    # Create the mock PDF file so it exists
+    mock_pdf_path.touch()
+
+    with (
+        patch("math_rag.pdf_to_text.MathpixPDFLoader") as mock_loader,
+        patch("fitz.open"),
+        patch("fitz.Document.insert_pdf"),
+        patch("fitz.Document.save"),
+        patch("fitz.Document.close"),
+    ):
         mock_loader_instance = MagicMock()
         # First call raises an exception, second call succeeds
         mock_loader_instance.load.side_effect = [Exception("API error"), mock_result]
@@ -217,7 +235,16 @@ def test_process_pdf_page_retry_then_success(mock_pdf_path):
 
 def test_process_pdf_page_all_retries_fail(mock_pdf_path):
     """Test when all retries fail when processing a PDF page."""
-    with patch("math_rag.pdf_to_text.MathpixPDFLoader") as mock_loader:
+    # Create the mock PDF file so it exists
+    mock_pdf_path.touch()
+
+    with (
+        patch("math_rag.pdf_to_text.MathpixPDFLoader") as mock_loader,
+        patch("fitz.open"),
+        patch("fitz.Document.insert_pdf"),
+        patch("fitz.Document.save"),
+        patch("fitz.Document.close"),
+    ):
         mock_loader_instance = MagicMock()
         # All calls raise an exception
         mock_loader_instance.load.side_effect = Exception("API error")
@@ -331,7 +358,7 @@ def test_save_processed_document(mock_pdf_path, temp_dir, mock_document):
     output_dir = temp_dir / "processed"
 
     with patch("math_rag.pdf_to_text.DOCS_PATH", temp_dir):
-        save_processed_document(mock_document, mock_pdf_path)
+        result = save_processed_document(mock_document, mock_pdf_path.stem)
 
         assert output_dir.exists()
         output_file = output_dir / f"{mock_pdf_path.stem}.pkl"
@@ -341,3 +368,4 @@ def test_save_processed_document(mock_pdf_path, temp_dir, mock_document):
             loaded_doc = pickle.load(f)
 
         assert loaded_doc == mock_document
+        assert result == mock_document
