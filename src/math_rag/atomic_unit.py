@@ -10,13 +10,20 @@ logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 GERMAN_TO_ENGLISH_TYPE = {
     "Satz": "Theorem",
     "Definition": "Definition",
+    "Definitionen": "Definition",
     "Lemma": "Lemma",
     "Korollar": "Corollary",
-    "Beispiel": "Example",
-    "Bemerkung": "Remark",
-    "Aufgabe": "Exercise",
+    "Folgerung": "Corollary",
+    "Folgerungen": "Corollary",
+    "Beispiel": "Example",  # Singular
+    "Beispiele": "Example",  # Singular
+    "Bemerkung": "Remark",  # Singular
+    "Bemerkungen": "Remark",  # Plural
+    "Aufgabe": "Exercise",  # Singular
+    "Aufgaben": "Exercise",  # Plural
     "Vorbemerkung": "Remark",
     "Proposition": "Proposition",
+    "Propositionen": "Proposition",
     "Einleitung": "Introduction",
 }
 
@@ -37,7 +44,7 @@ class AtomicUnit:
 
     def get_full_number(self) -> str:
         """Returns the full three-part number string (e.g., '7.4.9')."""
-        return f"{self.section}.{self.subsection}.{self.subsubsection}"
+        return f"{self.section}.{self.subsection}{f'.{self.subsubsection}' if self.subsubsection else ''}"
 
     def get_subsection_number(self) -> str:
         """Returns the subsection number string (e.g., '7.4')."""
@@ -45,45 +52,70 @@ class AtomicUnit:
 
     def __post_init__(self):
         """Performs consistency checks after initialization, logging warnings for mismatches."""
-        # 1. Check number consistency
-        expected_number = self.get_full_number()
-        match = re.search(r"(\d+\.\d+\.\d+)", self.identifier)
-        if not match:
-            logging.warning(
-                f"Could not extract number from identifier '{self.identifier}'. Skipping number check."
-            )
-        elif match.group(1) != expected_number:
-            logging.warning(
-                f"Identifier number mismatch for '{self.identifier}'. "
-                f"Expected '{expected_number}', found '{match.group(1)}'."
-            )
+        # Skip identifier-based checks only if it's likely an intro chunk
+        # (no identifier AND no subsubsection number).
+        # If subsubsection exists, identifier checks should run even if identifier is missing
+        # (which will likely trigger warnings as expected).
+        if not self.identifier and self.subsubsection is None:
+            return
 
-        # 2. Check type consistency
-        identifier_type_match = re.match(r"([a-zA-ZäöüÄÖÜß]+)", self.identifier)
-        if not identifier_type_match:
-            logging.warning(
-                f"Could not extract type from identifier '{self.identifier}'. Skipping type check."
-            )
-        else:
-            german_type = identifier_type_match.group(1)
-            expected_english_type = GERMAN_TO_ENGLISH_TYPE.get(german_type, "Unknown")
+        # --- Proceed with existing checks only if identifier is present OR subsubsection is present ---
 
-            if not expected_english_type:
-                # Keep this as an error - indicates missing config
-                logging.warning(
-                    f"Unknown German type '{german_type}' in identifier '{self.identifier}'. Please update GERMAN_TO_ENGLISH_TYPE map."
-                )
+        # 1. Check number consistency (only if identifier is actually present)
+        if self.identifier:
+            expected_number = self.get_full_number()
             try:
-                if expected_english_type.lower() != self.type.lower():
+                match = re.search(r"(\d+\.\d+\.\d+)", self.identifier)
+            except Exception:  # Keep broad exception for safety during regex
+                logging.warning(
+                    f"Regex error extracting number from identifier '{self.identifier}'. Skipping number check."
+                )
+                match = None  # Ensure match is None if regex fails
+
+            if not match:
+                # If we expected an identifier (because subsubsection is not None), warn here.
+                if self.subsubsection is not None:
+                    logging.warning(
+                        f"Could not extract number from identifier '{self.identifier}' for subsubsection {self.get_full_number()}. Skipping number check."
+                    )
+            elif match.group(1) != expected_number:
+                logging.warning(
+                    f"Identifier number mismatch for '{self.identifier}'. "
+                    f"Expected '{expected_number}', found '{match.group(1)}'."
+                )
+        elif self.subsubsection is not None:
+            # Identifier is missing, but subsubsection is not None - this is suspicious.
+            logging.warning(
+                f"Missing identifier for content in subsubsection {self.get_full_number()}."
+            )
+
+        # 2. Check type consistency (only if identifier is actually present)
+        if self.identifier:
+            identifier_type_match = re.match(r"([a-zA-ZäöüÄÖÜß]+)", self.identifier)
+            if not identifier_type_match:
+                # If we expected an identifier (because subsubsection is not None), warn here.
+                if self.subsubsection is not None:
+                    logging.warning(
+                        f"Could not extract type from identifier '{self.identifier}' for subsubsection {self.get_full_number()}. Skipping type check."
+                    )
+            else:
+                german_type = identifier_type_match.group(1)
+                expected_english_type = GERMAN_TO_ENGLISH_TYPE.get(
+                    german_type
+                )  # Removed default="Unknown"
+
+                if expected_english_type is None:  # Explicit check for None is better
+                    # Keep this as a warning - indicates missing config or unexpected type
+                    logging.warning(
+                        f"Unknown German type '{german_type}' found in identifier '{self.identifier}'. "
+                        f"Please update GERMAN_TO_ENGLISH_TYPE map if this type is valid."
+                    )
+                elif expected_english_type.lower() != self.type.lower():
                     logging.warning(
                         f"Type mismatch for identifier '{self.identifier}'. "
                         f"Identifier implies '{expected_english_type}', but type field is '{self.type}'."
                     )
-            except AttributeError:
-                logging.warning(
-                    f"Type field is missing in identifier '{self.identifier}'. "
-                    f"Expected type '{expected_english_type}'."
-                )
+        # No specific type check needed if identifier is missing, number check covers the warning.
 
     @classmethod
     def from_dict(cls, data: dict):

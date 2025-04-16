@@ -1,5 +1,6 @@
 import pytest
 import logging
+import re  # Added for regex search in warnings
 
 from math_rag.atomic_unit import AtomicUnit, GERMAN_TO_ENGLISH_TYPE
 
@@ -47,6 +48,47 @@ valid_test_data = [
         },
         "1.2.3",
     ),
+    (
+        {
+            "section": 2,
+            "section_title": "Intro",
+            "subsection": 3,
+            "subsection_title": "Ex",
+            "subsubsection": 4,
+            "type": "Example",
+            "identifier": "Beispiele 2.3.4",
+            "text": "Text",
+            "proof": None,
+        },
+        "2.3.4",  # Plural identifier, singular type -> OK
+    ),
+    (
+        {
+            "section": 4,
+            "section_title": "Intro",
+            "subsection": 5,
+            "subsection_title": "Ex",
+            "subsubsection": 6,
+            "type": "Exercise",
+            "identifier": "Aufgaben 4.5.6",
+            "text": "Text",
+            "proof": None,
+        },
+        "4.5.6",  # Plural identifier, singular type -> OK
+    ),
+    (
+        {
+            "section": 9,
+            "section_title": "Main",
+            "subsection": 1,
+            "subsection_title": "Intro",
+            "subsubsection": None,
+            "type": "Introduction",
+            "identifier": None,
+            "text": "Chapter intro",
+        },
+        "9.1",  # Expected number is None
+    ),
 ]
 
 
@@ -54,20 +96,27 @@ valid_test_data = [
 def test_atomic_unit_valid(data, expected_number):
     """Tests successful creation of AtomicUnit with valid data."""
     unit = AtomicUnit.from_dict(data)
+    # Add assertions for potentially None fields with defaults
     assert unit.section == data["section"]
-    assert unit.subsection == data["subsection"]
-    assert unit.subsubsection == data["subsubsection"]
+    assert unit.subsection == data.get("subsection")
+    assert unit.subsubsection == data.get("subsubsection")
     assert unit.type == data["type"]
-    assert unit.identifier == data["identifier"]
+    assert unit.identifier == data.get("identifier")
     assert unit.text == data["text"]
     assert unit.proof == data.get("proof")
     assert unit.get_full_number() == expected_number
-    # Check type consistency (implicitly tested in __post_init__)
-    german_type = data["identifier"].split()[0]
-    assert GERMAN_TO_ENGLISH_TYPE.get(german_type) == data["type"]
+    # Check type consistency (if identifier exists)
+    if unit.identifier:
+        german_type_match = re.match(r"([a-zA-ZäöüÄÖÜß]+)", unit.identifier)
+        if german_type_match:
+            german_type = german_type_match.group(1)
+            expected_english_type = GERMAN_TO_ENGLISH_TYPE.get(german_type)
+            assert expected_english_type is not None  # Should be known if valid
+            assert expected_english_type.lower() == unit.type.lower()
 
 
-# --- Invalid Test Cases ---
+# --- Test Cases For Warnings ---
+# Consolidating into one list for test_atomic_unit_all_warnings
 
 invalid_test_data_for_warnings = [
     # Number mismatch -> Expect Warning
@@ -82,7 +131,7 @@ invalid_test_data_for_warnings = [
             "section_title": "T",
             "subsection_title": "S",
         },
-        logging.WARNING,  # Expect a warning
+        logging.WARNING,
         "Identifier number mismatch",
         id="number_mismatch_warn",
     ),
@@ -98,11 +147,11 @@ invalid_test_data_for_warnings = [
             "section_title": "T",
             "subsection_title": "S",
         },
-        logging.WARNING,  # Expect a warning
+        logging.WARNING,
         "Type mismatch",
         id="type_mismatch_warn",
     ),
-    # Type mismatch (Identifier: Lemma -> Lemma, Type: theorem lowercase) - should NOT warn (case-insensitive)
+    # Type mismatch (Identifier: Lemma -> Lemma, Type: theorem lowercase) - should NOT warn
     pytest.param(
         {
             "section": 2,
@@ -114,11 +163,11 @@ invalid_test_data_for_warnings = [
             "section_title": "T",
             "subsection_title": "S",
         },
-        None,  # Expect NO warning/error
+        None,
         None,
         id="type_mismatch_case_insensitive_ok",
     ),
-    # Missing number in identifier -> Expect Warning
+    # Missing number in identifier (but subsubsection exists) -> Expect Warning
     pytest.param(
         {
             "section": 7,
@@ -130,11 +179,11 @@ invalid_test_data_for_warnings = [
             "section_title": "T",
             "subsection_title": "S",
         },
-        logging.WARNING,  # Expect a warning
-        "Could not extract number",
-        id="missing_number_warn",
-    ),
-    # Invalid number format in identifier -> Expect Warning
+        logging.WARNING,
+        r"Could not extract number.*for subsubsection 7\.4\.9",
+        id="missing_number_with_subsubsection_warn",
+    ),  # Added regex pattern
+    # Invalid number format in identifier (but subsubsection exists) -> Expect Warning
     pytest.param(
         {
             "section": 7,
@@ -146,11 +195,11 @@ invalid_test_data_for_warnings = [
             "section_title": "T",
             "subsection_title": "S",
         },
-        logging.WARNING,  # Expect a warning
-        "Could not extract number",
-        id="invalid_number_format_warn",
-    ),
-    # Missing type in identifier (just number) -> Expect Warning
+        logging.WARNING,
+        r"Could not extract number.*for subsubsection 7\.4\.9",
+        id="invalid_number_format_with_subsubsection_warn",
+    ),  # Added regex pattern
+    # Missing type in identifier (but subsubsection exists) -> Expect Warning
     pytest.param(
         {
             "section": 7,
@@ -162,86 +211,101 @@ invalid_test_data_for_warnings = [
             "section_title": "T",
             "subsection_title": "S",
         },
-        logging.WARNING,  # Expect a warning
-        "Could not extract type",
-        id="missing_type_warn",
-    ),
-]
-
-# Test cases that should show a warning but not raise an error
-invalid_test_data_for_warnings_only = [
+        logging.WARNING,
+        r"Could not extract type.*for subsubsection 7\.4\.9",
+        id="missing_type_with_subsubsection_warn",
+    ),  # Added regex pattern
     # Unknown German type in identifier -> Expect Warning
     pytest.param(
         {
-            "section": 7,
-            "subsection": 4,
-            "subsubsection": 9,
-            "type": "Theorem",
-            "identifier": "Unbekannt 7.4.9",
+            "section": 3,
+            "subsection": 1,
+            "subsubsection": 4,
+            "type": "Unknown",
+            "identifier": "Foo 3.1.4",
             "text": "...",
             "section_title": "T",
             "subsection_title": "S",
         },
         logging.WARNING,
-        "Type mismatch for identifier",
-        id="unknown_german_type_warning",
+        "Unknown German type 'Foo'",
+        id="unknown_german_type_warn",
     ),
+    # Plural identifier mismatch (Beispiele -> Example, Type: Theorem) -> Expect Warning
+    pytest.param(
+        {
+            "section": 2,
+            "subsection": 3,
+            "subsubsection": 4,
+            "type": "Theorem",
+            "identifier": "Beispiele 2.3.4",
+            "text": "...",
+        },
+        logging.WARNING,
+        r"Type mismatch.*Identifier implies 'Example'",
+        id="plural_type_mismatch_warn",
+    ),  # Added regex pattern
+    # Missing Identifier, Missing Subsubsection -> Expect NO Warning
+    pytest.param(
+        {
+            "section": 9,
+            "subsection": 1,
+            "subsubsection": None,
+            "type": "Introduction",
+            "identifier": None,
+            "text": "Intro",
+        },
+        None,
+        None,
+        id="missing_identifier_no_subsubsection_ok",
+    ),
+    # Missing Identifier, PRESENT Subsubsection -> Expect Warning
+    pytest.param(
+        {
+            "section": 9,
+            "subsection": 1,
+            "subsubsection": 5,
+            "type": "Remark",
+            "identifier": None,
+            "text": "Something",
+        },
+        logging.WARNING,
+        r"Missing identifier for content in subsubsection 9\.1\.5",
+        id="missing_identifier_with_subsubsection_warn",
+    ),  # Added regex pattern
 ]
 
 
+# Keep only the consolidated warning test function
 @pytest.mark.parametrize(
     "data, expected_log_level, log_message_contains", invalid_test_data_for_warnings
-)
-def test_atomic_unit_warnings(data, expected_log_level, log_message_contains, caplog):
-    """Tests creation of AtomicUnit logs the expected warnings for specific inconsistencies."""
-    with caplog.at_level(logging.WARNING):
-        AtomicUnit.from_dict(data)
-
-    if expected_log_level is None:
-        assert not caplog.records, f"Expected no logs, but got: {caplog.text}"
-    else:
-        assert len(caplog.records) >= 1, (
-            f"Expected a warning log, but none was captured for: {data['identifier']}"
-        )
-        found_match = False
-        for record in caplog.records:
-            if (
-                record.levelno == expected_log_level
-                and log_message_contains in record.message
-            ):
-                found_match = True
-                break
-        assert found_match, (
-            f"Expected log level {expected_log_level} with message containing '{log_message_contains}' not found in logs: {caplog.text}"
-        )
-
-
-# Add unknown type test to the warnings tests
-@pytest.mark.parametrize(
-    "data, expected_log_level, log_message_contains",
-    invalid_test_data_for_warnings + invalid_test_data_for_warnings_only,
 )
 def test_atomic_unit_all_warnings(
     data, expected_log_level, log_message_contains, caplog
 ):
-    """Tests creation of AtomicUnit logs the expected warnings for all issues including unknown types."""
+    """Tests creation of AtomicUnit logs the expected warnings (or no warnings)."""
     with caplog.at_level(logging.WARNING):
-        AtomicUnit.from_dict(data)
+        AtomicUnit.from_dict(data)  # Create the unit, triggering __post_init__
 
     if expected_log_level is None:
-        assert not caplog.records, f"Expected no logs, but got: {caplog.text}"
+        # Assert that NO warning messages were logged
+        assert len(caplog.records) == 0, f"Expected no warnings, but got: {caplog.text}"
     else:
-        assert len(caplog.records) >= 1, (
-            f"Expected a warning log, but none was captured for: {data['identifier']}"
+        # Assert that AT LEAST one warning message was logged
+        assert len(caplog.records) > 0, (
+            f"Expected warning containing '{log_message_contains}', but no warnings were logged."
         )
-        found_match = False
+        # Assert that the specific expected message part is present in the logs
+        found_message = False
         for record in caplog.records:
+            # Use re.search for flexible matching of the warning message
             if (
                 record.levelno == expected_log_level
-                and log_message_contains in record.message
+                and log_message_contains
+                and re.search(log_message_contains, record.message)
             ):
-                found_match = True
+                found_message = True
                 break
-        assert found_match, (
-            f"Expected log level {expected_log_level} with message containing '{log_message_contains}' not found in logs: {caplog.text}"
+        assert found_message, (
+            f"Expected log message pattern '{log_message_contains}' not found in warnings: {caplog.text}"
         )

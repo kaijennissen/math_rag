@@ -1,3 +1,5 @@
+import concurrent.futures
+from tqdm import tqdm
 import argparse
 import logging
 import os
@@ -89,11 +91,13 @@ Parsing guidelines:
 1. Extract sections (like 5, 6), subsections (like 5.1, 5.2), and subsubsections (like 5.1.1, 5.1.2) and the respective titles (like 'Trennungsaxiome')
 2. Identify mathematical entities: Satz (Theorem), Definition, Lemma, Aufgabe (Exercise), etc.
 3. In case you cannot identify the mathematical entity, use 'Remark' as the type.
-4. Maintain the hierarchical relationships between sections, subsections, and subsubsections. I.e. 5.1.2 is a subsubsection of 5.1 and 5.1 is a subsection of 5.
-5. Include proofs with their associated theorems
-6. CRITICALLY IMPORTANT: Preserve ALL LaTeX mathematical notation EXACTLY as it appears in the text. Do NOT modify, simplify, or escape ANY LaTeX code. All mathematical symbols, commands, and structures must be preserved perfectly.
-7. In some cases, the title of a theorem is more verbose, like "Satz von ...". In such cases, use the verbose title as the identifier.
-8. Subsections and mathematical entities have the same level of hierarchy, i.e. Theorem 3.1.2 is equivalent to subsubsection 3.1.2
+4. Introductions are only allowed at the beginning of a section, i.e. as the first chunk of a section.
+5. Maintain the hierarchical relationships between sections, subsections, and subsubsections. I.e. 5.1.2 is a subsubsection of 5.1 and 5.1 is a subsection of 5.
+6. Include proofs with their associated theorems
+7. CRITICALLY IMPORTANT: Preserve ALL LaTeX mathematical notation EXACTLY as it appears in the text. Do NOT modify, simplify, or escape ANY LaTeX code. All mathematical symbols, commands, and structures must be preserved perfectly.
+8. In some cases, the title of a theorem is more verbose, like "Satz von ...". In such cases, use the verbose title as the identifier.
+9. Subsections and mathematical entities have the same level of hierarchy, i.e. Theorem 3.1.2 is equivalent to subsubsection 3.1.2
+10. In some cases there are comments regarding the notation at the beginning of a section, subsection or subsubsection. Do not include these comments.
 
 Mathematical terminology in German:
 - "Satz" = Theorem
@@ -105,6 +109,8 @@ Mathematical terminology in German:
 - "Vorbemerkung" = Remark
 - "Proposition" = Proposition
 - "Einleitung" = Introduction
+- "Folgerung" = Corollary
+- "Korollar" = Corollary
 
 Remember to:
 - Use integer numbers for section numbers (5, 6, 7)
@@ -298,12 +304,38 @@ def main(sections: List, subsections: List):
 
     if not files_to_process:
         logger.error("No files found to process")
+        return
 
-    # Process each file
-    for file_path in files_to_process:
-        process_file(file_path)
+    # Set max_workers to a reasonable number to avoid API rate limits
+    max_workers = max(
+        8, len(files_to_process)
+    )  # Tune as needed, e.g., 5-8 is safe for OpenAI
+    results = {}
 
-    logger.info("✅ Extraction complete!")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_file = {
+            executor.submit(process_file, file_path): file_path
+            for file_path in files_to_process
+        }
+        for future in tqdm(
+            concurrent.futures.as_completed(future_to_file), total=len(future_to_file)
+        ):
+            file_path = future_to_file[future]
+            try:
+                result = future.result()
+                if result:
+                    file_name = file_path.name
+                    results[file_name] = len(result.chunks)
+                    logger.info(
+                        f"✓ Completed: {file_name} with {len(result.chunks)} units"
+                    )
+            except Exception as exc:
+                logger.error(f"❌ {file_path} generated an exception: {exc}")
+
+    total_chunks = sum(results.values())
+    logger.info(
+        f"✅ Extraction complete! Processed {len(results)} files with {total_chunks} total atomic units."
+    )
 
 
 if __name__ == "__main__":
