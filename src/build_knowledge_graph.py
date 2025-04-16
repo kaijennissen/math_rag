@@ -7,6 +7,7 @@ from langchain_neo4j import Neo4jGraph
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 from section_headers import SectionHeaders
+import json
 
 load_dotenv()
 # Configure logger
@@ -93,12 +94,42 @@ def create_subsection_node(
             "document_id": document_name,
             "section_id": f"{document_name}.section_{section_number}",
             "section_number": section_number,
-            "subsection_id": f"{document_name}.subsection_{section_number}_{subsection_number}",
+            "subsection_id": f"{document_name}.subsection_{subsection_number}",
             "subsection_number": subsection_number,
             "title": title,
         },
     )
     logger.info(f"Created subsection node for Subsection {subsection_number}")
+
+
+def add_chunk_to_graph(graph: Neo4jGraph, document_name: str, chunk: dict):
+    section_id = chunk.get("section")
+    subsection_id = chunk.get("subsection")
+    subsubsection_id = chunk.get("subsubsection")
+    subsubsection_number = ".".join(
+        [str(section_id), str(subsection_id), str(subsubsection_id)]
+    )
+    logger.info(f"Adding subsubsection: {subsubsection_number}")
+    graph.query(
+        """
+        MATCH (sub:Subsection {id: $subsection_id})
+        MERGE (c:Chunk {id: $subsubsection_id, number: $subsubsection_number})
+        SET c.text = $text,
+            c.type = $type,
+            c.title = $title,
+            c.proof = $proof
+        MERGE (c)-[:PART_OF]->(sub)
+        """,
+        {
+            "subsection_id": f"{document_name}.subsection_{section_id}.{subsection_id}",
+            "subsubsection_id": f"{document_name}.subsection_{section_id}.{subsection_id}.{subsubsection_id}",
+            "subsubsection_number": subsubsection_number,
+            "text": chunk.get("text"),
+            "type": chunk.get("type"),
+            "title": chunk.get("identifier"),
+            "proof": chunk.get("proof"),
+        },
+    )
 
 
 def create_next_relationship(
@@ -114,8 +145,8 @@ def create_next_relationship(
         next_id = f"{document_name}.section_{next_number}"
         label = "Section"
     elif node_type == "subsection":
-        current_id = f"{document_name}.subsection_{section_number}_{current_number}"
-        next_id = f"{document_name}.subsection_{section_number}_{next_number}"
+        current_id = f"{document_name}.subsection_{section_number}.{current_number}"
+        next_id = f"{document_name}.subsection_{section_number}.{next_number}"
         label = "Subsection"
     else:
         raise ValueError("node_type must be 'section' or 'subsection'")
@@ -205,14 +236,22 @@ def main():
             )
     logger.info("Knowledge graph construction completed.")
 
+    # Add atomic unit chunks from docs/atomic_units
+    logger.info("Adding atomic unit chunks from docs/atomic_units...")
+    atomic_units_path = Path("docs/atomic_units")
+    for json_file in atomic_units_path.glob("subsection_*_*_units.json"):
+        logger.info(f"  Processing file: {json_file.name}")
+        with open(json_file, "r") as f:
+            data = json.load(f)
+
+        for chunk in data.get("chunks", []):
+            add_chunk_to_graph(graph=graph, document_name=DOCUMENT_NAME, chunk=chunk)
+
+    logger.info("All atomic unit chunks have been added to the graph.")
+
 
 if __name__ == "__main__":
     main()
-
-# # Process each chunk
-# for i, chunk in enumerate(chunks.chunks):
-#     chunk_id = f"{document_name}.chunk_{i}"
-#     section_id = f"{document_name}.section_{chunk.section}"
 
 #     # Generate embedding for the chunk text
 #     try:
