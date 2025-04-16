@@ -1,11 +1,8 @@
 import pytest
 import tempfile
 import os
-from pathlib import Path
-import sys
 
-sys.path.append(str(Path(__file__).parent.parent))
-from src.section_headers import SectionHeaders, Subsection  # noqa: E402
+from math_rag.section_headers import SectionHeaders, Subsection  # noqa: E402
 
 MOCK_YAML = """
 1 Topologische Strukturen, Grundbegriffe und Beispiele:

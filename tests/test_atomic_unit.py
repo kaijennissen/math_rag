@@ -1,10 +1,7 @@
 import pytest
 import logging
-from pathlib import Path
-import sys
 
-sys.path.append(str(Path(__file__).parent.parent))
-from src.atomic_unit import AtomicUnit, GERMAN_TO_ENGLISH_TYPE
+from math_rag.atomic_unit import AtomicUnit, GERMAN_TO_ENGLISH_TYPE
 
 # --- Valid Test Cases ---
 
