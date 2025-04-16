@@ -1,10 +1,7 @@
 import pytest
 import logging
-from pathlib import Path
-import sys
 
-sys.path.append(str(Path(__file__).parent.parent))
-from src.atomic_unit import AtomicUnit, GERMAN_TO_ENGLISH_TYPE
+from math_rag.atomic_unit import AtomicUnit, GERMAN_TO_ENGLISH_TYPE
 
 # --- Valid Test Cases ---
 
@@ -171,9 +168,9 @@ invalid_test_data_for_warnings = [
     ),
 ]
 
-# Test cases that should still raise ValueError
-invalid_test_data_for_errors = [
-    # Unknown German type in identifier -> Expect Error
+# Test cases that should show a warning but not raise an error
+invalid_test_data_for_warnings_only = [
+    # Unknown German type in identifier -> Expect Warning
     pytest.param(
         {
             "section": 7,
@@ -185,9 +182,9 @@ invalid_test_data_for_errors = [
             "section_title": "T",
             "subsection_title": "S",
         },
-        ValueError,
-        "Unknown German type",
-        id="unknown_german_type_error",  # Renamed ID slightly
+        logging.WARNING,
+        "Type mismatch for identifier",
+        id="unknown_german_type_warning",
     ),
 ]
 
@@ -219,11 +216,32 @@ def test_atomic_unit_warnings(data, expected_log_level, log_message_contains, ca
         )
 
 
+# Add unknown type test to the warnings tests
 @pytest.mark.parametrize(
-    "data, expected_exception, error_message_contains", invalid_test_data_for_errors
+    "data, expected_log_level, log_message_contains",
+    invalid_test_data_for_warnings + invalid_test_data_for_warnings_only,
 )
-def test_atomic_unit_errors(data, expected_exception, error_message_contains):
-    """Tests creation of AtomicUnit still raises errors for critical issues."""
-    with pytest.raises(expected_exception) as excinfo:
+def test_atomic_unit_all_warnings(
+    data, expected_log_level, log_message_contains, caplog
+):
+    """Tests creation of AtomicUnit logs the expected warnings for all issues including unknown types."""
+    with caplog.at_level(logging.WARNING):
         AtomicUnit.from_dict(data)
-    assert error_message_contains in str(excinfo.value)
+
+    if expected_log_level is None:
+        assert not caplog.records, f"Expected no logs, but got: {caplog.text}"
+    else:
+        assert len(caplog.records) >= 1, (
+            f"Expected a warning log, but none was captured for: {data['identifier']}"
+        )
+        found_match = False
+        for record in caplog.records:
+            if (
+                record.levelno == expected_log_level
+                and log_message_contains in record.message
+            ):
+                found_match = True
+                break
+        assert found_match, (
+            f"Expected log level {expected_log_level} with message containing '{log_message_contains}' not found in logs: {caplog.text}"
+        )

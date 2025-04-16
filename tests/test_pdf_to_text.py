@@ -15,10 +15,7 @@ warnings.filterwarnings(
 )
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="sys")
 
-import sys  # noqa: E402
-
-sys.path.append(str(Path(__file__).parent.parent))
-from src.pdf_to_text import (  # noqa: E402
+from math_rag.pdf_to_text import (  # noqa: E402
     get_pdf_page_count,
     load_checkpoint,
     save_checkpoint,
@@ -94,8 +91,8 @@ def test_get_pdf_page_count_error():
 
 def test_load_checkpoint_new(mock_pdf_path, mock_checkpoint_dir):
     """Test loading a new checkpoint when none exists."""
-    with patch("src.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
-        with patch("src.pdf_to_text.get_pdf_page_count", return_value=5):
+    with patch("math_rag.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
+        with patch("math_rag.pdf_to_text.get_pdf_page_count", return_value=5):
             result = load_checkpoint(mock_pdf_path)
 
             assert result["filename"] == mock_pdf_path.name
@@ -114,7 +111,7 @@ def test_load_checkpoint_existing(
     with open(checkpoint_file, "w") as f:
         json.dump(mock_checkpoint_data, f)
 
-    with patch("src.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
+    with patch("math_rag.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
         result = load_checkpoint(mock_pdf_path)
 
         assert result == mock_checkpoint_data
@@ -122,7 +119,7 @@ def test_load_checkpoint_existing(
 
 def test_save_checkpoint(mock_pdf_path, mock_checkpoint_dir, mock_checkpoint_data):
     """Test saving a checkpoint."""
-    with patch("src.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
+    with patch("math_rag.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
         save_checkpoint(mock_pdf_path, mock_checkpoint_data)
 
         checkpoint_file = mock_checkpoint_dir / f"{mock_pdf_path.stem}_checkpoint.json"
@@ -145,7 +142,7 @@ def test_save_checkpoint(mock_pdf_path, mock_checkpoint_dir, mock_checkpoint_dat
 
 def test_save_page_result(mock_pdf_path, mock_checkpoint_dir, mock_document):
     """Test saving a page result."""
-    with patch("src.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
+    with patch("math_rag.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
         save_page_result(mock_pdf_path, 1, mock_document)
 
         result_dir = mock_checkpoint_dir / mock_pdf_path.stem
@@ -171,7 +168,7 @@ def test_load_page_results(mock_pdf_path, mock_checkpoint_dir, mock_document):
         with open(result_dir / f"page_{i}.pkl", "wb") as f:
             pickle.dump(mock_document, f)
 
-    with patch("src.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
+    with patch("math_rag.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
         result = load_page_results(mock_pdf_path)
 
         assert len(result) == 3
@@ -186,7 +183,16 @@ def test_process_pdf_page_success(mock_pdf_path):
         Document(page_content="Test content", metadata={"source": "test.pdf"})
     ]
 
-    with patch("src.pdf_to_text.MathpixPDFLoader") as mock_loader:
+    # Create the mock PDF file so it exists
+    mock_pdf_path.touch()
+
+    with (
+        patch("math_rag.pdf_to_text.MathpixPDFLoader") as mock_loader,
+        patch("fitz.open"),
+        patch("fitz.Document.insert_pdf"),
+        patch("fitz.Document.save"),
+        patch("fitz.Document.close"),
+    ):
         mock_loader_instance = MagicMock()
         mock_loader_instance.load.return_value = mock_result
         mock_loader.return_value = mock_loader_instance
@@ -204,13 +210,22 @@ def test_process_pdf_page_retry_then_success(mock_pdf_path):
         Document(page_content="Test content", metadata={"source": "test.pdf"})
     ]
 
-    with patch("src.pdf_to_text.MathpixPDFLoader") as mock_loader:
+    # Create the mock PDF file so it exists
+    mock_pdf_path.touch()
+
+    with (
+        patch("math_rag.pdf_to_text.MathpixPDFLoader") as mock_loader,
+        patch("fitz.open"),
+        patch("fitz.Document.insert_pdf"),
+        patch("fitz.Document.save"),
+        patch("fitz.Document.close"),
+    ):
         mock_loader_instance = MagicMock()
         # First call raises an exception, second call succeeds
         mock_loader_instance.load.side_effect = [Exception("API error"), mock_result]
         mock_loader.return_value = mock_loader_instance
 
-        with patch("src.pdf_to_text.time.sleep"):  # Don't actually sleep in tests
+        with patch("math_rag.pdf_to_text.time.sleep"):  # Don't actually sleep in tests
             result = process_pdf_page(mock_pdf_path, 0)
 
             assert result == mock_result
@@ -220,15 +235,24 @@ def test_process_pdf_page_retry_then_success(mock_pdf_path):
 
 def test_process_pdf_page_all_retries_fail(mock_pdf_path):
     """Test when all retries fail when processing a PDF page."""
-    with patch("src.pdf_to_text.MathpixPDFLoader") as mock_loader:
+    # Create the mock PDF file so it exists
+    mock_pdf_path.touch()
+
+    with (
+        patch("math_rag.pdf_to_text.MathpixPDFLoader") as mock_loader,
+        patch("fitz.open"),
+        patch("fitz.Document.insert_pdf"),
+        patch("fitz.Document.save"),
+        patch("fitz.Document.close"),
+    ):
         mock_loader_instance = MagicMock()
         # All calls raise an exception
         mock_loader_instance.load.side_effect = Exception("API error")
         mock_loader.return_value = mock_loader_instance
 
-        with patch("src.pdf_to_text.time.sleep"):  # Don't actually sleep in tests
+        with patch("math_rag.pdf_to_text.time.sleep"):  # Don't actually sleep in tests
             with patch(
-                "src.pdf_to_text.MAX_RETRIES", 2
+                "math_rag.pdf_to_text.MAX_RETRIES", 2
             ):  # Limit to 2 retries for faster testing
                 result = process_pdf_page(mock_pdf_path, 0)
 
@@ -259,8 +283,10 @@ def test_process_pdf_already_complete(
     mock_pdf_path.touch()
 
     # Create and save some mock results
-    with patch("src.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
-        with patch("src.pdf_to_text.load_page_results", return_value=mock_document):
+    with patch("math_rag.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
+        with patch(
+            "math_rag.pdf_to_text.load_page_results", return_value=mock_document
+        ):
             result = process_pdf(mock_pdf_path)
 
             assert result == mock_document
@@ -286,11 +312,12 @@ def test_process_pdf_with_new_pages(mock_pdf_path, mock_checkpoint_dir, mock_doc
     # Create the mock PDF file so it exists
     mock_pdf_path.touch()
 
-    with patch("src.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
-        with patch("src.pdf_to_text.process_pdf_page", return_value=mock_document):
-            with patch("src.pdf_to_text.save_page_result"):
+    with patch("math_rag.pdf_to_text.CHECKPOINT_DIR", mock_checkpoint_dir):
+        with patch("math_rag.pdf_to_text.process_pdf_page", return_value=mock_document):
+            with patch("math_rag.pdf_to_text.save_page_result"):
                 with patch(
-                    "src.pdf_to_text.load_page_results", return_value=mock_document * 3
+                    "math_rag.pdf_to_text.load_page_results",
+                    return_value=mock_document * 3,
                 ):
                     result = process_pdf(mock_pdf_path)
 
@@ -330,8 +357,8 @@ def test_save_processed_document(mock_pdf_path, temp_dir, mock_document):
     """Test saving a processed document."""
     output_dir = temp_dir / "processed"
 
-    with patch("src.pdf_to_text.DOCS_PATH", temp_dir):
-        save_processed_document(mock_document, mock_pdf_path)
+    with patch("math_rag.pdf_to_text.DOCS_PATH", temp_dir):
+        result = save_processed_document(mock_document, mock_pdf_path.stem)
 
         assert output_dir.exists()
         output_file = output_dir / f"{mock_pdf_path.stem}.pkl"
@@ -341,3 +368,4 @@ def test_save_processed_document(mock_pdf_path, temp_dir, mock_document):
             loaded_doc = pickle.load(f)
 
         assert loaded_doc == mock_document
+        assert result == mock_document

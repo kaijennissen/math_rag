@@ -8,6 +8,7 @@ llama-index
 pandas
 python-dotenv
 pypdf
+pymupdf
 rich
 scikit-learn
 streamlit

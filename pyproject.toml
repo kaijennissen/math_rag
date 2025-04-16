@@ -3,10 +3,13 @@ requires = ["setuptools>64", "wheel"]
 build_backend = ["setuptools.build_meta"]
 
 [project]
-name = "rag_chat"
+name = "math_rag"
 version = "0.1.0"
-description = "Langgraph Agent for adaptive Document Chat"
+description = "GraphRAG for Mathematical Documents"
 readme = "README.md"
+authors = [
+    { name = "Kai Jennissen", email = "k_jennissen@icloud.com" }
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

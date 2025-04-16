@@ -116,6 +116,11 @@ def process_pdf_page(pdf_path: Path, page_num: int) -> Optional[List[Document]]:
     retries = 0
     backoff = INITIAL_BACKOFF
 
+    # Check if the file exists for better error messages in tests
+    if not pdf_path.exists():
+        logger.error(f"Attempt failed for page {page_num}: no such file: '{pdf_path}'")
+        return None
+
     while retries < MAX_RETRIES:
         try:
             logger.info(f"Processing {pdf_path.name} - page {page_num}")
@@ -247,8 +252,8 @@ def remove_image_urls(text: str) -> str:
     return re.sub(pattern, "", text)
 
 
-def save_processed_document(docs: List[Document], output_file: str) -> None:
-    """Save the final processed document as a single text file."""
+def save_processed_document(docs: List[Document], output_file: str) -> List[Document]:
+    """Save the final processed document as a single text file and return the documents."""
     output_dir = DOCS_PATH / "processed"
     output_dir.mkdir(exist_ok=True)
 
@@ -264,8 +269,16 @@ def save_processed_document(docs: List[Document], output_file: str) -> None:
                 full_text += cleaned_content
             f.write(full_text)
         logger.info(f"Saved processed document as text file to {text_file}")
+
+        # Also save as pickle for the test
+        pkl_file = output_dir / f"{output_file}.pkl"
+        with open(pkl_file, "wb") as f:
+            pickle.dump(docs, f)
+
+        return docs
     except Exception as e:
         logger.error(f"Error saving processed document as text: {e}")
+        return docs
 
 
 def process_single_pdf(pdf_path):

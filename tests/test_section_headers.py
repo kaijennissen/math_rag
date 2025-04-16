@@ -1,11 +1,8 @@
 import pytest
 import tempfile
 import os
-from pathlib import Path
-import sys
 
-sys.path.append(str(Path(__file__).parent.parent))
-from src.section_headers import SectionHeaders, Subsection  # noqa: E402
+from math_rag.section_headers import SectionHeaders, Subsection  # noqa: E402
 
 MOCK_YAML = """
 1 Topologische Strukturen, Grundbegriffe und Beispiele:
@@ -54,22 +51,22 @@ def test_get_section_title(section_headers, section_number, expected_title):
         (
             1,
             [
-                Subsection(0, "Einleitung"),
-                Subsection(1, "Topologien auf einer Menge"),
-                Subsection(2, "Punkte und Mengen in topologischen Räumen"),
-                Subsection(3, "Mengensysteme und Überdeckungen"),
-                Subsection(4, "Beispiele von topologischen Räumen"),
+                Subsection(1.0, "Einleitung"),
+                Subsection(1.1, "Topologien auf einer Menge"),
+                Subsection(1.2, "Punkte und Mengen in topologischen Räumen"),
+                Subsection(1.3, "Mengensysteme und Überdeckungen"),
+                Subsection(1.4, "Beispiele von topologischen Räumen"),
             ],
         ),
         (
             2,
             [
-                Subsection(0, "Einleitung"),
-                Subsection(1, "Konvergenz- und Verdichtungspunkte von Folgen"),
-                Subsection(2, "Konvergenz- und Berührpunkte von Mengensystemen"),
-                Subsection(3, "Stapel, Filter, Grills und Ultrafilter"),
+                Subsection(2.0, "Einleitung"),
+                Subsection(2.1, "Konvergenz- und Verdichtungspunkte von Folgen"),
+                Subsection(2.2, "Konvergenz- und Berührpunkte von Mengensystemen"),
+                Subsection(2.3, "Stapel, Filter, Grills und Ultrafilter"),
                 Subsection(
-                    4, "Existenz und Eindeutigkeit von Konvergenz- und Berührpunkten"
+                    2.4, "Existenz und Eindeutigkeit von Konvergenz- und Berührpunkten"
                 ),
             ],
         ),

@@ -286,6 +286,23 @@ def main():
 
     logger.info("All atomic unit chunks have been added to the graph.")
 
+    # graph.query(
+    #     """
+    #     CREATE VECTOR INDEX `vectorIndex_text`
+    #     IF NOT EXISTS
+    #     FOR (n) ON (n.text)
+    #     OPTIONS {indexConfig: {
+    #     `vector.dimensions`: 1536,
+    #     `vector.similarity_function`: 'cosine'
+    #     }};"""
+    # )
+    # graph.query(
+    #     """
+    #     CREATE FULLTEXT INDEX `fulltextIndex_text`
+    #     IF NOT EXISTS
+    #     FOR (n) ON EACH(n.text, n.title);
+    # )
+
 
 if __name__ == "__main__":
     main()
