@@ -2,6 +2,7 @@ from langchain_neo4j import Neo4jVector
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
+from langchain.retrievers import EnsembleRetriever
 import logging
 import coloredlogs
 import os
@@ -11,7 +12,7 @@ load_dotenv()
 # Configure logger
 logger = logging.getLogger(__name__)
 coloredlogs.install(
-    level="WARNING",
+    level="INFO",
     logger=logger,
     fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
@@ -157,40 +158,127 @@ print(results)
 """
 
 
+def main(query: str, search_type: str, k: int, node_type: str):
+    logger.info(
+        f"Retrieving {k} {node_type if search_type != 'ensemble' else 'Definition, Theorem, Lemma'} documents for query: {query} using {search_type} search."
+    )
+
+    if search_type == "vector":
+        index_name = f"vector_index_{node_type.lower()}"
+        store = Neo4jVector.from_existing_index(
+            embedding_provider,
+            url=os.getenv("NEO4J_URI"),
+            username=os.getenv("NEO4J_USERNAME"),
+            password=os.getenv("NEO4J_PASSWORD"),
+            index_name=index_name,
+            retrieval_query="RETURN node.text AS text, score, node {{.*}} AS metadata",
+        )
+        results = store.similarity_search(query, k=k)
+
+    elif search_type == "hybrid":
+        index_name = f"vector_index_{node_type.lower()}"
+        keyword_index_name = f"fulltext_index_{node_type.lower()}"
+        store = Neo4jVector.from_existing_index(
+            embedding_provider,
+            url=os.getenv("NEO4J_URI"),
+            username=os.getenv("NEO4J_USERNAME"),
+            password=os.getenv("NEO4J_PASSWORD"),
+            index_name=index_name,
+            keyword_index_name=keyword_index_name,
+            search_type="hybrid",
+            retrieval_query="RETURN node.text AS text, score, node {{.*}} AS metadata",
+        )
+        results = store.similarity_search(query, k=k)
+
+    elif search_type == "ensemble":
+        ensemble_node_types = ["Definition", "Theorem", "Lemma"]
+        vector_retrievers = []
+        logger.info(
+            f"Creating ensemble retriever for node types: {ensemble_node_types}"
+        )
+        for nt in ensemble_node_types:
+            index_name = f"text_vector_index_{nt.lower()}"
+            try:
+                retriever = Neo4jVector.from_existing_index(
+                    embedding_provider,
+                    url=os.getenv("NEO4J_URI"),
+                    username=os.getenv("NEO4J_USERNAME"),
+                    password=os.getenv("NEO4J_PASSWORD"),
+                    index_name=index_name,
+                    retrieval_query="RETURN node.text AS text, score, node {{.*}} AS metadata",
+                ).as_retriever(search_kwargs={"k": k})
+                vector_retrievers.append(retriever)
+                logger.info(
+                    f"Added retriever for node type: {nt} with index {index_name}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Could not create retriever for node type {nt} (index: {index_name}): {e}"
+                )
+
+        if not vector_retrievers:
+            logger.error("No vector retrievers could be initialized for the ensemble.")
+
+            results = []
+        else:
+            # Using default weights (equal weighting)
+            ensemble_retriever = EnsembleRetriever(
+                retrievers=vector_retrievers,
+                weights=[1.0 / len(vector_retrievers)] * len(vector_retrievers),
+            )
+            # EnsembleRetriever uses invoke, not similarity_search
+            results = ensemble_retriever.invoke(query)
+            # Note: EnsembleRetriever might not respect 'k' directly in the same way.
+            # The number of results depends on how it combines outputs.
+            # We might need to slice the results list if a specific 'k' is strictly required.
+            if len(results) > k:
+                results = results[:k]
+
+    else:
+        raise ValueError(f"Invalid search type: {search_type}")
+
+    if not results:
+        logger.warning("No results found for query: %s", query)
+
+    for i, result in enumerate(results, start=1):
+        print(f"Result {i}:")
+        print(f"{result.page_content}")
+        if hasattr(result, "metadata") and result.metadata:
+            print("Metadata:")
+            for key, value in result.metadata.items():
+                if "embedding" not in key:
+                    print(f"  - {key}: {value}")
+        print("=" * 140)
+
+
 if __name__ == "__main__":
-    index_name = "text_vector_index_definition"
-    store = Neo4jVector.from_existing_index(
-        embedding_provider,
-        url=os.getenv("NEO4J_URI"),
-        username=os.getenv("NEO4J_USERNAME"),
-        password=os.getenv("NEO4J_PASSWORD"),
-        index_name=index_name,
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Neo4j vector/hybrid retriever CLI")
+    parser.add_argument("-q", "--query", type=str, required=True, help="Search query")
+    parser.add_argument(
+        "-s",
+        "--search-type",
+        type=str,
+        choices=["vector", "hybrid", "ensemble"],
+        default="vector",
+        help="Search type: vector, hybrid, or ensemble",
     )
-
-    results = store.similarity_search("What is a topological space?", k=3)
-    results = store.similarity_search("Was ist ein T4 Raum?", k=3)
-
-    for result in results:
-        print(result.page_content)
-        print(result.metadata)
-        print("-" * 80)
-
-    index_name = "text_vector_index_definition"  # default index name
-    keyword_index_name = "fulltext_index_definition"  # default keyword index name
-
-    store = Neo4jVector.from_existing_index(
-        embedding_provider,
-        url=os.getenv("NEO4J_URI"),
-        username=os.getenv("NEO4J_USERNAME"),
-        password=os.getenv("NEO4J_PASSWORD"),
-        index_name=index_name,
-        keyword_index_name=keyword_index_name,
-        search_type="hybrid",
+    parser.add_argument(
+        "-k", "--k", type=int, default=5, help="Number of results to retrieve"
     )
+    parser.add_argument(
+        "-n",
+        "--node-type",
+        type=str,
+        default="Definition",
+        help="Node type (Definition, Theorem, etc.) - Ignored for ensemble search.",
+    )
+    args = parser.parse_args()
 
-    results = store.similarity_search("Was ist ein T_{4} Raum?", k=3)
-
-    for result in results:
-        print(result.page_content)
-        print(result.metadata)
-        print("-" * 80)
+    main(
+        query=args.query,
+        search_type=args.search_type,
+        k=args.k,
+        node_type=args.node_type,
+    )
