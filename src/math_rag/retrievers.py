@@ -171,7 +171,7 @@ def main(query: str, search_type: str, k: int, node_type: str):
             username=os.getenv("NEO4J_USERNAME"),
             password=os.getenv("NEO4J_PASSWORD"),
             index_name=index_name,
-            retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
+            # retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
         )
         results = store.similarity_search_with_score(query, k=k, threshold=0.25)
 
@@ -186,7 +186,7 @@ def main(query: str, search_type: str, k: int, node_type: str):
             index_name=index_name,
             keyword_index_name=keyword_index_name,
             search_type="hybrid",
-            retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
+            # retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
         )
         results = store.similarity_search_with_score(query, k=k, threshold=0.25)
 
@@ -212,7 +212,7 @@ def main(query: str, search_type: str, k: int, node_type: str):
                     username=os.getenv("NEO4J_USERNAME"),
                     password=os.getenv("NEO4J_PASSWORD"),
                     index_name=index_name,
-                    retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
+                    # retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
                 ).as_retriever(search_kwargs={"k": k})
                 vector_retrievers.append(retriever)
                 logger.info(
