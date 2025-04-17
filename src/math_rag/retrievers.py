@@ -171,9 +171,9 @@ def main(query: str, search_type: str, k: int, node_type: str):
             username=os.getenv("NEO4J_USERNAME"),
             password=os.getenv("NEO4J_PASSWORD"),
             index_name=index_name,
-            retrieval_query="RETURN node.text AS text, score, node {{.*}} AS metadata",
+            retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
         )
-        results = store.similarity_search(query, k=k)
+        results = store.similarity_search_with_score(query, k=k)
 
     elif search_type == "hybrid":
         index_name = f"vector_index_{node_type.lower()}"
@@ -186,9 +186,9 @@ def main(query: str, search_type: str, k: int, node_type: str):
             index_name=index_name,
             keyword_index_name=keyword_index_name,
             search_type="hybrid",
-            retrieval_query="RETURN node.text AS text, score, node {{.*}} AS metadata",
+            retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
         )
-        results = store.similarity_search(query, k=k)
+        results = store.similarity_search_with_score(query, k=k)
 
     elif search_type == "ensemble":
         ensemble_node_types = ["Definition", "Theorem", "Lemma"]
@@ -205,7 +205,7 @@ def main(query: str, search_type: str, k: int, node_type: str):
                     username=os.getenv("NEO4J_USERNAME"),
                     password=os.getenv("NEO4J_PASSWORD"),
                     index_name=index_name,
-                    retrieval_query="RETURN node.text AS text, score, node {{.*}} AS metadata",
+                    retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
                 ).as_retriever(search_kwargs={"k": k})
                 vector_retrievers.append(retriever)
                 logger.info(
@@ -227,7 +227,7 @@ def main(query: str, search_type: str, k: int, node_type: str):
                 weights=[1.0 / len(vector_retrievers)] * len(vector_retrievers),
             )
             # EnsembleRetriever uses invoke, not similarity_search
-            results = ensemble_retriever.invoke(query)
+            results = ensemble_retriever.invoke(query, k=k)
             # Note: EnsembleRetriever might not respect 'k' directly in the same way.
             # The number of results depends on how it combines outputs.
             # We might need to slice the results list if a specific 'k' is strictly required.
@@ -240,9 +240,11 @@ def main(query: str, search_type: str, k: int, node_type: str):
     if not results:
         logger.warning("No results found for query: %s", query)
 
-    for i, result in enumerate(results, start=1):
+    for i, (result, score) in enumerate(results, start=1):
         print(f"Result {i}:")
         print(f"{result.page_content}")
+        if score is not None:
+            print(f"Score: {score:.4f}")
         if hasattr(result, "metadata") and result.metadata:
             print("Metadata:")
             for key, value in result.metadata.items():
