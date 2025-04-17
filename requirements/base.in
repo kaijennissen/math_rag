@@ -12,5 +12,6 @@ pypdf
 pymupdf
 rich
 scikit-learn
+smolagents
 streamlit
 watchdog
