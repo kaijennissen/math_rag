@@ -173,7 +173,7 @@ def main(query: str, search_type: str, k: int, node_type: str):
             index_name=index_name,
             retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
         )
-        results = store.similarity_search_with_score(query, k=k)
+        results = store.similarity_search_with_score(query, k=k, threshold=0.25)
 
     elif search_type == "hybrid":
         index_name = f"vector_index_{node_type.lower()}"
@@ -188,16 +188,23 @@ def main(query: str, search_type: str, k: int, node_type: str):
             search_type="hybrid",
             retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
         )
-        results = store.similarity_search_with_score(query, k=k)
+        results = store.similarity_search_with_score(query, k=k, threshold=0.25)
 
     elif search_type == "ensemble":
-        ensemble_node_types = ["Definition", "Theorem", "Lemma"]
+        ensemble_node_types = [
+            "Definition",
+            "Theorem",
+            "Lemma",
+            "Corollary",
+            "Remark",
+            "Introduction",
+        ]
         vector_retrievers = []
         logger.info(
             f"Creating ensemble retriever for node types: {ensemble_node_types}"
         )
         for nt in ensemble_node_types:
-            index_name = f"text_vector_index_{nt.lower()}"
+            index_name = f"vector_index_{nt.lower()}"
             try:
                 retriever = Neo4jVector.from_existing_index(
                     embedding_provider,
