@@ -16,9 +16,7 @@ coloredlogs.install(
     fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-llm = ChatOpenAI(
-    openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.5-preview"
-)
+llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.1")
 
 embedding_provider = OpenAIEmbeddings(
     openai_api_key=os.getenv("OPENAI_API_KEY"), model="text-embedding-3-small"

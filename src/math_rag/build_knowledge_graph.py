@@ -24,9 +24,7 @@ SECTION_HEADERS_PATH = Path("docs/section_headers.yaml")
 ATOMIC_UNITS_PATH = Path("docs/atomic_units")
 DOCUMENT_NAME = "topological_spaces"
 
-llm = ChatOpenAI(
-    openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.5-preview"
-)
+llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.1")
 
 embedding_provider = OpenAIEmbeddings(
     openai_api_key=os.getenv("OPENAI_API_KEY"), model="text-embedding-3-small"
