@@ -182,24 +182,30 @@ def create_previous_relationship_atomic_units(
     )
 
 
-def create_vector_index(graph: Neo4jGraph, label: str, property_name: str = "text"):
+def create_vector_index(graph: Neo4jGraph, property_name: str = "text"):
     """Create a vector index for a specific node label and property."""
-    index_name = f"vector_index_{label.lower()}"
-    logger.info(
-        f"Creating vector index {index_name} for {label} nodes on property {property_name}"
-    )
+    # index_name = f"vector_index_{label.lower()}"
+    index_name = "vector_index_AtomicUnit"
+    logger.info(f"Creating vector index  nodes on property {property_name}")
 
     try:
+        graph.query(
+            """
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            SET n:AtomicUnit;
+            """
+        )
+
         graph.query(
             f"""
             CREATE VECTOR INDEX {index_name}
             IF NOT EXISTS
-            FOR (n:{label}) ON (n.{property_name})
+            FOR (n:AtomicUnit) ON (n.text)
             OPTIONS {{
                 indexConfig: {{
                     `vector.dimensions`: 1536,
                     `vector.similarity_function`: 'cosine'
-                }}
+                    }}
             }}
             """
         )
@@ -210,12 +216,12 @@ def create_vector_index(graph: Neo4jGraph, label: str, property_name: str = "tex
         return False
 
 
-def create_fulltext_index(graph: Neo4jGraph, label: str, properties: list):
+def create_fulltext_index(graph: Neo4jGraph, properties: list):
     """Create a fulltext index for a specific node label and a list of properties."""
     property_list = ", ".join([f"n.{prop}" for prop in properties])
-    index_name = f"fulltext_index_{label.lower()}"
+    index_name = "fulltext_index_AtomicUnit"
     logger.info(
-        f"Creating fulltext index {index_name} for {label} nodes on properties {properties}"
+        f"Creating fulltext index {index_name} for nodes on properties {properties}"
     )
 
     try:
@@ -223,7 +229,7 @@ def create_fulltext_index(graph: Neo4jGraph, label: str, properties: list):
             f"""
             CREATE FULLTEXT INDEX {index_name}
             IF NOT EXISTS
-            FOR (n:{label}) ON EACH [{property_list}]
+            FOR (n:AtomicUnit) ON EACH [{property_list}]
             """
         )
         logger.info(f"Successfully created fulltext index {index_name}")
@@ -236,38 +242,38 @@ def create_fulltext_index(graph: Neo4jGraph, label: str, properties: list):
 def create_indexes(graph: Neo4jGraph):
     """Create vector and fulltext indexes for all relevant node labels in the graph."""
     # Get all node labels from the graph
-    try:
-        labels_result = graph.query("CALL db.labels()")
-        all_labels = [record.get("label") for record in labels_result]
-        logger.info(f"Found the following node labels in the graph: {all_labels}")
-    except Exception as e:
-        logger.warning(f"Failed to get node labels: {e}")
-        # Fallback to known node types
-        all_labels = [
-            "Document",
-            "Section",
-            "Subsection",
-            "Definition",
-            "Theorem",
-            "Lemma",
-            "Proof",
-            "Corollary",
-            "Example",
-            "Exercise",
-            "Introduction",
-            "Remark",
-        ]
-        logger.info(f"Using fallback node labels: {all_labels}")
+    # try:
+    #     labels_result = graph.query("CALL db.labels()")
+    #     all_labels = [record.get("label") for record in labels_result]
+    #     logger.info(f"Found the following node labels in the graph: {all_labels}")
+    # except Exception as e:
+    #     logger.warning(f"Failed to get node labels: {e}")
+    #     # Fallback to known node types
+    #     all_labels = [
+    #         "Document",
+    #         "Section",
+    #         "Subsection",
+    #         "Definition",
+    #         "Theorem",
+    #         "Lemma",
+    #         "Proof",
+    #         "Corollary",
+    #         "Example",
+    #         "Exercise",
+    #         "Introduction",
+    #         "Remark",
+    #     ]
+    #     logger.info(f"Using fallback node labels: {all_labels}")
 
     # Create vector indexes for all labels (only where text property exists)
-    for label in all_labels:
-        create_vector_index(graph, label, "text")
+    # for label in all_labels:
+    create_vector_index(graph, "text")
 
-        # Create fulltext indexes for searchable text properties
-        if label in ["Corollary", "Theorem", "Lemma"]:
-            create_fulltext_index(graph, label, ["text", "title", "proof"])
-        else:
-            create_fulltext_index(graph, label, ["text", "title"])
+    # Create fulltext indexes for searchable text properties
+    # if label in ["Corollary", "Theorem", "Lemma"]:
+    create_fulltext_index(graph, ["text", "title", "proof"])
+    # else:
+    #     create_fulltext_index(graph, label, ["text", "title"])
 
 
 def main():

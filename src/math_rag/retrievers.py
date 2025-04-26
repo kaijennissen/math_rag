@@ -2,7 +2,6 @@ from langchain_neo4j import Neo4jVector
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
-from langchain.retrievers import EnsembleRetriever
 import logging
 import coloredlogs
 import os
@@ -46,12 +45,6 @@ class GraphRetrieverTool(Tool):
             "default": 5,
             "nullable": True,
         },
-        "node_type": {
-            "type": "string",
-            "description": "The type of node to search for. Can be 'Definition', 'Theorem', 'Lemma', 'Proof', etc. Default is to search all types.",
-            "default": "Definition",
-            "nullable": True,
-        },
     }
     output_type = "string"
 
@@ -64,13 +57,10 @@ class GraphRetrieverTool(Tool):
         self.neo4j_username = os.getenv("NEO4J_USERNAME")
         self.neo4j_password = os.getenv("NEO4J_PASSWORD")
 
-        # Set default node type and index names
-        self.default_node_type = "Definition"
-
-    def _get_retriever(self, node_type: str):
+    def _get_retriever(self):
         """Get a Neo4j Vector retriever for the specified node type."""
-        index_name = f"text_vector_index_{node_type.lower()}"
-        keyword_index_name = f"fulltext_index_{node_type.lower()}"
+        index_name = "vector_index_AtomicUnit"
+        keyword_index_name = "fulltext_index_AtomicUnit"
 
         logger.info(
             f"Creating hybrid retriever with index_name={index_name}, keyword_index_name={keyword_index_name}"
@@ -86,14 +76,13 @@ class GraphRetrieverTool(Tool):
             search_type="hybrid",
         )
 
-    def forward(self, query: str, k: int = 5, node_type: str = None) -> str:
+    def forward(self, query: str, k: int = 5) -> str:
         """
         Retrieve documents from Neo4j that match the query.
 
         Args:
             query: The search query
             k: Number of results to return
-            node_type: Type of node to search (Definition, Theorem, etc.)
 
         Returns:
             A formatted string with the retrieved documents
@@ -101,18 +90,15 @@ class GraphRetrieverTool(Tool):
         assert isinstance(query, str), "Your search query must be a string"
 
         # Use default node type if none provided
-        if not node_type:
-            node_type = self.default_node_type
-
         try:
             # Get the appropriate retriever
-            retriever = self._get_retriever(node_type)
+            retriever = self._get_retriever()
 
             # Perform the search
             docs = retriever.similarity_search(query, k=k)
 
             # Format the results
-            result_str = f"\nRetrieved {len(docs)} {node_type} documents:\n"
+            result_str = f"\nRetrieved {len(docs)} documents:\n"
 
             for i, doc in enumerate(docs):
                 result_str += f"\n\n===== Document {i + 1} =====\n"
@@ -158,13 +144,13 @@ print(results)
 """
 
 
-def main(query: str, search_type: str, k: int, node_type: str):
+def main(query: str, search_type: str, k: int = 5):
     logger.info(
-        f"Retrieving {k} {node_type if search_type != 'ensemble' else 'Definition, Theorem, Lemma'} documents for query: {query} using {search_type} search."
+        f"Retrieving {k} documents for query: {query} using {search_type} search."
     )
 
     if search_type == "vector":
-        index_name = f"vector_index_{node_type.lower()}"
+        index_name = "vector_index_AtomicUnit"
         store = Neo4jVector.from_existing_index(
             embedding_provider,
             url=os.getenv("NEO4J_URI"),
@@ -176,8 +162,8 @@ def main(query: str, search_type: str, k: int, node_type: str):
         results = store.similarity_search_with_score(query, k=k, threshold=0.25)
 
     elif search_type == "hybrid":
-        index_name = f"vector_index_{node_type.lower()}"
-        keyword_index_name = f"fulltext_index_{node_type.lower()}"
+        index_name = "vector_index_AtomicUnit"
+        keyword_index_name = "fulltext_index_AtomicUnit"
         store = Neo4jVector.from_existing_index(
             embedding_provider,
             url=os.getenv("NEO4J_URI"),
@@ -186,63 +172,11 @@ def main(query: str, search_type: str, k: int, node_type: str):
             index_name=index_name,
             keyword_index_name=keyword_index_name,
             search_type="hybrid",
-            # retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
+            # retrieval_query=f"RETURN node.text AS text, scjore, node {{.*}} AS metadata",  # noqa: F541
         )
         results = store.similarity_search_with_score(query, k=k, threshold=0.25)
-
-    elif search_type == "ensemble":
-        ensemble_node_types = [
-            "Definition",
-            "Theorem",
-            "Lemma",
-            "Corollary",
-            "Remark",
-            "Introduction",
-        ]
-        vector_retrievers = []
-        logger.info(
-            f"Creating ensemble retriever for node types: {ensemble_node_types}"
-        )
-        for nt in ensemble_node_types:
-            index_name = f"vector_index_{nt.lower()}"
-            try:
-                retriever = Neo4jVector.from_existing_index(
-                    embedding_provider,
-                    url=os.getenv("NEO4J_URI"),
-                    username=os.getenv("NEO4J_USERNAME"),
-                    password=os.getenv("NEO4J_PASSWORD"),
-                    index_name=index_name,
-                    # retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
-                ).as_retriever(search_kwargs={"k": k})
-                vector_retrievers.append(retriever)
-                logger.info(
-                    f"Added retriever for node type: {nt} with index {index_name}"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Could not create retriever for node type {nt} (index: {index_name}): {e}"
-                )
-
-        if not vector_retrievers:
-            logger.error("No vector retrievers could be initialized for the ensemble.")
-
-            results = []
-        else:
-            # Using default weights (equal weighting)
-            ensemble_retriever = EnsembleRetriever(
-                retrievers=vector_retrievers,
-                weights=[1.0 / len(vector_retrievers)] * len(vector_retrievers),
-            )
-            # EnsembleRetriever uses invoke, not similarity_search
-            results = ensemble_retriever.invoke(query, k=k)
-            # Note: EnsembleRetriever might not respect 'k' directly in the same way.
-            # The number of results depends on how it combines outputs.
-            # We might need to slice the results list if a specific 'k' is strictly required.
-            if len(results) > k:
-                results = results[:k]
-
     else:
-        raise ValueError(f"Invalid search type: {search_type}")
+        logger.error("Invalid search type. Use 'vector' or 'hybrid'.")
 
     if not results:
         logger.warning("No results found for query: %s", query)
@@ -276,18 +210,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "-k", "--k", type=int, default=5, help="Number of results to retrieve"
     )
-    parser.add_argument(
-        "-n",
-        "--node-type",
-        type=str,
-        default="Definition",
-        help="Node type (Definition, Theorem, etc.) - Ignored for ensemble search.",
-    )
     args = parser.parse_args()
 
     main(
         query=args.query,
         search_type=args.search_type,
         k=args.k,
-        node_type=args.node_type,
     )
