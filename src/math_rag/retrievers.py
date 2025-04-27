@@ -72,8 +72,8 @@ class GraphRetrieverTool(Tool):
             username=self.neo4j_username,
             password=self.neo4j_password,
             index_name=index_name,
-            keyword_index_name=keyword_index_name,
-            search_type="hybrid",
+            # keyword_index_name=keyword_index_name,
+            # search_type="hybrid",
         )
 
     def forward(self, query: str, k: int = 5) -> str:

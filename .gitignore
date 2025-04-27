@@ -9,6 +9,8 @@ media/
 CLAUDE.md
 
 # common data-type extensions
+*.csv
+*.html
 *.feather
 *.json
 *.pkl

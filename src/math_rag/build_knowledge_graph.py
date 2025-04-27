@@ -1,3 +1,8 @@
+"""
+Module for building a knowledge graph from atomic units extracted from mathematical text.
+The graph is stored in Neo4j and represents the document structure and relationships.
+"""
+
 import os
 from pathlib import Path
 import logging
@@ -115,7 +120,8 @@ def add_chunk_to_graph(graph: Neo4jGraph, document_name: str, chunk: AtomicUnit)
     SET c.text = $text,
         c.type = $type,
         c.title = $title,
-        c.proof = $proof
+        c.proof = $proof,
+        c.textEmbedding = Null
     MERGE (c)-[:PART_OF]->(sub)
     """
 
@@ -182,101 +188,14 @@ def create_previous_relationship_atomic_units(
     )
 
 
-def create_vector_index(graph: Neo4jGraph, property_name: str = "text"):
-    """Create a vector index for a specific node label and property."""
-    # index_name = f"vector_index_{label.lower()}"
-    index_name = "vector_index_AtomicUnit"
-    logger.info(f"Creating vector index  nodes on property {property_name}")
-
-    try:
-        graph.query(
-            """
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
-            SET n:AtomicUnit;
-            """
-        )
-
-        graph.query(
-            f"""
-            CREATE VECTOR INDEX {index_name}
-            IF NOT EXISTS
-            FOR (n:AtomicUnit) ON (n.text)
-            OPTIONS {{
-                indexConfig: {{
-                    `vector.dimensions`: 1536,
-                    `vector.similarity_function`: 'cosine'
-                    }}
-            }}
-            """
-        )
-        logger.info(f"Successfully created vector index {index_name}")
-        return True
-    except Exception as e:
-        logger.warning(f"Failed to create vector index {index_name}: {e}")
-        return False
-
-
-def create_fulltext_index(graph: Neo4jGraph, properties: list):
-    """Create a fulltext index for a specific node label and a list of properties."""
-    property_list = ", ".join([f"n.{prop}" for prop in properties])
-    index_name = "fulltext_index_AtomicUnit"
-    logger.info(
-        f"Creating fulltext index {index_name} for nodes on properties {properties}"
-    )
-
-    try:
-        graph.query(
-            f"""
-            CREATE FULLTEXT INDEX {index_name}
-            IF NOT EXISTS
-            FOR (n:AtomicUnit) ON EACH [{property_list}]
-            """
-        )
-        logger.info(f"Successfully created fulltext index {index_name}")
-        return True
-    except Exception as e:
-        logger.warning(f"Failed to create fulltext index {index_name}: {e}")
-        return False
-
-
-def create_indexes(graph: Neo4jGraph):
-    """Create vector and fulltext indexes for all relevant node labels in the graph."""
-    # Get all node labels from the graph
-    # try:
-    #     labels_result = graph.query("CALL db.labels()")
-    #     all_labels = [record.get("label") for record in labels_result]
-    #     logger.info(f"Found the following node labels in the graph: {all_labels}")
-    # except Exception as e:
-    #     logger.warning(f"Failed to get node labels: {e}")
-    #     # Fallback to known node types
-    #     all_labels = [
-    #         "Document",
-    #         "Section",
-    #         "Subsection",
-    #         "Definition",
-    #         "Theorem",
-    #         "Lemma",
-    #         "Proof",
-    #         "Corollary",
-    #         "Example",
-    #         "Exercise",
-    #         "Introduction",
-    #         "Remark",
-    #     ]
-    #     logger.info(f"Using fallback node labels: {all_labels}")
-
-    # Create vector indexes for all labels (only where text property exists)
-    # for label in all_labels:
-    create_vector_index(graph, "text")
-
-    # Create fulltext indexes for searchable text properties
-    # if label in ["Corollary", "Theorem", "Lemma"]:
-    create_fulltext_index(graph, ["text", "title", "proof"])
-    # else:
-    #     create_fulltext_index(graph, label, ["text", "title"])
-
-
 def main():
+    """
+    Main function to build the knowledge graph.
+    Creates document, section, and subsection nodes and their relationships.
+    Adds atomic units from JSON files and establishes their relationships.
+
+    Note: Index creation has been moved to create_indexes.py
+    """
     logger.info("Starting knowledge graph construction.")
     section_headers = SectionHeaders(SECTION_HEADERS_PATH)
 
@@ -378,23 +297,10 @@ def main():
 
     logger.info("All atomic unit chunks have been added to the graph.")
 
-    # Create vector and fulltext indexes for all node labels
-    logger.info("Creating vector and fulltext indexes...")
-    create_indexes(graph)
-
-    # Fallback / convenient method
-    # Now we initialize from existing graph
-    # existing_graph = Neo4jVector.from_existing_graph(
-    #     embedding=OpenAIEmbeddings(),
-    #     url=url,
-    #     username=username,
-    #     password=password,
-    #     index_name="person_index",
-    #     node_label="Person",
-    #     text_node_properties=["name", "location"],
-    #     embedding_node_property="embedding",
-    # )
-    # result = existing_graph.similarity_search("Slovenia", k=1)
+    # Note: Index creation has been moved to create_indexes.py
+    logger.info(
+        "Knowledge graph construction completed. Run create_indexes.py to create search indexes."
+    )
 
 
 if __name__ == "__main__":
