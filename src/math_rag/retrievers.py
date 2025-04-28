@@ -1,7 +1,7 @@
 from langchain_neo4j import Neo4jVector
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_neo4j import Neo4jGraph
+from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 import logging
 import coloredlogs
 import os
@@ -16,17 +16,56 @@ coloredlogs.install(
     fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.1")
+# Model configuration - same as in add_e5_embeddings.py
+DEFAULT_MODEL = "E5 Multilingual"
+MODEL_CONFIGS = {
+    "OpenAI": {
+        "type": "openai",
+        "model_name": "text-embedding-3-small",
+        "dimensions": 1536,
+    },
+    "E5 Multilingual": {
+        "type": "huggingface",
+        "model_name": "intfloat/multilingual-e5-large",
+        "dimensions": 1024,
+    },
+    "MXBAI German": {
+        "type": "huggingface",
+        "model_name": "mixedbread-ai/deepset-mxbai-embed-de-large-v1",
+        "dimensions": 1024,
+    },
+}
 
-embedding_provider = OpenAIEmbeddings(
-    openai_api_key=os.getenv("OPENAI_API_KEY"), model="text-embedding-3-small"
-)
 
-graph = Neo4jGraph(
-    url=os.getenv("NEO4J_URI"),
-    username=os.getenv("NEO4J_USERNAME"),
-    password=os.getenv("NEO4J_PASSWORD"),
-)
+def get_embedding_provider(model_name: str = DEFAULT_MODEL):
+    """
+    Get the embedding model instance based on the model name.
+
+    Args:
+        model_name: Name of the embedding model to use
+
+    Returns:
+        An initialized embedding model instance
+    """
+    if model_name not in MODEL_CONFIGS:
+        raise ValueError(
+            f"Unknown model: {model_name}. Available models: {', '.join(MODEL_CONFIGS.keys())}"
+        )
+
+    config = MODEL_CONFIGS[model_name]
+
+    if config["type"] == "huggingface":
+        logger.info(
+            f"Initializing HuggingFace embeddings model: {config['model_name']}"
+        )
+        return HuggingFaceEmbeddings(model_name=config["model_name"])
+    elif config["type"] == "openai":
+        logger.info(f"Initializing OpenAI embeddings model: {config['model_name']}")
+        return OpenAIEmbeddings(
+            openai_api_key=os.getenv("OPENAI_API_KEY"), model=config["model_name"]
+        )
+    else:
+        raise ValueError(f"Unsupported model type: {config['type']}")
 
 
 class GraphRetrieverTool(Tool):
@@ -39,66 +78,91 @@ class GraphRetrieverTool(Tool):
             "type": "string",
             "description": "The query to search for in the mathematical knowledge graph. This can be a question or a statement about a mathematical concept.",
         },
-        "k": {
-            "type": "integer",
-            "description": "The number of documents to retrieve. Default is 5.",
-            "default": 5,
+        "model": {
+            "type": "string",
+            "description": f"The embedding model to use. Available options: {', '.join(MODEL_CONFIGS.keys())}. Default is {DEFAULT_MODEL}.",
+            "default": DEFAULT_MODEL,
             "nullable": True,
         },
     }
     output_type = "string"
 
-    def __init__(self, **kwargs):
+    def __init__(self, embedding_model: str = DEFAULT_MODEL, k: int = 5, **kwargs):
         """Initialize the GraphRetrieverTool with custom configuration."""
         super().__init__(**kwargs)
 
-        self.embedding_provider = embedding_provider
+        self.embedding_model = embedding_model
         self.neo4j_url = os.getenv("NEO4J_URI")
         self.neo4j_username = os.getenv("NEO4J_USERNAME")
         self.neo4j_password = os.getenv("NEO4J_PASSWORD")
+        self.k = k
 
-    def _get_retriever(self):
-        """Get a Neo4j Vector retriever for the specified node type."""
+    def _get_retriever(self, model_name: str = None):
+        """
+        Get a Neo4j Vector retriever with the specified embedding model.
+
+        Args:
+            model_name: Name of the embedding model to use
+
+        Returns:
+            Neo4jVector retriever instance
+        """
+        # Use the instance model if none is specified
+        if model_name is None:
+            model_name = self.embedding_model
+
+        # Get the embedding provider
+        embedding_provider = get_embedding_provider(model_name)
+
+        # Determine the correct index name based on model
         index_name = "vector_index_AtomicUnit"
+        embedding_property = "textEmbedding"
+
         keyword_index_name = "fulltext_index_AtomicUnit"
 
         logger.info(
-            f"Creating hybrid retriever with index_name={index_name}, keyword_index_name={keyword_index_name}"
+            f"Creating hybrid retriever with model={model_name}, index_name={index_name}, keyword_index_name={keyword_index_name}"
         )
 
         return Neo4jVector.from_existing_index(
-            self.embedding_provider,
+            embedding_provider,
             url=self.neo4j_url,
             username=self.neo4j_username,
             password=self.neo4j_password,
-            index_name=index_name,
-            # keyword_index_name=keyword_index_name,
-            # search_type="hybrid",
+            index_name=index_name,  # name of the vector index
+            # keyword_index_name=keyword_index_name, # name of the fulltext index
+            embedding_node_property=embedding_property,
+            search_type="vector",
         )
 
-    def forward(self, query: str, k: int = 5) -> str:
+    def forward(self, query: str, model: str = None) -> str:
         """
-        Retrieve documents from Neo4j that match the query.
+        Retrieve documents from Neo4j that match the query using the specified model.
 
         Args:
             query: The search query
-            k: Number of results to return
+            model: The embedding model to use (defaults to the instance model)
 
         Returns:
             A formatted string with the retrieved documents
         """
         assert isinstance(query, str), "Your search query must be a string"
 
-        # Use default node type if none provided
+        # Use default model if none provided
+        if model is None:
+            model = self.embedding_model
+
         try:
-            # Get the appropriate retriever
-            retriever = self._get_retriever()
+            # Get the appropriate retriever with the specified model
+            retriever = self._get_retriever(model)
 
             # Perform the search
-            docs = retriever.similarity_search(query, k=k)
+            docs = retriever.similarity_search(query, k=self.k)
 
             # Format the results
-            result_str = f"\nRetrieved {len(docs)} documents:\n"
+            result_str = (
+                f"\nRetrieved {len(docs)} documents using {model} embeddings:\n"
+            )
 
             for i, doc in enumerate(docs):
                 result_str += f"\n\n===== Document {i + 1} =====\n"
@@ -108,7 +172,10 @@ class GraphRetrieverTool(Tool):
                 if hasattr(doc, "metadata") and doc.metadata:
                     result_str += "METADATA:\n"
                     for key, value in doc.metadata.items():
-                        result_str += f"  - {key}: {value}\n"
+                        if (
+                            "embedding" not in key.lower()
+                        ):  # Skip embedding vectors in output
+                            result_str += f"  - {key}: {value}\n"
 
                 result_str += "-" * 40
 
@@ -119,50 +186,52 @@ class GraphRetrieverTool(Tool):
             return f"Error retrieving documents: {str(e)}"
 
 
-def get_hybrid_retriever(node_type: str = "Definition", k: int = 5):
+def get_hybrid_retriever(model: str = DEFAULT_MODEL, k: int = 5):
     """
     Helper function to get a preconfigured hybrid retriever.
 
     Args:
-        node_type: The node type to search (e.g., "Definition", "Theorem")
+        model: The embedding model to use
         k: Number of results to return
 
     Returns:
         A configured GraphRetrieverTool
     """
-    return GraphRetrieverTool(node_type=node_type, k=k)
+    return GraphRetrieverTool(embedding_model=model, k=k)
 
 
-# Example usage (commented out)
-"""
-# Create a retriever tool
-retriever = get_hybrid_retriever(node_type="Definition")
+def main(query: str, search_type: str, model: str = DEFAULT_MODEL, k: int = 5):
+    """
+    Main function to test the retriever.
 
-# Test the retriever
-results = retriever.forward(query="What is a topological space?", k=3)
-print(results)
-"""
-
-
-def main(query: str, search_type: str, k: int = 5):
+    Args:
+        query: The search query
+        search_type: Type of search (vector or hybrid)
+        model: Embedding model to use
+        k: Number of results to return
+    """
     logger.info(
-        f"Retrieving {k} documents for query: {query} using {search_type} search."
+        f"Retrieving {k} documents for query: '{query}' using {search_type} search with {model} embeddings."
     )
 
+    embedding_provider = get_embedding_provider(model)
+
+    # Determine the correct index and property names based on model
+    index_name = "vector_index_AtomicUnit"
+    embedding_property = "textEmbedding"
+
     if search_type == "vector":
-        index_name = "vector_index_AtomicUnit"
         store = Neo4jVector.from_existing_index(
             embedding_provider,
             url=os.getenv("NEO4J_URI"),
             username=os.getenv("NEO4J_USERNAME"),
             password=os.getenv("NEO4J_PASSWORD"),
             index_name=index_name,
-            # retrieval_query=f"RETURN node.text AS text, score, node {{.*}} AS metadata",  # noqa: F541
+            embedding_node_property=embedding_property,
         )
         results = store.similarity_search_with_score(query, k=k, threshold=0.25)
 
     elif search_type == "hybrid":
-        index_name = "vector_index_AtomicUnit"
         keyword_index_name = "fulltext_index_AtomicUnit"
         store = Neo4jVector.from_existing_index(
             embedding_provider,
@@ -170,16 +239,18 @@ def main(query: str, search_type: str, k: int = 5):
             username=os.getenv("NEO4J_USERNAME"),
             password=os.getenv("NEO4J_PASSWORD"),
             index_name=index_name,
+            embedding_node_property=embedding_property,
             keyword_index_name=keyword_index_name,
             search_type="hybrid",
-            # retrieval_query=f"RETURN node.text AS text, scjore, node {{.*}} AS metadata",  # noqa: F541
         )
         results = store.similarity_search_with_score(query, k=k, threshold=0.25)
     else:
         logger.error("Invalid search type. Use 'vector' or 'hybrid'.")
+        return
 
     if not results:
         logger.warning("No results found for query: %s", query)
+        return
 
     for i, (result, score) in enumerate(results, start=1):
         print(f"Result {i}:")
@@ -189,7 +260,7 @@ def main(query: str, search_type: str, k: int = 5):
         if hasattr(result, "metadata") and result.metadata:
             print("Metadata:")
             for key, value in result.metadata.items():
-                if "embedding" not in key:
+                if "Embedding" not in key:
                     print(f"  - {key}: {value}")
         print("=" * 140)
 
@@ -197,15 +268,25 @@ def main(query: str, search_type: str, k: int = 5):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Neo4j vector/hybrid retriever CLI")
+    parser = argparse.ArgumentParser(
+        description="Neo4j vector/hybrid retriever CLI with multiple embedding models"
+    )
     parser.add_argument("-q", "--query", type=str, required=True, help="Search query")
     parser.add_argument(
         "-s",
         "--search-type",
         type=str,
-        choices=["vector", "hybrid", "ensemble"],
-        default="vector",
-        help="Search type: vector, hybrid, or ensemble",
+        choices=["vector", "hybrid"],
+        default="hybrid",
+        help="Search type: vector or hybrid",
+    )
+    parser.add_argument(
+        "-m",
+        "--model",
+        type=str,
+        choices=list(MODEL_CONFIGS.keys()),
+        default=DEFAULT_MODEL,
+        help=f"Embedding model to use (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "-k", "--k", type=int, default=5, help="Number of results to retrieve"
@@ -215,5 +296,6 @@ if __name__ == "__main__":
     main(
         query=args.query,
         search_type=args.search_type,
+        model=args.model,
         k=args.k,
     )

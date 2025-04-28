@@ -14,7 +14,7 @@ Key features:
 
 ## 🚧 Prerequisites
 
-- Python 3.11+
+- Python 3.12+
 - Neo4j database (can be run via Docker)
 - API keys:
   - OpenAI API key (optional, can use local models)
@@ -60,12 +60,13 @@ Key features:
    Place mathematical PDFs in the `./docs` folder and run the following workflows:
 
    ```
-   # Complete workflow to create a knowledge graph
-   python src/pdf_to_text.py path/to/your/document.pdf                 # Step 1: Parse PDF with MathPix
-   python src/section_splitter.py --input docs/processed/document.pkl  # Step 2: Split document into sections
-   python src/subsection_splitter.py --section 5                       # Step 3: Split sections into subsections
-   python src/extract_atomic_units.py --section 5                      # Step 4: Extract definitions, theorems, etc. with LLM
-   python src/build_knowledge_graph.py                                 # Step 5: Create the knowledge graph
+   # Complete workflow to create a knowledge graph and search index
+   python src/math_rag/pdf_to_text.py path/to/your/document.pdf                      # Step 1: Parse PDF with MathPix
+   python src/math_rag/section_splitter.py --input docs/processed/document.pkl       # Step 2: Split document into sections
+   python src/math_rag/subsection_splitter.py --section 5                            # Step 3: Split sections into subsections
+   python src/math_rag/extract_atomic_units.py --section 5                           # Step 4: Extract definitions, theorems, etc. with LLM
+   python src/math_rag/build_knowledge_graph                                # Step 5: Create the knowledge graph and fulltext index
+   python src/math_rag/create_embeddings_and_vector_index --model "E5 Multilingual" --test  # Step 6: Create embeddings and vector index
    ```
 
    This workflow:
@@ -73,25 +74,33 @@ Key features:
    - Extracts and splits the document into major sections (Step 2)
    - Further splits sections into meaningful subsections (Step 3)
    - Uses LLM to identify atomic units like definitions and theorems (Step 4)
-   - Creates a structured knowledge graph in Neo4j (Step 5)
+   - Creates a structured knowledge graph in Neo4j with fulltext index (Step 5)
+   - Adds embeddings and creates vector index for similarity search (Step 6)
 
    **Detailed Usage for Each Tool**:
    ```
    # Process a single PDF file
-   python src/pdf_to_text.py /absolute/path/to/your/document.pdf
+   python src/math_rag/pdf_to_text.py /absolute/path/to/your/document.pdf
 
    # Split document into major sections
-   python src/section_splitter.py --input docs/processed/document.pkl --section 5    # Process specific section
+   python src/math_rag/section_splitter.py --input docs/processed/document.pkl --section 5    # Process specific section
 
    # Split sections into subsections
-   python src/subsection_splitter.py --section 5                  # Process one section
-   python src/subsection_splitter.py --section 5 --section 6      # Process multiple sections
+   python src/math_rag/subsection_splitter.py --section 5                  # Process one section
+   python src/math_rag/subsection_splitter.py --section 5 --section 6      # Process multiple sections
 
    # Extract atomic units from sections or specific subsections
-   python src/extract_atomic_units.py --section 5                # Process all subsections in section 5
-   python src/extract_atomic_units.py --subsection 5.1           # Process just subsection 5.1
-   python src/extract_atomic_units.py --section 5 --section 6    # Process all subsections in sections 5 and 6
-   python src/extract_atomic_units.py --section 5 --subsection 6.1 # Combine specific sections and subsections
+   python src/math_rag/extract_atomic_units.py --section 5                # Process all subsections in section 5
+   python src/math_rag/extract_atomic_units.py --subsection 5.1           # Process just subsection 5.1
+   python src/math_rag/extract_atomic_units.py --section 5 --section 6    # Process all subsections in sections 5 and 6
+
+   # Build knowledge graph and create fulltext index
+   python src/math_rag/build_knowledge_graph
+
+   # Create embeddings and vector index with different models
+   python src/math_rag/create_embeddings_and_vector_index --model "E5 Multilingual" --test
+   python src/math_rag/create_embeddings_and_vector_index --model "MXBAI German" --test
+   python src/math_rag/create_embeddings_and_vector_index --model "OpenAI" --test
    ```
 
    The tools have these resilient features:
@@ -100,46 +109,53 @@ Key features:
    - Saves intermediate results to enable resume capability
    - Robust error handling to skip problematic content
 
-7. Launch the Streamlit interface:
-   ```
-   python src/app.py
-   ```
 
 ## 📦 Project Structure
 ```
 math_rag/
 │
 ├── config/
-│   └── config.yaml               # Configuration file
+│   └── config.yaml                                 # Configuration file
 │
-├── docs/                         # Folder for storing mathematical PDFs
+├── docs/                                           # Folder for storing mathematical PDFs
 │
 ├── src/
-│   ├── app.py                    # Streamlit interface
-│   ├── pdf_to_text.py            # Parse PDF with MathPix
-│   ├── section_splitter.py       # Split document into major sections
-│   ├── subsection_splitter.py    # Split sections into subsections
-│   ├── extract_atomic_units.py   # Extract definitions/theorems using LLM
-│   ├── build_knowledge_graph.py  # Create knowledge graph from atomic units
-│   ├── graph_creation.py         # Graph functions
-│   ├── graph_rag.py              # Generic Graph RAG implementation
-│   ├── graph_rag_math.py         # Math-specific Graph RAG implementation
-│   └── rag_chat/                 # Core RAG implementation
-│       ├── __init__.py
-│       ├── config.py             # Config loading and management
-│       ├── document_processing.py # PDF loading and processing
-│       ├── embeddings.py         # Vector embeddings
-│       ├── llm_utils.py          # LLM utilities
-│       ├── project_root.py       # Project path utilities
-│       ├── prompts.py            # System prompts
-│       ├── rag_chatbot.py        # LangGraph RAG implementation
-│       └── retrievers.py         # Retrieval methods
+│   └── math_rag/                                   # Core math RAG implementation
+│       ├── app.py                                  # Streamlit interface
+│       ├── pdf_to_text.py                          # Parse PDF with MathPix
+│       ├── section_splitter.py                     # Split document into major sections
+│       ├── subsection_splitter.py                  # Split sections into subsections
+│       ├── extract_atomic_units.py                 # Extract definitions/theorems using LLM
+│       ├── build_knowledge_graph.py                # Create knowledge graph + fulltext index
+│       ├── create_embeddings_and_vector_index.py   # Create embeddings + vector index
+│       ├── retrievers.py                           # Retrieval methods with different models
+│       ├── graph_rag_math.py                       # Math-specific Graph RAG implementation
+│       └── atomic_unit.py                          # Atomic unit classes and processing
 │
-├── notebooks/                    # Jupyter notebooks
-│
-├── docker-compose.yml            # Docker setup for Neo4j
-├── Makefile                      # Build utilities
-└── README.md                     # Project documentation
+├── docker-compose.yml                              # Docker setup for Neo4j
+├── Makefile                                        # Build utilities
+└── README.md                                       # Project documentation
+```
+
+## 📝 Embedding Models
+
+The system supports multiple embedding models optimized for different use cases:
+
+- **E5 Multilingual** (default): Best for academic German content, with strong performance on mathematical text
+- **MXBAI German**: Alternative for German language content with good performance in academic contexts
+- **OpenAI**: Standard OpenAI embeddings (text-embedding-3-small)
+
+You can specify which model to use when creating embeddings:
+
+```bash
+# Use E5 Multilingual (default)
+python -m src/math_rag/gccreate_embeddings_and_vector_index --model "E5 Multilingual" --test
+
+# Use MXBAI German
+python -m src/math_rag/gccreate_embeddings_and_vector_index --model "MXBAI German" --test
+
+# Use OpenAI
+python -m src/math_rag/gccreate_embeddings_and_vector_index --model "OpenAI" --test
 ```
 
 ## 🔄 Knowledge Graph Structure

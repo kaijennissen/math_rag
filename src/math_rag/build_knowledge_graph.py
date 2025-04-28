@@ -1,19 +1,27 @@
 """
 Module for building a knowledge graph from atomic units extracted from mathematical text.
 The graph is stored in Neo4j and represents the document structure and relationships.
+
+This script handles:
+1. Creating document, section, and subsection nodes
+2. Creating relationships between nodes (PART_OF, NEXT, PREVIOUS)
+3. Adding atomic units from JSON files to the graph
+4. Creating a fulltext index for keyword search
+
 """
 
 import os
 from pathlib import Path
 import logging
-from math_rag.atomic_unit import AtomicUnit
 import coloredlogs
+from dotenv import load_dotenv
+import json
+from neo4j import GraphDatabase
+from math_rag.atomic_unit import AtomicUnit
 from langchain_openai import OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
 from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
 from math_rag.section_headers import SectionHeaders
-import json
 
 load_dotenv()
 # Configure logger
@@ -28,6 +36,14 @@ DOCS_PATH = Path("docs/atomic_units/")
 SECTION_HEADERS_PATH = Path("docs/section_headers.yaml")
 ATOMIC_UNITS_PATH = Path("docs/atomic_units")
 DOCUMENT_NAME = "topological_spaces"
+
+# Neo4j connection details
+NEO4J_URI = os.getenv("NEO4J_URI")
+NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+
+# Direct Neo4j driver for index creation
+driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
 llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.1")
 
@@ -188,13 +204,69 @@ def create_previous_relationship_atomic_units(
     )
 
 
+def ensure_atomic_unit_label():
+    """Ensure that all content nodes have the AtomicUnit label."""
+    logger.info("Ensuring all content nodes have the AtomicUnit label...")
+    try:
+        with driver.session() as session:
+            result = session.run("""
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            WHERE NOT n:AtomicUnit
+            WITH count(n) AS missingLabel
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            WHERE NOT n:AtomicUnit
+            SET n:AtomicUnit
+            RETURN missingLabel, count(n) AS updated
+            """)
+            record = result.single()
+            if record and record["missingLabel"] > 0:
+                logger.info(f"Added AtomicUnit label to {record['updated']} nodes")
+            else:
+                logger.info("All content nodes already have the AtomicUnit label")
+            return True
+    except Exception as e:
+        logger.error(f"Error ensuring AtomicUnit label: {e}")
+        return False
+
+
+def create_fulltext_index():
+    """Create a fulltext index for AtomicUnit nodes."""
+    properties = ["text", "title", "proof"]
+    property_list = ", ".join([f"n.{prop}" for prop in properties])
+    index_name = "fulltext_index_AtomicUnit"
+
+    logger.info(
+        f"Creating fulltext index {index_name} for nodes on properties {properties}"
+    )
+
+    # Drop existing index if it exists
+    try:
+        logger.info(f"Dropping existing fulltext index {index_name} if it exists...")
+        with driver.session() as session:
+            session.run(f"DROP INDEX {index_name} IF EXISTS")
+    except Exception as e:
+        logger.warning(f"Error dropping index: {e}")
+
+    # Create new fulltext index
+    try:
+        with driver.session() as session:
+            session.run(f"""
+            CREATE FULLTEXT INDEX {index_name}
+            FOR (n:AtomicUnit) ON EACH [{property_list}]
+            """)
+        logger.info(f"Successfully created fulltext index {index_name}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to create fulltext index: {e}")
+        return False
+
+
 def main():
     """
     Main function to build the knowledge graph.
     Creates document, section, and subsection nodes and their relationships.
     Adds atomic units from JSON files and establishes their relationships.
-
-    Note: Index creation has been moved to create_indexes.py
+    Finally, creates a fulltext index for keyword search.
     """
     logger.info("Starting knowledge graph construction.")
     section_headers = SectionHeaders(SECTION_HEADERS_PATH)
@@ -297,9 +369,16 @@ def main():
 
     logger.info("All atomic unit chunks have been added to the graph.")
 
-    # Note: Index creation has been moved to create_indexes.py
+    # Ensure all content nodes have the AtomicUnit label
+    ensure_atomic_unit_label()
+
+    # Create fulltext index for keyword search
+    logger.info("Creating fulltext index for keyword search...")
+    create_fulltext_index()
+
     logger.info(
-        "Knowledge graph construction completed. Run create_indexes.py to create search indexes."
+        "Knowledge graph construction completed with fulltext index. "
+        "Run create_embeddings_and_vector_index.py to add embeddings and create vector index."
     )
 
 
