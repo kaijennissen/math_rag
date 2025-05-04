@@ -76,7 +76,7 @@ class GraphRetrieverTool(Tool):
     inputs = {
         "query": {
             "type": "string",
-            "description": "The query to search for in the mathematical knowledge graph. This can be a question or a statement about a mathematical concept.",
+            "description": "The query to search for in the mathematical knowledge graph. This can be a question or a statement about a mathematical concept. This should be semantically close to your target documents. Use the affirmative form rather than a question. Use german as language.",
         },
         "model": {
             "type": "string",
