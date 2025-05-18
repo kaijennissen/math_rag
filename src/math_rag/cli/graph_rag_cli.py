@@ -1,29 +1,6 @@
-from dotenv import load_dotenv
-import os
+from math_rag.agent_system.agents import setup_rag_chat
 from rich.console import Console
-from smolagents import CodeAgent, OpenAIServerModel
-from math_rag.retrievers import GraphRetrieverTool
-
-load_dotenv()
-
-model = OpenAIServerModel(
-    model_id="gpt-4.1",
-    api_base="https://api.openai.com/v1",
-    api_key=os.getenv("OPENAI_API_KEY"),
-)
-
-
-def setup_rag_chat():
-    """Setup a RAG chat agent with the graph-based retriever tool."""
-    # Create the graph retriever tool
-    graph_retriever = GraphRetrieverTool()
-
-    # Create agent with graph retriever tool
-    agent = CodeAgent(
-        tools=[graph_retriever], model=model, max_steps=10, verbosity_level=2
-    )
-
-    return agent
+import os
 
 
 def run_chat_interface():
@@ -35,6 +12,7 @@ def run_chat_interface():
         "[bold blue]Setting up Mathematical RAG system with Neo4j Knowledge Graph...[/bold blue]"
     )
     agent = setup_rag_chat()
+    agent.visualize()
 
     # Welcome message
     console.print("\n[bold green]Welcome to Mathematical RAG Chat![/bold green]")

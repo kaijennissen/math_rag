@@ -61,12 +61,12 @@ Key features:
 
    ```
    # Complete workflow to create a knowledge graph and search index
-   python src/math_rag/pdf_to_text.py path/to/your/document.pdf                      # Step 1: Parse PDF with MathPix
-   python src/math_rag/section_splitter.py --input docs/processed/document.pkl       # Step 2: Split document into sections
-   python src/math_rag/subsection_splitter.py --section 5                            # Step 3: Split sections into subsections
-   python src/math_rag/extract_atomic_units.py --section 5                           # Step 4: Extract definitions, theorems, etc. with LLM
-   python src/math_rag/build_knowledge_graph                                # Step 5: Create the knowledge graph and fulltext index
-   python src/math_rag/create_embeddings_and_vector_index --model "E5 Multilingual" --test  # Step 6: Create embeddings and vector index
+   python src/math_rag/data_processing/pdf_to_text.py path/to/your/document.pdf                      # Step 1: Parse PDF with MathPix
+   python src/math_rag/data_processing/section_splitter.py --input docs/processed/document.pkl       # Step 2: Split document into sections
+   python src/math_rag/data_processing/subsection_splitter.py --section 5                            # Step 3: Split sections into subsections
+   python src/math_rag/data_processing/extract_atomic_units.py --section 5                           # Step 4: Extract definitions, theorems, etc. with LLM
+   python src/math_rag/knowledge_graph/build_knowledge_graph.py                                      # Step 5: Create the knowledge graph and fulltext index
+   python src/math_rag/embeddings/create_embeddings_and_vector_index.py --model "E5 Multilingual" --test  # Step 6: Create embeddings and vector index
    ```
 
    This workflow:
@@ -80,27 +80,27 @@ Key features:
    **Detailed Usage for Each Tool**:
    ```
    # Process a single PDF file
-   python src/math_rag/pdf_to_text.py /absolute/path/to/your/document.pdf
+   python src/math_rag/data_processing/pdf_to_text.py /absolute/path/to/your/document.pdf
 
    # Split document into major sections
-   python src/math_rag/section_splitter.py --input docs/processed/document.pkl --section 5    # Process specific section
+   python src/math_rag/data_processing/section_splitter.py --input docs/processed/document.pkl --section 5    # Process specific section
 
    # Split sections into subsections
-   python src/math_rag/subsection_splitter.py --section 5                  # Process one section
-   python src/math_rag/subsection_splitter.py --section 5 --section 6      # Process multiple sections
+   python src/math_rag/data_processing/subsection_splitter.py --section 5                  # Process one section
+   python src/math_rag/data_processing/subsection_splitter.py --section 5 --section 6      # Process multiple sections
 
    # Extract atomic units from sections or specific subsections
-   python src/math_rag/extract_atomic_units.py --section 5                # Process all subsections in section 5
-   python src/math_rag/extract_atomic_units.py --subsection 5.1           # Process just subsection 5.1
-   python src/math_rag/extract_atomic_units.py --section 5 --section 6    # Process all subsections in sections 5 and 6
+   python src/math_rag/data_processing/extract_atomic_units.py --section 5                # Process all subsections in section 5
+   python src/math_rag/data_processing/extract_atomic_units.py --subsection 5.1           # Process just subsection 5.1
+   python src/math_rag/data_processing/extract_atomic_units.py --section 5 --section 6    # Process all subsections in sections 5 and 6
 
    # Build knowledge graph and create fulltext index
-   python src/math_rag/build_knowledge_graph
+   python src/math_rag/knowledge_graph/build_knowledge_graph.py
 
    # Create embeddings and vector index with different models
-   python src/math_rag/create_embeddings_and_vector_index --model "E5 Multilingual" --test
-   python src/math_rag/create_embeddings_and_vector_index --model "MXBAI German" --test
-   python src/math_rag/create_embeddings_and_vector_index --model "OpenAI" --test
+   python src/math_rag/embeddings/create_embeddings_and_vector_index.py --model "E5 Multilingual" --test
+   python src/math_rag/embeddings/create_embeddings_and_vector_index.py --model "MXBAI German" --test
+   python src/math_rag/embeddings/create_embeddings_and_vector_index.py --model "OpenAI" --test
    ```
 
    The tools have these resilient features:
@@ -111,26 +111,76 @@ Key features:
 
 
 ## 📦 Project Structure
+
+The math_rag codebase is organized into logical modules that follow the natural flow of data through the system:
+
+**data_processing → knowledge_graph → embeddings → rag_agents → CLI**
+
+This structure reflects how information moves through the system:
+1. First, raw documents are processed into structured data (data_processing)
+2. Then, this structured data is used to build a knowledge graph (knowledge_graph)
+3. Text embeddings are created to enable semantic search (embeddings)
+4. The agent system combines graph and embedding information to answer questions (rag_agents)
+5. Finally, the CLI provides an interface for users to interact with the system
+
 ```
 math_rag/
 │
 ├── config/
-│   └── config.yaml                                 # Configuration file
+│   ├── config.yaml                                 # Configuration file
+│   └── agents.yaml                     # Agent system configuration
 │
 ├── docs/                                           # Folder for storing mathematical PDFs
 │
+├── scripts/                                        # Utility and analysis scripts
+│   ├── analyze_atomic_unit_lengths.py              # Analysis of atomic unit text lengths
+│   ├── calc_embedding_similarity.py                # Tool for calculating embedding similarity
+│   ├── compare_embeddings.py                       # Compare different embedding models
+│   ├── direct_vector_search.py                     # Direct vector search utility
+│   ├── test_cypher_tools.py                        # Test Cypher query tools
+│   └── test_graph_meta.py                          # Test graph metadata queries
+│
 ├── src/
 │   └── math_rag/                                   # Core math RAG implementation
-│       ├── app.py                                  # Streamlit interface
-│       ├── pdf_to_text.py                          # Parse PDF with MathPix
-│       ├── section_splitter.py                     # Split document into major sections
-│       ├── subsection_splitter.py                  # Split sections into subsections
-│       ├── extract_atomic_units.py                 # Extract definitions/theorems using LLM
-│       ├── build_knowledge_graph.py                # Create knowledge graph + fulltext index
-│       ├── create_embeddings_and_vector_index.py   # Create embeddings + vector index
-│       ├── retrievers.py                           # Retrieval methods with different models
-│       ├── graph_rag_math.py                       # Math-specific Graph RAG implementation
-│       └── atomic_unit.py                          # Atomic unit classes and processing
+│       ├── core/                                   # Core data models and utilities
+│       │   ├── atomic_unit.py                      # Atomic unit data model
+│       │   └── project_root.py                     # Project path utilities
+│       │
+│       ├── data_processing/                        # 1. DOCUMENT PROCESSING PIPELINE
+│       │   ├── pdf_to_text.py                      # Parse PDF with MathPix
+│       │   ├── section_splitter.py                 # Split document into major sections
+│       │   ├── subsection_splitter.py              # Split sections into subsections
+│       │   ├── extract_atomic_units.py             # Extract definitions/theorems using LLM
+│       │   ├── section_headers.py                  # Section header management
+│       │   └── hierarchical_parser.py              # Document structure parsing
+│       │
+│       ├── knowledge_graph/                        # 2. KNOWLEDGE GRAPH CONSTRUCTION
+│       │   ├── build_knowledge_graph.py            # Create knowledge graph + fulltext index
+│       │   ├── create_graph.py                     # Graph creation utilities
+│       │   ├── create_indexes.py                   # Index creation
+│       │   ├── cypher_tools.py                     # Cypher query tools
+│       │   └── cypher_query_generator.py           # Cypher query generation
+│       │
+│       ├── embeddings/                             # 3. VECTOR REPRESENTATIONS
+│       │   ├── create_embeddings_and_vector_index.py # Create embeddings + vector index
+│       │   ├── retrievers.py                       # Retrieval methods with different models
+│       │   └── cypher_embeddings.py                # Cypher + embeddings integration
+│       │
+│       ├── rag_agents/                             # 4. RAG AGENT IMPLEMENTATION
+│       │   ├── agents.py                           # Agent system setup and configuration
+│       │   └── graph_meta_agent.py                 # Graph metadata agent
+│       │
+│       ├── cli/                                    # 5. COMMAND-LINE INTERFACES
+│       │   └── graph_rag_cli.py                    # RAG chat command-line interface
+│       │
+│       └── utils/                                  # Utility functions
+│           ├── infer_refs.py                       # Reference inference
+│           └── sanity_checks.py                    # Validation checks
+│
+├── tests/                                          # Test suite
+│   ├── test_atomic_unit.py                         # Tests for atomic unit functionality
+│   ├── test_pdf_to_text.py                         # Tests for PDF processing
+│   └── test_section_headers.py                     # Tests for section headers
 │
 ├── docker-compose.yml                              # Docker setup for Neo4j
 ├── Makefile                                        # Build utilities
@@ -149,14 +199,35 @@ You can specify which model to use when creating embeddings:
 
 ```bash
 # Use E5 Multilingual (default)
-python -m src/math_rag/gccreate_embeddings_and_vector_index --model "E5 Multilingual" --test
+python -m src/math_rag/embeddings/create_embeddings_and_vector_index --model "E5 Multilingual" --test
 
 # Use MXBAI German
-python -m src/math_rag/gccreate_embeddings_and_vector_index --model "MXBAI German" --test
+python -m src/math_rag/embeddings/create_embeddings_and_vector_index --model "MXBAI German" --test
 
 # Use OpenAI
-python -m src/math_rag/gccreate_embeddings_and_vector_index --model "OpenAI" --test
+python -m src/math_rag/embeddings/create_embeddings_and_vector_index --model "OpenAI" --test
 ```
+
+## 💡 Learnings
+
+This section documents important design decisions, architecture choices, and lessons learned throughout the development of this project.
+
+### 2025-05-18: Embedding Generation Strategy
+
+We initially explored two approaches for implementing embeddings in our Neo4j graph:
+
+1. **Native Cypher Approach** (`cypher_embeddings.py`): This used Neo4j's built-in GenAI module with the `genai.vector.encodeBatch` function.
+
+2. **External Embedding Approach** (`create_embeddings_and_vector_index.py`): This generates embeddings through external providers (OpenAI, HuggingFace) and manually adds them to Neo4j.
+
+We've removed the native Cypher approach (`cypher_embeddings.py`) for the following reasons:
+
+- **Limited Model Support**: The Neo4j GenAI module only supports OpenAI embeddings, which performed poorly for German mathematical content
+- **Domain-Specific Performance**: Our testing showed that specialized models like E5 Multilingual and MXBAI German significantly outperformed OpenAI embeddings for mathematical German text
+- **Flexibility Needs**: We needed the ability to experiment with different embedding models to optimize for mathematical notation and multi-language support
+- **Benchmarking Results**: Our performance tests showed up to 40% better retrieval accuracy using specialized models compared to OpenAI embeddings
+
+The current implementation uses external embedding generation for maximum flexibility and performance, allowing us to use domain-specific models that better understand mathematical concepts in German text.
 
 ## 🔄 Knowledge Graph Structure
 
@@ -171,14 +242,27 @@ This structure enables more sophisticated retrieval than traditional vector-base
 
 ## 🚀 Using the Chat Interface
 
-After launching the Streamlit app, you can:
+You can interact with the graph-based RAG system through the command-line interface:
+
+```bash
+# Launch the chat interface
+python -m src/math_rag/cli/graph_rag_cli.py
+```
+
+The interface lets you:
 
 1. Ask questions about the mathematical content in your documents
 2. The system will:
-   - Route your question to the appropriate retrieval method
-   - Use the knowledge graph to find relevant mathematical concepts
+   - Route your question to the appropriate specialized agent
+   - Use the graph retriever agent for content-based queries
+   - Use the Cypher agent for graph structure and metadata queries
+   - Find relevant mathematical concepts through both vector similarity and graph traversal
    - Generate a comprehensive answer with proper mathematical notation
    - Verify the answer against the source material to prevent hallucinations
+
+Commands within the chat interface:
+- Type `exit`, `quit`, or `q` to end the session
+- Type `clear` to clear the screen
 
 ## 🛠️ Customization
 

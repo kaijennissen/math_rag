@@ -2,7 +2,7 @@ import pytest
 import logging
 import re  # Added for regex search in warnings
 
-from math_rag.atomic_unit import AtomicUnit, GERMAN_TO_ENGLISH_TYPE
+from math_rag.core.atomic_unit import AtomicUnit, GERMAN_TO_ENGLISH_TYPE
 
 # --- Valid Test Cases ---
 

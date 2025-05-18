@@ -17,11 +17,11 @@ import coloredlogs
 from dotenv import load_dotenv
 import json
 from neo4j import GraphDatabase
-from math_rag.atomic_unit import AtomicUnit
+from math_rag.core import AtomicUnit
 from langchain_openai import OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
 from langchain_openai import ChatOpenAI
-from math_rag.section_headers import SectionHeaders
+from math_rag.data_processing import SectionHeaders
 
 load_dotenv()
 # Configure logger

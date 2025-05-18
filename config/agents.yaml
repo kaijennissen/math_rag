@@ -1,0 +1,30 @@
+# Agent Descriptions for Math RAG System
+
+graph_retriever_agent: |
+  Specialized for retrieving mathematical content from the knowledge graph.
+  USE THIS AGENT FOR:
+  - Questions about mathematical concepts, theorems, definitions, or proofs
+  - Requests for examples or explanations of mathematical topics
+  - Questions like "What is a topological space?" or "Explain continuity"
+  - Queries about specific mathematical content within the graph
+  - Finding mathematical information related to user questions
+  DO NOT USE FOR:
+  - Questions about the graph structure itself
+  - Requests for counts, statistics, or metadata about the nodes/relationships
+  - Questions about how many nodes of a certain type exist
+
+cypher_agent: |
+  Specialized for answering questions about the graph structure, metadata, and statistics using dynamic Cypher query generation.
+  USE THIS AGENT FOR:
+  - Questions about the graph structure, schema, or statistics
+  - Requests for counts, such as "How many Definition nodes exist?"
+  - Queries about node labels, relationship types, or properties
+  - Questions like "What's the distribution of different node types?"
+  - Requests to find the most connected nodes or analyze graph patterns
+  - Any question about graph metadata rather than mathematical content
+  - Analyzing the structure and connectivity of the graph
+  - Detecting patterns in the graph organization
+  DO NOT USE FOR:
+  - Questions about mathematical concepts, theorems, or definitions
+  - Requests for content within the graph (use graph_retriever_agent instead)
+  - Mathematical explanations or examples
