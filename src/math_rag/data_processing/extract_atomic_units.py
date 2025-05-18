@@ -31,10 +31,6 @@ SUBSECTIONS_PATH = DOCS_PATH / "subsections"
 OUTPUT_PATH = DOCS_PATH / "atomic_units"
 
 
-# Initialize the LLM (allow override via environment variable)
-llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.1")
-
-
 class DocChunk(BaseModel):
     """An atomic segment of a mathematical document, containing a complete logical unit
     such as a theorem, definition, proof, or example, with its hierarchical position
@@ -176,10 +172,6 @@ chat_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-# Set up the structured output chain
-structured_llm = llm.with_structured_output(Chunks, method="json_schema")
-chain = chat_prompt | structured_llm
-
 
 def extract_atomic_units(content: str) -> Chunks:
     """
@@ -191,6 +183,11 @@ def extract_atomic_units(content: str) -> Chunks:
     Returns:
         Chunks: A collection of parsed document chunks
     """
+    # Initialize the LLM (allow override via environment variable)
+    llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.1")
+    # Set up the structured output chain
+    structured_llm = llm.with_structured_output(Chunks, method="json_schema")
+    chain = chat_prompt | structured_llm
     try:
         # Process the content
         chunk_result = chain.invoke({"input": content})
