@@ -1,4 +1,4 @@
-from math_rag.agent_system.agents import setup_rag_chat
+from math_rag.rag_agents.agents import setup_rag_chat
 from rich.console import Console
 import os
 

@@ -1,4 +1,5 @@
 import os
+import yaml
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import Field, BaseModel
@@ -17,12 +18,19 @@ from langchain_openai import ChatOpenAI
 from langchain_experimental.graph_transformers import LLMGraphTransformer
 from langchain_community.graphs.graph_document import Node, Relationship
 from dotenv import load_dotenv
+from math_rag.core import ROOT
 
 load_dotenv()
 
 DOCS_PATH = "docs/"
 
-llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.1")
+# Load LLM configuration
+config_path = ROOT / "config" / "config.yaml"
+with open(config_path, "r") as file:
+    config = yaml.safe_load(file)
+
+model_name = config.get("llm", {}).get("model", "gpt-4.1")
+llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name=model_name)
 
 embedding_provider = OpenAIEmbeddings(
     openai_api_key=os.getenv("OPENAI_API_KEY"), model="text-embedding-3-small"

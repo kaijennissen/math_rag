@@ -16,8 +16,9 @@ import logging
 import coloredlogs
 from dotenv import load_dotenv
 import json
+import yaml
 from neo4j import GraphDatabase
-from math_rag.core import AtomicUnit
+from math_rag.core import AtomicUnit, ROOT
 from langchain_openai import OpenAIEmbeddings
 from langchain_neo4j import Neo4jGraph
 from langchain_openai import ChatOpenAI
@@ -45,7 +46,13 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 # Direct Neo4j driver for index creation
 driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
-llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.1")
+# Load LLM configuration
+config_path = ROOT / "config" / "config.yaml"
+with open(config_path, "r") as file:
+    config = yaml.safe_load(file)
+
+model_name = config.get("llm", {}).get("model", "gpt-4.1")
+llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name=model_name)
 
 embedding_provider = OpenAIEmbeddings(
     openai_api_key=os.getenv("OPENAI_API_KEY"), model="text-embedding-3-small"
@@ -204,12 +211,13 @@ def create_previous_relationship_atomic_units(
     )
 
 
-def ensure_atomic_unit_label():
+def ensure_atomic_unit_label(driver):
     """Ensure that all content nodes have the AtomicUnit label."""
     logger.info("Ensuring all content nodes have the AtomicUnit label...")
     try:
         with driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
             MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
             WHERE NOT n:AtomicUnit
             WITH count(n) AS missingLabel
@@ -217,7 +225,8 @@ def ensure_atomic_unit_label():
             WHERE NOT n:AtomicUnit
             SET n:AtomicUnit
             RETURN missingLabel, count(n) AS updated
-            """)
+            """
+            )
             record = result.single()
             if record and record["missingLabel"] > 0:
                 logger.info(f"Added AtomicUnit label to {record['updated']} nodes")
@@ -229,36 +238,36 @@ def ensure_atomic_unit_label():
         return False
 
 
-def create_fulltext_index():
-    """Create a fulltext index for AtomicUnit nodes."""
-    properties = ["text", "title", "proof"]
-    property_list = ", ".join([f"n.{prop}" for prop in properties])
-    index_name = "fulltext_index_AtomicUnit"
+# def create_fulltext_index():
+#     """Create a fulltext index for AtomicUnit nodes."""
+#     properties = ["text", "title", "proof"]
+#     property_list = ", ".join([f"n.{prop}" for prop in properties])
+#     index_name = "fulltext_index_AtomicUnit"
 
-    logger.info(
-        f"Creating fulltext index {index_name} for nodes on properties {properties}"
-    )
+#     logger.info(
+#         f"Creating fulltext index {index_name} for nodes on properties {properties}"
+#     )
 
-    # Drop existing index if it exists
-    try:
-        logger.info(f"Dropping existing fulltext index {index_name} if it exists...")
-        with driver.session() as session:
-            session.run(f"DROP INDEX {index_name} IF EXISTS")
-    except Exception as e:
-        logger.warning(f"Error dropping index: {e}")
+#     # Drop existing index if it exists
+#     try:
+#         logger.info(f"Dropping existing fulltext index {index_name} if it exists...")
+#         with driver.session() as session:
+#             session.run(f"DROP INDEX {index_name} IF EXISTS")
+#     except Exception as e:
+#         logger.warning(f"Error dropping index: {e}")
 
-    # Create new fulltext index
-    try:
-        with driver.session() as session:
-            session.run(f"""
-            CREATE FULLTEXT INDEX {index_name}
-            FOR (n:AtomicUnit) ON EACH [{property_list}]
-            """)
-        logger.info(f"Successfully created fulltext index {index_name}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to create fulltext index: {e}")
-        return False
+#     # Create new fulltext index
+#     try:
+#         with driver.session() as session:
+#             session.run(f"""
+#             CREATE FULLTEXT INDEX {index_name}
+#             FOR (n:AtomicUnit) ON EACH [{property_list}]
+#             """)
+#         logger.info(f"Successfully created fulltext index {index_name}")
+#         return True
+#     except Exception as e:
+#         logger.error(f"Failed to create fulltext index: {e}")
+#         return False
 
 
 def main():
@@ -343,12 +352,12 @@ def main():
     # Add atomic unit chunks from docs/atomic_units
     logger.info("Adding atomic unit chunks from docs/atomic_units...")
 
-    for json_file in ATOMIC_UNITS_PATH.glob("subsection_*_*_units.json"):
-        logger.info(f"  Processing file: {json_file.name}")
-        with open(json_file, "r") as f:
-            data = json.load(f)
+    # for json_file in ATOMIC_UNITS_PATH.glob("subsection_*_*_units.json"):
+    #     logger.info(f"  Processing file: {json_file.name}")
+    #     with open(json_file, "r") as f:
+    #         data = json.load(f)
 
-        atomic_units = data.get("chunks", [])
+    #     atomic_units = data.get("chunks", [])
 
     for json_file in ATOMIC_UNITS_PATH.glob("subsection_*_*_units.json"):
         logger.info(f"  Processing file: {json_file.name}")
@@ -371,10 +380,6 @@ def main():
 
     # Ensure all content nodes have the AtomicUnit label
     ensure_atomic_unit_label()
-
-    # Create fulltext index for keyword search
-    logger.info("Creating fulltext index for keyword search...")
-    create_fulltext_index()
 
     logger.info(
         "Knowledge graph construction completed with fulltext index. "

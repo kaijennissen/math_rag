@@ -6,6 +6,8 @@ import os
 import re
 from pathlib import Path
 from typing import List, Optional
+import yaml
+from math_rag.core import ROOT
 
 import coloredlogs
 from dotenv import load_dotenv
@@ -184,7 +186,14 @@ def extract_atomic_units(content: str) -> Chunks:
         Chunks: A collection of parsed document chunks
     """
     # Initialize the LLM (allow override via environment variable)
-    llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name="gpt-4.1")
+    # Load LLM configuration
+
+    config_path = ROOT.parent / "config" / "config.yaml"
+    with open(config_path, "r") as file:
+        config = yaml.safe_load(file)
+
+    model_name = config.get("llm", {}).get("model", "gpt-4.1")
+    llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name=model_name)
     # Set up the structured output chain
     structured_llm = llm.with_structured_output(Chunks, method="json_schema")
     chain = chat_prompt | structured_llm

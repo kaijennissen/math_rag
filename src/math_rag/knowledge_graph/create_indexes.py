@@ -57,7 +57,8 @@ def ensure_atomic_unit_label():
     logger.info("Ensuring all content nodes have the AtomicUnit label...")
     try:
         with driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
             MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
             WHERE NOT n:AtomicUnit
             WITH count(n) AS missingLabel
@@ -65,7 +66,8 @@ def ensure_atomic_unit_label():
             WHERE NOT n:AtomicUnit
             SET n:AtomicUnit
             RETURN missingLabel, count(n) AS updated
-            """)
+            """
+            )
             record = result.single()
             if record and record["missingLabel"] > 0:
                 logger.info(f"Added AtomicUnit label to {record['updated']} nodes")
@@ -77,92 +79,140 @@ def ensure_atomic_unit_label():
         return False
 
 
-def create_vector_index():
-    """Create or recreate a vector index for AtomicUnit nodes."""
-    index_name = "vector_index_AtomicUnit"
-
-    # First, verify that nodes have the required property
+def verify_vector_property_exists(label: str, property_name: str) -> bool:
+    """Verify that nodes have the required vector property."""
     try:
-        logger.info("Verifying textEmbedding property exists on nodes...")
+        logger.info(f"Verifying {property_name} property exists on {label} nodes...")
         with driver.session() as session:
-            result = session.run("""
-            MATCH (n:AtomicUnit)
-            WHERE n.textEmbedding IS NOT NULL
+            result = session.run(
+                f"""
+            MATCH (n:{label})
+            WHERE n.{property_name} IS NOT NULL
             RETURN count(n) as count
-            """)
+            """
+            )
             node_count = result.single()["count"]
 
         if node_count == 0:
-            logger.warning(
-                "No nodes with textEmbedding property found. Run add_embeddings.py first."
-            )
+            logger.warning(f"No {label} nodes with {property_name} property found.")
             return False
         else:
             logger.info(
-                f"Found {node_count} nodes with textEmbedding property. Proceeding with index creation."
+                f"Found {node_count} {label} nodes with {property_name} property."
             )
+            return True
     except Exception as e:
-        logger.error(f"Error verifying textEmbedding property: {e}")
+        logger.error(f"Error verifying {property_name} property: {e}")
         return False
 
-    # Drop existing index if it exists
+
+def drop_index_if_exists(index_name: str) -> bool:
+    """Drop an index if it exists."""
     try:
-        logger.info(f"Dropping existing vector index {index_name} if it exists...")
+        logger.info(f"Dropping existing index {index_name} if it exists...")
         with driver.session() as session:
             session.run(f"DROP INDEX {index_name} IF EXISTS")
+        return True
     except Exception as e:
-        logger.warning(f"Error dropping index: {e}")
+        logger.warning(f"Error dropping index {index_name}: {e}")
+        return False
+
+
+def create_vector_index(
+    label: str = "AtomicUnit",
+    property_name: str = "textEmbedding",
+    dimensions: int = 1536,
+    similarity_function: str = "cosine",
+    index_name: str = None,
+) -> bool:
+    """Create or recreate a vector index for specified nodes and property.
+
+    Args:
+        label: Node label to index (default: AtomicUnit)
+        property_name: Property containing vector embeddings (default: textEmbedding)
+        dimensions: Vector dimensions (default: 1536)
+        similarity_function: Similarity function (default: cosine)
+        index_name: Custom index name (default: vector_index_{label})
+
+    Returns:
+        True if successful, False otherwise
+    """
+    if index_name is None:
+        index_name = f"vector_index_{label}"
+
+    # Verify nodes have the required property
+    if not verify_vector_property_exists(label, property_name):
+        return False
+
+    # Drop existing index
+    if not drop_index_if_exists(index_name):
+        logger.warning("Failed to drop existing index, but continuing...")
 
     # Create new vector index
     try:
-        logger.info(f"Creating vector index {index_name} on property textEmbedding...")
+        logger.info(f"Creating vector index {index_name} on {label}.{property_name}...")
         with driver.session() as session:
-            session.run(f"""
+            session.run(
+                f"""
             CREATE VECTOR INDEX {index_name}
-            FOR (n:AtomicUnit) ON n.textEmbedding
+            FOR (n:{label}) ON n.{property_name}
             OPTIONS {{
                 indexConfig: {{
-                    `vector.dimensions`: 1536,
-                    `vector.similarity_function`: 'cosine'
+                    `vector.dimensions`: {dimensions},
+                    `vector.similarity_function`: '{similarity_function}'
                 }}
             }}
-            """)
+            """
+            )
         logger.info(f"Successfully created vector index {index_name}")
         return True
     except Exception as e:
-        logger.error(f"Failed to create vector index: {e}")
+        logger.error(f"Failed to create vector index {index_name}: {e}")
         return False
 
 
-def create_fulltext_index():
-    """Create a fulltext index for AtomicUnit nodes."""
-    properties = ["text", "title", "proof"]
+def create_fulltext_index(
+    label: str = "AtomicUnit", properties: list = None, index_name: str = None
+) -> bool:
+    """Create a fulltext index for specified nodes and properties.
+
+    Args:
+        label: Node label to index (default: AtomicUnit)
+        properties: List of properties to index (default: ["text", "title", "proof"])
+        index_name: Custom index name (default: fulltext_index_{label})
+
+    Returns:
+        True if successful, False otherwise
+    """
+    if properties is None:
+        properties = ["text", "title", "proof"]
+
+    if index_name is None:
+        index_name = f"fulltext_index_{label}"
+
     property_list = ", ".join([f"n.{prop}" for prop in properties])
-    index_name = "fulltext_index_AtomicUnit"
 
     logger.info(
-        f"Creating fulltext index {index_name} for nodes on properties {properties}"
+        f"Creating fulltext index {index_name} on {label} properties: {properties}"
     )
 
-    # Drop existing index if it exists
-    try:
-        logger.info(f"Dropping existing fulltext index {index_name} if it exists...")
-        with driver.session() as session:
-            session.run(f"DROP INDEX {index_name} IF EXISTS")
-    except Exception as e:
-        logger.warning(f"Error dropping index: {e}")
+    # Drop existing index
+    if not drop_index_if_exists(index_name):
+        logger.warning("Failed to drop existing index, but continuing...")
 
     # Create new fulltext index
     try:
         with driver.session() as session:
-            session.run(f"""
+            session.run(
+                f"""
             CREATE FULLTEXT INDEX {index_name}
-            FOR (n:AtomicUnit) ON EACH [{property_list}]
-            """)
+            FOR (n:{label}) ON EACH [{property_list}]
+            """
+            )
         logger.info(f"Successfully created fulltext index {index_name}")
         return True
     except Exception as e:
-        logger.error(f"Failed to create fulltext index: {e}")
+        logger.error(f"Failed to create fulltext index {index_name}: {e}")
         return False
 
 
@@ -281,26 +331,63 @@ def test_fulltext_search(query="topologisch"):
         return False
 
 
-def main(test: bool = False, vector_query: str = "", fulltext_query: str = ""):
+def main(
+    vector: bool = False,
+    fulltext: bool = False,
+    all_indexes: bool = False,
+    test: bool = False,
+    vector_query: str = "",
+    fulltext_query: str = "",
+    label: str = "AtomicUnit",
+    vector_property: str = "textEmbedding",
+    fulltext_properties: list = None,
+):
     """Main function to create and test indexes."""
 
     # Ensure AtomicUnit label
     logger.info("Ensuring AtomicUnit label...")
     ensure_atomic_unit_label()
 
+    # Set default fulltext properties if not provided
+    if fulltext_properties is None:
+        fulltext_properties = ["text", "title", "proof"]
+
+    # Determine what to create
+    create_vector = vector or all_indexes
+    create_fulltext = fulltext or all_indexes
+
     # Create vector index if requested
-    logger.info("Creating vector index...")
-    create_vector_index()
-    logger.info("Vector index created successfully.")
-    test_vector_search(vector_query)
+    if create_vector:
+        logger.info(f"Creating vector index for {label}.{vector_property}...")
+        success = create_vector_index(label=label, property_name=vector_property)
+        if success:
+            logger.info("Vector index created successfully.")
+            if test and vector_query:
+                test_vector_search(vector_query)
+        else:
+            logger.error("Failed to create vector index.")
 
     # Create fulltext index if requested
-    logger.info("Creating fulltext index...")
-    create_fulltext_index()
-    logger.info("Fulltext index created successfully.")
-    test_fulltext_search(fulltext_query)
+    if create_fulltext:
+        logger.info(
+            f"Creating fulltext index for {label} on properties {fulltext_properties}..."
+        )
+        success = create_fulltext_index(label=label, properties=fulltext_properties)
+        if success:
+            logger.info("Fulltext index created successfully.")
+            if test and fulltext_query:
+                test_fulltext_search(fulltext_query)
+        else:
+            logger.error("Failed to create fulltext index.")
 
-    logger.info("Index creation completed.")
+    # If only testing was requested
+    if test and not (create_vector or create_fulltext):
+        if vector_query:
+            test_vector_search(vector_query)
+        if fulltext_query:
+            test_fulltext_search(fulltext_query)
+
+    logger.info("Index operations completed.")
 
 
 if __name__ == "__main__":
@@ -333,11 +420,35 @@ if __name__ == "__main__":
         default="topologisch",
         help="Query for testing fulltext search",
     )
+    parser.add_argument(
+        "--label",
+        type=str,
+        default="AtomicUnit",
+        help="Node label to create indexes for (default: AtomicUnit)",
+    )
+    parser.add_argument(
+        "--vector-property",
+        type=str,
+        default="textEmbedding",
+        help="Property name for vector index (default: textEmbedding)",
+    )
+    parser.add_argument(
+        "--fulltext-properties",
+        nargs="+",
+        default=["text", "title", "proof", "summary"],
+        help="Properties for fulltext index (default: text title proof summary)",
+    )
 
     args = parser.parse_args()
 
     main(
+        vector=args.vector,
+        fulltext=args.fulltext,
+        all_indexes=args.all,
         test=args.test,
         vector_query=args.vector_query,
         fulltext_query=args.fulltext_query,
+        label=args.label,
+        vector_property=args.vector_property,
+        fulltext_properties=args.fulltext_properties,
     )

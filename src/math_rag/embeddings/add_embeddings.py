@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 Script to create embeddings and vector indexes in Neo4j using different embedding models.
 
@@ -12,6 +11,14 @@ Supported embedding models:
 - MXBAI German - alternative for German content
 - OpenAI - original embedding model
 
+Enhanced Usage Examples:
+- Default usage: python add_embeddings.py
+- Different model: python add_embeddings.py -m "OpenAI"
+- Custom node label: python add_embeddings.py --label MyNode
+- Custom text properties: python add_embeddings.py --text-properties text title description
+- Custom embedding property: python add_embeddings.py --embedding-property myCustomEmbedding
+- Single property embedding: python add_embeddings.py --text-properties title --embedding-property titleEmbedding
+- Test with custom query: python add_embeddings.py -t -q "topology definition"
 """
 
 import os
@@ -70,10 +77,12 @@ def verify_nodes_exist():
     logger.info("Verifying AtomicUnit nodes...")
     try:
         with driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
             MATCH (n:AtomicUnit)
             RETURN count(n) AS count
-            """)
+            """
+            )
             count = result.single()["count"]
             logger.info(f"Found {count} AtomicUnit nodes in the database")
             return count > 0
@@ -87,7 +96,8 @@ def ensure_atomic_unit_label():
     logger.info("Ensuring all content nodes have the AtomicUnit label...")
     try:
         with driver.session() as session:
-            result = session.run("""
+            result = session.run(
+                """
             MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
             WHERE NOT n:AtomicUnit
             WITH count(n) AS missingLabel
@@ -95,7 +105,8 @@ def ensure_atomic_unit_label():
             WHERE NOT n:AtomicUnit
             SET n:AtomicUnit
             RETURN missingLabel, count(n) AS updated
-            """)
+            """
+            )
             record = result.single()
             if record and record["missingLabel"] > 0:
                 logger.info(f"Added AtomicUnit label to {record['updated']} nodes")
@@ -133,36 +144,99 @@ def get_embedding_model(model_name):
         raise ValueError(f"Unsupported model type: {config['type']}")
 
 
-def add_embeddings_with_neo4j_vector(model_name):
+def count_nodes_without_embeddings(
+    label: str, text_properties: list, embedding_property: str
+) -> int:
+    """Count nodes that need embeddings."""
+    try:
+        # Build condition to check if any text property exists
+        text_conditions = " OR ".join(
+            [f"n.{prop} IS NOT NULL" for prop in text_properties]
+        )
+
+        with driver.session() as session:
+            count_result = session.run(
+                f"""
+            MATCH (n:{label})
+            WHERE ({text_conditions}) AND n.{embedding_property} IS NULL
+            RETURN count(n) as count
+            """
+            )
+            return count_result.single()["count"]
+    except Exception as e:
+        logger.error(f"Error counting nodes without embeddings: {e}")
+        return 0
+
+
+def verify_embeddings_created(
+    label: str, text_properties: list, embedding_property: str
+) -> int:
+    """Verify how many nodes still need embeddings after creation."""
+    try:
+        # Build condition to check if any text property exists
+        text_conditions = " OR ".join(
+            [f"n.{prop} IS NOT NULL" for prop in text_properties]
+        )
+
+        with driver.session() as session:
+            verification_result = session.run(
+                f"""
+            MATCH (n:{label})
+            WHERE ({text_conditions}) AND n.{embedding_property} IS NULL
+            RETURN count(n) as remaining
+            """
+            )
+            return verification_result.single()["remaining"]
+    except Exception as e:
+        logger.error(f"Error verifying embeddings: {e}")
+        return -1
+
+
+def add_embeddings_with_neo4j_vector(
+    model_name: str,
+    label: str = "AtomicUnit",
+    text_properties: list = None,
+    embedding_property: str = None,
+    index_name: str = None,
+) -> bool:
     """
-    Create embeddings and vector index for AtomicUnit nodes using Neo4jVector.from_existing_graph.
+    Create embeddings and vector index for nodes using Neo4jVector.from_existing_graph.
     This method handles both embedding creation and index creation in one step.
 
     Args:
         model_name: Name of the embedding model to use
+        label: Node label to process (default: AtomicUnit)
+        text_properties: List of properties to use for embedding calculation (default: ["text", "title"])
+        embedding_property: Property name to store embeddings (default: auto-generated from text_properties)
+        index_name: Vector index name (default: auto-generated)
+
+    Returns:
+        True if successful, False otherwise
     """
+
+    if embedding_property is None:
+        # Auto-generate embedding property name based on source properties
+        # Add "Embedding" to the list of property names and join with underscore
+        prop_list = text_properties.copy() + ["Embedding"]
+        embedding_property = "_".join(prop_list)
+
+    if index_name is None:
+        index_name = f"vector_index_{embedding_property}"
+
     logger.info(f"Creating embeddings and vector index using {model_name}...")
+    logger.info(
+        f"Target: {label} nodes, properties: {text_properties} -> {embedding_property}"
+    )
 
     try:
         # Initialize the embedding model
         embedding_model = get_embedding_model(model_name)
 
-        # Count nodes without embeddings
-        embedding_property = (
-            "textEmbedding2"
-            if model_name in ["E5 Multilingual", "MXBAI German"]
-            else "textEmbedding"
+        # Count nodes that need embeddings
+        node_count = count_nodes_without_embeddings(
+            label, text_properties, embedding_property
         )
-
-        with driver.session() as session:
-            count_result = session.run(f"""
-            MATCH (n:AtomicUnit)
-            WHERE n.text IS NOT NULL AND n.{embedding_property} IS NULL
-            RETURN count(n) as count
-            """)
-            node_count = count_result.single()["count"]
-
-        logger.info(f"Found {node_count} nodes without embeddings")
+        logger.info(f"Found {node_count} {label} nodes without embeddings")
 
         if node_count == 0:
             logger.info("No nodes need embeddings. Skipping.")
@@ -170,10 +244,6 @@ def add_embeddings_with_neo4j_vector(model_name):
 
         # Use Neo4jVector.from_existing_graph to add embeddings
         start_time = time.time()
-
-        # Get configuration for the selected model
-        embedding_property = "textEmbedding"
-        index_name = "vector_index_AtomicUnit"
 
         logger.info(
             f"Creating Neo4jVector from existing graph with index {index_name}..."
@@ -184,44 +254,52 @@ def add_embeddings_with_neo4j_vector(model_name):
             username=NEO4J_USERNAME,
             password=NEO4J_PASSWORD,
             index_name=index_name,
-            node_label="AtomicUnit",
-            text_node_properties=["text", "title"],
+            node_label=label,
+            text_node_properties=text_properties,
             embedding_node_property=embedding_property,
         )
 
         total_duration = time.time() - start_time
-        logger.info(f"Successfully added embeddings to nodes in {total_duration:.2f}s")
+        logger.info(
+            f"Successfully added embeddings to {label} nodes in {total_duration:.2f}s"
+        )
 
         # Verify all nodes have embeddings now
-        with driver.session() as session:
-            verification_result = session.run(f"""
-            MATCH (n:AtomicUnit)
-            WHERE n.text IS NOT NULL AND n.{embedding_property} IS NULL
-            RETURN count(n) as remaining
-            """)
-            remaining = verification_result.single()["remaining"]
+        remaining = verify_embeddings_created(
+            label, text_properties, embedding_property
+        )
 
         if remaining > 0:
-            logger.warning(f"There are still {remaining} nodes without embeddings")
-        else:
-            logger.info("All nodes have been successfully embedded")
+            logger.warning(
+                f"There are still {remaining} {label} nodes without embeddings"
+            )
+        elif remaining == 0:
+            logger.info(f"All {label} nodes have been successfully embedded")
 
         return vector_store is not None
 
     except Exception as e:
-        logger.error(f"Failed to add embeddings: {e}")
+        logger.error(f"Failed to add embeddings to {label} nodes: {e}")
         return False
 
 
-def test_vector_search(query="Topologie", model_name=DEFAULT_MODEL):
+def test_vector_search(
+    query="Topologie", model_name=DEFAULT_MODEL, label="AtomicUnit", index_name=None
+):
     """
     Test vector search with a sample query using the specified embedding model.
 
     Args:
         query: The query string
         model_name: Name of the embedding model to use
+        label: Node label to search (default: AtomicUnit)
+        index_name: Vector index name (default: auto-generated)
     """
+    if index_name is None:
+        index_name = f"vector_index_{label}"
+
     # Add extra debug logging for the query
+    logger.info(f"Testing vector search on {label} nodes with index {index_name}")
     logger.info(f"Raw query input: '{query}'")
     logger.info(f"Query type: {type(query)}")
     logger.info(f"Query length: {len(query)}")
@@ -229,9 +307,6 @@ def test_vector_search(query="Topologie", model_name=DEFAULT_MODEL):
     try:
         # Initialize embedding model
         embedding_model = get_embedding_model(model_name)
-
-        # Get configuration for the selected model
-        index_name = "vector_index_AtomicUnit"
 
         # Generate embedding for the query
         query_embedding = embedding_model.embed_query(query)
@@ -258,7 +333,7 @@ def test_vector_search(query="Topologie", model_name=DEFAULT_MODEL):
 
             results = list(search_result)
 
-            logger.info(f"Found {len(results)} results" + "=" * 80)
+            logger.info(f"Found {len(results)} results for {label} nodes" + "=" * 80)
             for i, record in enumerate(results):
                 logger.info(f"Result {i + 1} (Score: {record['score']:.4f}):")
                 if (node_type := record.get("type")) is not None:
@@ -274,34 +349,50 @@ def test_vector_search(query="Topologie", model_name=DEFAULT_MODEL):
 
             return len(results) > 0
     except Exception as e:
-        logger.error(f"Error testing vector search: {e}")
+        logger.error(f"Error testing vector search on {label} nodes: {e}")
         return False
 
 
-def main(model_name: str, test: bool, query: str) -> None:
+def main(
+    model_name: str,
+    test: bool,
+    query: str,
+    text_properties: list,
+    label: str = "AtomicUnit",
+    embedding_property: str = None,
+) -> None:
     """Main function to create embeddings and vector index."""
+
     # Verify Neo4j connection and nodes
     if not verify_nodes_exist():
         logger.error(
-            "No AtomicUnit nodes found. Make sure your graph is properly populated."
+            f"No {label} nodes found. Make sure your graph is properly populated."
         )
         return
 
-    # Ensure all content nodes have the AtomicUnit label
-    ensure_atomic_unit_label()
-
     # Add embeddings to nodes
-    add_embeddings_with_neo4j_vector(model_name)
-
-    logger.info(
-        f"Embeddings and vector index created successfully using {model_name}. The system is now ready for retrieval."
+    success = add_embeddings_with_neo4j_vector(
+        model_name=model_name,
+        label=label,
+        text_properties=text_properties,
+        embedding_property=embedding_property,
     )
+
+    if success:
+        logger.info(
+            f"Embeddings and vector index created successfully for {label} nodes using {model_name}. "
+            f"Properties: {text_properties} -> {embedding_property or 'auto-generated'}. "
+            f"The system is now ready for retrieval."
+        )
+    else:
+        logger.error("Failed to create embeddings and vector index.")
+        return
 
     # Test vector search if requested
     if test:
         logger.info(f"Query for testing: '{query}'")
         logger.info(f"Sending to test_vector_search: '{query}'")
-        test_vector_search(query=query, model_name=model_name)
+        test_vector_search(query=query, model_name=model_name, label=label)
 
     logger.info("Process completed.")
 
@@ -338,6 +429,23 @@ if __name__ == "__main__":
         type=str,
         help="Path to a file containing the query text (recommended for LaTeX expressions)",
     )
+    parser.add_argument(
+        "--label",
+        type=str,
+        default="AtomicUnit",
+        help="Node label to process (default: AtomicUnit)",
+    )
+    parser.add_argument(
+        "--text-properties",
+        nargs="+",
+        default=["text", "title"],
+        help="Properties to use for embedding calculation (default: text title)",
+    )
+    parser.add_argument(
+        "--embedding-property",
+        type=str,
+        help="Property name to store embeddings (default: auto-generated from text properties)",
+    )
 
     args = parser.parse_args()
 
@@ -352,4 +460,11 @@ if __name__ == "__main__":
             logger.error(f"Error reading query file: {e}")
             sys.exit(1)
 
-    main(test=args.test, query=query, model_name=args.model)
+    main(
+        test=args.test,
+        query=query,
+        model_name=args.model,
+        label=args.label,
+        text_properties=args.text_properties,
+        embedding_property=args.embedding_property,
+    )

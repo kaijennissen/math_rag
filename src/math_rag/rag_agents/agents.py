@@ -28,7 +28,7 @@ load_dotenv()
 # First try environment variable, then use project root-based path
 config_path = os.getenv("AGENT_CONFIG_PATH")
 if not config_path:
-    config_path = ROOT.parent / "config" / "agents.yaml"
+    config_path = ROOT / "config" / "agents.yaml"
 
 try:
     with open(config_path, "r") as file:

@@ -1,7 +1,7 @@
 import re
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Any
 
 # Setup basic logging configuration
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -33,14 +33,15 @@ class AtomicUnit:
     """Represents a single atomic unit of mathematical content."""
 
     section: int
-    section_title: str
     subsection: int
-    subsection_title: str
     subsubsection: int
     type: str  # English type name
     identifier: str  # e.g., "Satz 7.4.9"
     text: str
+    section_title: Optional[str] = ""
+    subsection_title: Optional[str] = ""
     proof: Optional[str] = None
+    summary: Optional[str] = None
 
     def get_full_number(self) -> str:
         """Returns the full three-part number string (e.g., '7.4.9')."""
@@ -122,12 +123,35 @@ class AtomicUnit:
         """Creates an AtomicUnit instance from a dictionary."""
         return cls(
             section=data.get("section"),
-            section_title=data.get("section_title"),
             subsection=data.get("subsection"),
-            subsection_title=data.get("subsection_title"),
             subsubsection=data.get("subsubsection"),
             type=data.get("type"),
             identifier=data.get("identifier"),
             text=data.get("text"),
+            section_title=data.get("section_title"),
+            subsection_title=data.get("subsection_title"),
             proof=data.get("proof"),
+            summary=data.get("summary"),
+        )
+
+    @classmethod
+    def from_db_row(cls, db_row: "Any") -> "AtomicUnit":
+        """
+        Creates an AtomicUnit instance from a database row (db_models.AtomicUnit).
+        Args:
+            db_row: An instance of db_models.AtomicUnit (SQLModel row).
+        Returns:
+            AtomicUnit: The core dataclass instance.
+        """
+        return cls(
+            section=db_row.section,
+            subsection=db_row.subsection,
+            subsubsection=db_row.subsubsection,
+            type=db_row.type,
+            identifier=db_row.identifier or "",
+            text=db_row.text,
+            section_title=db_row.section_title,
+            subsection_title=db_row.subsection_title,
+            proof=db_row.proof,
+            summary=db_row.summary,
         )

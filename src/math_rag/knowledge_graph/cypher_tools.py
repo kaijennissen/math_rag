@@ -247,6 +247,7 @@ class CypherQueryGeneratorTool(Tool):
     def __init__(self, model_name: str = "gpt-4.1", **kwargs):
         """Initialize the CypherQueryGeneratorTool with an LLM."""
         super().__init__(**kwargs)
+
         self.llm = ChatOpenAI(
             openai_api_key=os.getenv("OPENAI_API_KEY"), model_name=model_name
         )

@@ -115,8 +115,8 @@ class GraphRetrieverTool(Tool):
         embedding_provider = get_embedding_provider(model_name)
 
         # Determine the correct index name based on model
-        index_name = "vector_index_AtomicUnit"
-        embedding_property = "textEmbedding"
+        index_name = "vector_index_summaryEmbedding"
+        embedding_property = "summaryEmbedding"
 
         keyword_index_name = "fulltext_index_AtomicUnit"
 
@@ -130,7 +130,7 @@ class GraphRetrieverTool(Tool):
             username=self.neo4j_username,
             password=self.neo4j_password,
             index_name=index_name,  # name of the vector index
-            # keyword_index_name=keyword_index_name, # name of the fulltext index
+            keyword_index_name=keyword_index_name,  # name of the fulltext index
             embedding_node_property=embedding_property,
             search_type="vector",
         )
