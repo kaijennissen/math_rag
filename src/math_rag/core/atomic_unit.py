@@ -57,7 +57,7 @@ class AtomicUnit:
         # (no identifier AND no subsubsection number).
         # If subsubsection exists, identifier checks should run even if identifier is missing
         # (which will likely trigger warnings as expected).
-        if not self.identifier and self.subsubsection is None:
+        if not self.identifier:
             return
 
         # --- Proceed with existing checks only if identifier is present OR subsubsection is present ---
