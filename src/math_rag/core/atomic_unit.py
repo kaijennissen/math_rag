@@ -1,7 +1,7 @@
 import re
 import logging
-from dataclasses import dataclass
 from typing import Optional, Any
+from pydantic import BaseModel, field_validator, ConfigDict
 
 # Setup basic logging configuration
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -28,8 +28,7 @@ GERMAN_TO_ENGLISH_TYPE = {
 }
 
 
-@dataclass(frozen=True)
-class AtomicUnit:
+class AtomicUnit(BaseModel):
     """Represents a single atomic unit of mathematical content."""
 
     section: int
@@ -43,115 +42,133 @@ class AtomicUnit:
     proof: Optional[str] = None
     summary: Optional[str] = None
 
+    # Pydantic v2 model configuration
+    model_config = ConfigDict(
+        frozen=True,  # Makes the model immutable
+        extra="forbid",  # Forbid extra fields not defined in the model
+    )
+
     def get_full_number(self) -> str:
         """Returns the full three-part number string (e.g., '7.4.9')."""
-        return f"{self.section}.{self.subsection}{f'.{self.subsubsection}' if self.subsubsection else ''}"
+        return f"{self.section}.{self.subsection}.{self.subsubsection}"
 
     def get_subsection_number(self) -> str:
         """Returns the subsection number string (e.g., '7.4')."""
         return f"{self.section}.{self.subsection}"
 
-    def __post_init__(self):
-        """Performs consistency checks after initialization, logging warnings for mismatches."""
-        # Skip identifier-based checks only if it's likely an intro chunk
-        # (no identifier AND no subsubsection number).
-        # If subsubsection exists, identifier checks should run even if identifier is missing
-        # (which will likely trigger warnings as expected).
-        if not self.identifier:
-            return
+    @field_validator("identifier")
+    @classmethod
+    def validate_identifier(cls, v: str, values):
+        """
+        Validate the identifier against section numbers and type.
 
-        # --- Proceed with existing checks only if identifier is present OR subsubsection is present ---
+        Args:
+            v: The identifier string to validate
+            values: Dictionary containing other field values
 
-        # 1. Check number consistency (only if identifier is actually present)
-        if self.identifier:
-            expected_number = self.get_full_number()
-            try:
-                match = re.search(r"(\d+\.\d+\.\d+)", self.identifier)
-            except Exception:  # Keep broad exception for safety during regex
+        Returns:
+            The validated identifier
+        """
+        if not v:
+            return v
+
+        # Get section numbers from model
+        section = values.data.get("section")
+        subsection = values.data.get("subsection")
+        subsubsection = values.data.get("subsubsection")
+        type_ = values.data.get("type")
+
+        # 1. Check if identifier contains numbers that should match section numbers
+        number_match = re.search(r"(\d+(?:\.\d+){2})", v)
+        if number_match:
+            expected_number = f"{section}.{subsection}.{subsubsection}"
+            if number_match.group(1) != expected_number:
                 logging.warning(
-                    f"Regex error extracting number from identifier '{self.identifier}'. Skipping number check."
+                    f"Section number mismatch in identifier. "
+                    f"Expected {expected_number}, found {number_match.group(1)}"
                 )
-                match = None  # Ensure match is None if regex fails
 
-            if not match:
-                # If we expected an identifier (because subsubsection is not None), warn here.
-                if self.subsubsection is not None:
-                    logging.warning(
-                        f"Could not extract number from identifier '{self.identifier}' for subsubsection {self.get_full_number()}. Skipping number check."
-                    )
-            elif match.group(1) != expected_number:
+        # 2. Check if type matches the German/English type in identifier
+        type_match = re.match(r"^([a-zA-ZäöüÄÖÜß]+)", v.strip())
+        if type_match:
+            german_type = type_match.group(1)
+            expected_english_type = GERMAN_TO_ENGLISH_TYPE.get(german_type)
+
+            if expected_english_type is None:
+                logging.warning(f"Unknown type '{german_type}' in identifier")
+            elif expected_english_type.lower() != type_.lower():
                 logging.warning(
-                    f"Identifier number mismatch for '{self.identifier}'. "
-                    f"Expected '{expected_number}', found '{match.group(1)}'."
+                    f"Type mismatch. Identifier suggests '{expected_english_type}', "
+                    f"but type is '{type_}'"
                 )
-        elif self.subsubsection is not None:
-            # Identifier is missing, but subsubsection is not None - this is suspicious.
-            logging.warning(
-                f"Missing identifier for content in subsubsection {self.get_full_number()}."
-            )
 
-        # 2. Check type consistency (only if identifier is actually present)
-        if self.identifier:
-            identifier_type_match = re.match(r"([a-zA-ZäöüÄÖÜß]+)", self.identifier)
-            if not identifier_type_match:
-                # If we expected an identifier (because subsubsection is not None), warn here.
-                if self.subsubsection is not None:
-                    logging.warning(
-                        f"Could not extract type from identifier '{self.identifier}' for subsubsection {self.get_full_number()}. Skipping type check."
-                    )
-            else:
-                german_type = identifier_type_match.group(1)
-                expected_english_type = GERMAN_TO_ENGLISH_TYPE.get(
-                    german_type
-                )  # Removed default="Unknown"
-
-                if expected_english_type is None:  # Explicit check for None is better
-                    # Keep this as a warning - indicates missing config or unexpected type
-                    logging.warning(
-                        f"Unknown German type '{german_type}' found in identifier '{self.identifier}'. "
-                        f"Please update GERMAN_TO_ENGLISH_TYPE map if this type is valid."
-                    )
-                elif expected_english_type.lower() != self.type.lower():
-                    logging.warning(
-                        f"Type mismatch for identifier '{self.identifier}'. "
-                        f"Identifier implies '{expected_english_type}', but type field is '{self.type}'."
-                    )
-        # No specific type check needed if identifier is missing, number check covers the warning.
+        return v
 
     @classmethod
-    def from_dict(cls, data: dict):
-        """Creates an AtomicUnit instance from a dictionary."""
-        return cls(
-            section=data.get("section"),
-            subsection=data.get("subsection"),
-            subsubsection=data.get("subsubsection"),
-            type=data.get("type"),
-            identifier=data.get("identifier"),
-            text=data.get("text"),
-            section_title=data.get("section_title"),
-            subsection_title=data.get("subsection_title"),
-            proof=data.get("proof"),
-            summary=data.get("summary"),
-        )
+    def from_dict(cls, data: dict) -> "AtomicUnit":
+        """
+        Creates an AtomicUnit instance from a dictionary.
+
+        Args:
+            data: Dictionary containing the atomic unit data
+
+        Returns:
+            An instance of AtomicUnit
+        """
+        return cls.model_validate(data)
 
     @classmethod
-    def from_db_row(cls, db_row: "Any") -> "AtomicUnit":
+    def from_db_row(cls, db_row: Any) -> "AtomicUnit":
         """
         Creates an AtomicUnit instance from a database row (db_models.AtomicUnit).
         Args:
             db_row: An instance of db_models.AtomicUnit (SQLModel row).
         Returns:
-            AtomicUnit: The core dataclass instance.
+            AtomicUnit: The Pydantic model instance.
         """
-        return cls(
-            section=db_row.section,
-            subsection=db_row.subsection,
-            subsubsection=db_row.subsubsection,
-            type=db_row.type,
-            identifier=db_row.identifier or "",
-            text=db_row.text,
-            section_title=db_row.section_title,
-            subsection_title=db_row.subsection_title,
-            proof=db_row.proof,
-            summary=db_row.summary,
+        return cls.model_validate(
+            {
+                "section": db_row.section,
+                "subsection": db_row.subsection,
+                "subsubsection": db_row.subsection,
+                "type": db_row.type,
+                "identifier": db_row.identifier or "",
+                "text": db_row.text,
+                "section_title": db_row.section_title or "",
+                "subsection_title": db_row.subsection_title or "",
+                "proof": db_row.proof,
+                "summary": db_row.summary,
+            }
         )
+
+
+if __name__ == "__main__":
+    import json
+    from math_rag.core.project_root import ROOT
+
+    # Get all JSON files in the atomic_units directory
+    atomic_units_dir = ROOT / "docs/atomic_units"
+    json_files = list(atomic_units_dir.glob("*.json"))
+    print(f"Found {len(json_files)} JSON files")
+
+    for json_file in json_files:
+        print(f"\nProcessing {json_file.name}...")
+        try:
+            data = json.loads(json_file.read_text(encoding="utf-8"))
+
+            # Handle both list of chunks and dict with 'chunks' key
+            chunks = data if isinstance(data, list) else data.get("chunks", [])
+            if not chunks:
+                print(f"  No chunks found in {json_file.name}")
+                continue
+
+            print(f"  Found {len(chunks)} chunks")
+            for i, chunk in enumerate(chunks, 1):
+                try:
+                    unit = AtomicUnit.from_dict(chunk)
+                    # print(f"    [OK] Chunk {i}/{len(chunks)}: {unit.identifier}")
+                except Exception as e:
+                    print(f"    [FAIL] Chunk {i}/{len(chunks)}: {e}")
+
+        except Exception as e:
+            print(f"  Error processing {json_file.name}: {e}")
