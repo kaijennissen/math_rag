@@ -87,7 +87,7 @@ class GraphRetrieverTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, embedding_model: str = DEFAULT_MODEL, k: int = 5, **kwargs):
+    def __init__(self, embedding_model: str = DEFAULT_MODEL, k: int = 20, **kwargs):
         """Initialize the GraphRetrieverTool with custom configuration."""
         super().__init__(**kwargs)
 
