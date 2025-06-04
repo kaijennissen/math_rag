@@ -76,6 +76,7 @@ def setup_rag_chat():
         model=model,
         max_steps=10,
         verbosity_level=2,
+        planning_interval=1,
     )
 
     return graph_agent
