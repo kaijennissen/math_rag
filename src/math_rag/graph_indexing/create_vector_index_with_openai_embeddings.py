@@ -1,28 +1,13 @@
 """
-Standalone script to create and manage Neo4j indexes (vector and fulltext)
-for efficient searching in the knowledge graph.
+Script to create vector indexes in Neo4j using OpenAI embeddings for similarity search.
 
 This script handles:
 1. Creating the AtomicUnit label on all content nodes
-2. Creating vector indexes for embedding-based similarity search
-3. Creating fulltext indexes for keyword search
-4. Testing the indexes with sample queries
+2. Creating vector indexes for embedding-based similarity search using OpenAI embeddings
+3. Testing the vector index with sample queries
 
-Workflow for building the knowledge graph and enabling search:
-
-1. Build graph structure:
-   python -m src/math_rag/build_knowledge_graph
-
-2. Add embeddings to nodes:
-   python add_embeddings.py
-
-3. Create indexes for search:
-   python create_indexes.py --all --test
-
-Each script can be run independently as needed:
-- To recreate just the vector index: python create_indexes.py --vector
-- To recreate just the fulltext index: python create_indexes.py --fulltext
-- To test search without recreating indexes: python create_indexes.py --test
+Note: This script specifically uses OpenAI embeddings (text-embedding-3-small).
+For custom embedding models, use create_vector_index_with_custom_embeddings.py instead.
 """
 
 import os
@@ -38,7 +23,7 @@ load_dotenv()
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("create_indexes.log"), logging.StreamHandler()],
+    handlers=[logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
@@ -130,7 +115,7 @@ def create_vector_index(
     Args:
         label: Node label to index (default: AtomicUnit)
         property_name: Property containing vector embeddings (default: textEmbedding)
-        dimensions: Vector dimensions (default: 1536)
+        dimensions: Vector dimensions (default: 1536 for OpenAI text-embedding-3-small)
         similarity_function: Similarity function (default: cosine)
         index_name: Custom index name (default: vector_index_{label})
 
@@ -171,53 +156,8 @@ def create_vector_index(
         return False
 
 
-def create_fulltext_index(
-    label: str = "AtomicUnit", properties: list = None, index_name: str = None
-) -> bool:
-    """Create a fulltext index for specified nodes and properties.
-
-    Args:
-        label: Node label to index (default: AtomicUnit)
-        properties: List of properties to index (default: ["text", "title", "proof"])
-        index_name: Custom index name (default: fulltext_index_{label})
-
-    Returns:
-        True if successful, False otherwise
-    """
-    if properties is None:
-        properties = ["text", "title", "proof"]
-
-    if index_name is None:
-        index_name = f"fulltext_index_{label}"
-
-    property_list = ", ".join([f"n.{prop}" for prop in properties])
-
-    logger.info(
-        f"Creating fulltext index {index_name} on {label} properties: {properties}"
-    )
-
-    # Drop existing index
-    if not drop_index_if_exists(index_name):
-        logger.warning("Failed to drop existing index, but continuing...")
-
-    # Create new fulltext index
-    try:
-        with driver.session() as session:
-            session.run(
-                f"""
-            CREATE FULLTEXT INDEX {index_name}
-            FOR (n:{label}) ON EACH [{property_list}]
-            """
-            )
-        logger.info(f"Successfully created fulltext index {index_name}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to create fulltext index {index_name}: {e}")
-        return False
-
-
 def test_vector_search(query="Topologie"):
-    """Test vector search with a sample query using LangChain for the embedding."""
+    """Test vector search with a sample query using OpenAI embeddings."""
     # Add extra debug logging for the query
     logger.info(f"Testing vector search with query: '{query}'")
 
@@ -280,175 +220,64 @@ def test_vector_search(query="Topologie"):
         return False
 
 
-def test_fulltext_search(query="topologisch"):
-    """Test fulltext search with a sample query."""
-    logger.info(f"Testing fulltext search with query: '{query}'")
-
-    try:
-        with driver.session() as session:
-            search_result = session.run(
-                """
-                CALL db.index.fulltext.queryNodes(
-                  "fulltext_index_AtomicUnit",
-                  $query,
-                  {limit: 5}
-                )
-                YIELD node, score
-                RETURN
-                  score,
-                  node.text AS text,
-                  node.type AS type,
-                  node.title AS title,
-                  node.identifier AS identifier
-                ORDER BY score DESC
-                """,
-                {"query": query},
-            )
-
-            results = list(search_result)
-
-            logger.info(f"Found {len(results)} results")
-
-            for i, record in enumerate(results):
-                logger.info(f"Result {i + 1} (Score: {record['score']:.4f}):")
-                if "identifier" in record and record["identifier"]:
-                    logger.info(f"Identifier: {record['identifier']}")
-                if "type" in record and record["type"]:
-                    logger.info(f"Type: {record['type']}")
-                if "title" in record and record["title"]:
-                    logger.info(f"Title: {record['title']}")
-
-                # Show a preview of the text
-                text_preview = record["text"]
-                if len(text_preview) > 200:
-                    text_preview = text_preview[:200] + "..."
-                logger.info(f"Text: {text_preview}")
-                logger.info("-" * 40)
-
-            return len(results) > 0
-    except Exception as e:
-        logger.error(f"Error testing fulltext search: {e}")
-        return False
-
-
 def main(
-    vector: bool = False,
-    fulltext: bool = False,
-    all_indexes: bool = False,
     test: bool = False,
-    vector_query: str = "",
-    fulltext_query: str = "",
+    query: str = "",
     label: str = "AtomicUnit",
-    vector_property: str = "textEmbedding",
-    fulltext_properties: list = None,
+    property_name: str = "textEmbedding",
 ):
-    """Main function to create and test indexes."""
+    """Main function to create and test vector index."""
 
     # Ensure AtomicUnit label
     logger.info("Ensuring AtomicUnit label...")
     ensure_atomic_unit_label()
 
-    # Set default fulltext properties if not provided
-    if fulltext_properties is None:
-        fulltext_properties = ["text", "title", "proof"]
-
-    # Determine what to create
-    create_vector = vector or all_indexes
-    create_fulltext = fulltext or all_indexes
-
-    # Create vector index if requested
-    if create_vector:
-        logger.info(f"Creating vector index for {label}.{vector_property}...")
-        success = create_vector_index(label=label, property_name=vector_property)
-        if success:
-            logger.info("Vector index created successfully.")
-            if test and vector_query:
-                test_vector_search(vector_query)
-        else:
-            logger.error("Failed to create vector index.")
-
-    # Create fulltext index if requested
-    if create_fulltext:
-        logger.info(
-            f"Creating fulltext index for {label} on properties {fulltext_properties}..."
-        )
-        success = create_fulltext_index(label=label, properties=fulltext_properties)
-        if success:
-            logger.info("Fulltext index created successfully.")
-            if test and fulltext_query:
-                test_fulltext_search(fulltext_query)
-        else:
-            logger.error("Failed to create fulltext index.")
+    # Create vector index
+    logger.info(f"Creating vector index for {label}.{property_name}...")
+    success = create_vector_index(label=label, property_name=property_name)
+    if success:
+        logger.info("Vector index created successfully.")
+        if test and query:
+            test_vector_search(query)
+    else:
+        logger.error("Failed to create vector index.")
 
     # If only testing was requested
-    if test and not (create_vector or create_fulltext):
-        if vector_query:
-            test_vector_search(vector_query)
-        if fulltext_query:
-            test_fulltext_search(fulltext_query)
+    if test and not query:
+        test_vector_search()
 
-    logger.info("Index operations completed.")
+    logger.info("Vector index operations completed.")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create and manage Neo4j indexes")
-    parser.add_argument(
-        "--vector",
-        action="store_true",
-        help="Create vector index for similarity search",
+    parser = argparse.ArgumentParser(
+        description="Create and manage Neo4j vector indexes with OpenAI embeddings"
     )
+    parser.add_argument("--test", action="store_true", help="Test index after creation")
     parser.add_argument(
-        "--fulltext",
-        action="store_true",
-        help="Create fulltext index for keyword search",
-    )
-    parser.add_argument(
-        "--all", action="store_true", help="Create both vector and fulltext indexes"
-    )
-    parser.add_argument(
-        "--test", action="store_true", help="Test indexes after creation"
-    )
-    parser.add_argument(
-        "--vector-query",
+        "--query",
         type=str,
         default="Was ist die definition eines T_{4}-Raums?",
         help="Query for testing vector search",
     )
     parser.add_argument(
-        "--fulltext-query",
-        type=str,
-        default="topologisch",
-        help="Query for testing fulltext search",
-    )
-    parser.add_argument(
         "--label",
         type=str,
         default="AtomicUnit",
-        help="Node label to create indexes for (default: AtomicUnit)",
+        help="Node label to create index for (default: AtomicUnit)",
     )
     parser.add_argument(
-        "--vector-property",
+        "--property",
         type=str,
         default="textEmbedding",
         help="Property name for vector index (default: textEmbedding)",
-    )
-    parser.add_argument(
-        "--fulltext-properties",
-        nargs="+",
-        default=["text", "title", "proof", "summary"],
-        help="Properties for fulltext index (default: text title proof summary)",
     )
 
     args = parser.parse_args()
 
     main(
-        vector=args.vector,
-        fulltext=args.fulltext,
-        all_indexes=args.all,
         test=args.test,
-        vector_query=args.vector_query,
-        fulltext_query=args.fulltext_query,
+        query=args.query,
         label=args.label,
-        vector_property=args.vector_property,
-        fulltext_properties=args.fulltext_properties,
+        property_name=args.property,
     )

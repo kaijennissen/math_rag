@@ -1,7 +1,9 @@
 import re
 from typing import Dict, List, Tuple
 import pymupdf
+import pickle
 from collections import defaultdict
+from math_rag.core import ROOT
 
 
 def get_text_around_rect(page, rect, padding=(2, 5)):
@@ -162,7 +164,6 @@ def extract_links_from_pdf(pdf_path: str, start_page: int) -> List[Dict]:
                 # Identify the source context (which theorem/lemma/etc contains this link)
                 source_context = identify_source_context(doc, page, from_rect)
                 source_page = link.get("page", 0)
-
                 if link["kind"] == pymupdf.LINK_NAMED:
                     # if we haved a linked name, we have the additional information of a nameddest, which should match with from_text_around
                     from_nameddest = link.get("nameddest", "")
@@ -271,17 +272,51 @@ def extract_reference_info(text: str) -> Tuple[str, str, str]:
     return "unknown", "0", text[:50] + ("..." if len(text) > 50 else "")
 
 
+def extract_digit_pattern(text: str) -> str:
+    """
+    Extract digit.digit.digit pattern from text.
+
+    Args:
+        text: Text to search for digit patterns
+
+    Returns:
+        First digit.digit.digit pattern found, or empty string if none found
+    """
+    pattern = re.search(r"\d+\.\d+\.\d+", text)
+    return pattern.group(0) if pattern else ""
+
+
 if __name__ == "__main__":
     extracted_links = extract_links_from_pdf("docs/Skript_2024.pdf", start_page=10)
 
-    # Print all links where either source or destination entity is known
-    print("\nLinks with known entities:")
+    # Extract digit.digit.digit patterns from source and destination
+    reference_tuples = []
+
     for link in extracted_links:
         source = link["source_entity"]
 
-        if source["type"] != "unknown":
-            print(f"\nFrom: {source['number']} (Page {link['source_page']})")
-            print(
-                f"To: {link['destination_text_around']}/{link['destination_name']} (Page {link['destination_page']})"
-            )
-            print("-" * 50)
+        # Extract pattern from source number
+        source_pattern = extract_digit_pattern(source.get("number", ""))
+
+        # Extract pattern from destination text and name
+        dest_text_pattern = extract_digit_pattern(
+            link.get("destination_text_around", "")
+        )
+        dest_name_pattern = extract_digit_pattern(link.get("destination_name", ""))
+
+        # Use destination name pattern if available, otherwise use text pattern
+        dest_pattern = dest_name_pattern if dest_name_pattern else dest_text_pattern
+
+        # Only add tuple if both source and destination patterns are found
+        if source_pattern and dest_pattern and source_pattern != dest_pattern:
+            reference_tuples.append((source_pattern, dest_pattern))
+
+    # Save tuples to pickle file
+    with open(ROOT / "data" / "reference_tuples.pkl", "wb") as f:
+        pickle.dump(reference_tuples, f)
+
+    print(f"Extracted {len(reference_tuples)} reference tuples:")
+    for source, dest in reference_tuples:
+        print(f"{source} -> {dest}")
+
+    print("Saved tuples to reference_tuples.pkl")

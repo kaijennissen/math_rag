@@ -59,26 +59,31 @@ Key features:
 6. Process your mathematical documents:
    Place mathematical PDFs in the `./docs` folder and run the following workflows:
 
-   ```
-   # Complete workflow to create a knowledge graph and search index
-   python src/math_rag/data_processing/pdf_to_text.py path/to/your/document.pdf                      # Step 1: Parse PDF with MathPix
-   python src/math_rag/data_processing/section_splitter.py --input docs/processed/document.pkl       # Step 2: Split document into sections
-   python src/math_rag/data_processing/subsection_splitter.py --section 5                            # Step 3: Split sections into subsections
-   python src/math_rag/data_processing/extract_atomic_units.py --section 5                           # Step 4: Extract definitions, theorems, etc. with LLM
-   python src/math_rag/knowledge_graph/build_knowledge_graph.py                                      # Step 5: Create the knowledge graph and fulltext index
-   python src/math_rag/embeddings/create_embeddings_and_vector_index.py --model "E5 Multilingual" --test  # Step 6: Create embeddings and vector index
+   **Complete Workflow Overview:**
+   ```bash
+   # === DOCUMENT PROCESSING ===
+   python src/math_rag/data_processing/pdf_to_text.py path/to/your/document.pdf                              # Step 1: Parse PDF with MathPix
+   python src/math_rag/data_processing/section_splitter.py --input docs/processed/document.pkl               # Step 2: Split document into sections
+   python src/math_rag/data_processing/subsection_splitter.py --section 5                                    # Step 3: Split sections into subsections
+   python src/math_rag/data_processing/extract_atomic_units.py --section 5                                   # Step 4: Extract definitions, theorems, etc. with LLM
+
+   # === KNOWLEDGE GRAPH CONSTRUCTION ===
+   python src/math_rag/graph_construction/build_kg_from_db.py                                                # Step 5: Create the knowledge graph
+   python src/math_rag/graph_construction/add_reference_relationships.py                                     # Step 6: Add reference relationships between atomic units
+
+   # === SEARCH INDEX CREATION ===
+   python src/math_rag/graph_indexing/create_fulltext_index.py --test                                        # Step 7: Create fulltext index for keyword search
+   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual" --test  # Step 8: Create embeddings and vector index
    ```
 
-   This workflow:
-   - Processes PDFs using MathPix to preserve mathematical notation (Step 1)
-   - Extracts and splits the document into major sections (Step 2)
-   - Further splits sections into meaningful subsections (Step 3)
-   - Uses LLM to identify atomic units like definitions and theorems (Step 4)
-   - Creates a structured knowledge graph in Neo4j with fulltext index (Step 5)
-   - Adds embeddings and creates vector index for similarity search (Step 6)
+   **What each phase accomplishes:**
+   - **Document Processing**: Processes PDFs using MathPix, splits into sections/subsections, and extracts mathematical atomic units
+   - **Knowledge Graph Construction**: Creates the Neo4j graph structure and adds reference relationships between concepts
+   - **Search Index Creation**: Creates both keyword-based fulltext search and semantic vector search capabilities
 
    **Detailed Usage for Each Tool**:
-   ```
+   ```bash
+   # === DOCUMENT PROCESSING ===
    # Process a single PDF file
    python src/math_rag/data_processing/pdf_to_text.py /absolute/path/to/your/document.pdf
 
@@ -94,13 +99,23 @@ Key features:
    python src/math_rag/data_processing/extract_atomic_units.py --subsection 5.1           # Process just subsection 5.1
    python src/math_rag/data_processing/extract_atomic_units.py --section 5 --section 6    # Process all subsections in sections 5 and 6
 
-   # Build knowledge graph and create fulltext index
-   python src/math_rag/knowledge_graph/build_knowledge_graph.py
+   # === KNOWLEDGE GRAPH CONSTRUCTION ===
+   # Build knowledge graph
+   python src/math_rag/graph_construction/build_kg_from_db.py
 
-   # Create embeddings and vector index with different models
-   python src/math_rag/embeddings/create_embeddings_and_vector_index.py --model "E5 Multilingual" --test
-   python src/math_rag/embeddings/create_embeddings_and_vector_index.py --model "MXBAI German" --test
-   python src/math_rag/embeddings/create_embeddings_and_vector_index.py --model "OpenAI" --test
+   # Add reference relationships between atomic units
+   python src/math_rag/graph_construction/add_reference_relationships.py
+
+   # === SEARCH INDEX CREATION ===
+   # Create fulltext index for keyword search
+   python src/math_rag/graph_indexing/create_fulltext_index.py --test
+
+   # Create vector index with OpenAI embeddings
+   python src/math_rag/graph_indexing/create_vector_index_with_openai_embeddings.py --test
+
+   # Create embeddings and vector index with custom models
+   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual" --test
+   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German" --test
    ```
 
    The tools have these resilient features:
@@ -114,12 +129,12 @@ Key features:
 
 The math_rag codebase is organized into logical modules that follow the natural flow of data through the system:
 
-**data_processing → knowledge_graph → embeddings → rag_agents → CLI**
+**data_processing → graph_construction → graph_indexing → rag_agents → CLI**
 
 This structure reflects how information moves through the system:
 1. First, raw documents are processed into structured data (data_processing)
-2. Then, this structured data is used to build a knowledge graph (knowledge_graph)
-3. Text embeddings are created to enable semantic search (embeddings)
+2. Then, this structured data is used to build a knowledge graph (graph_construction)
+3. Indexes are created for both keyword and semantic search (graph_indexing)
 4. The agent system combines graph and embedding information to answer questions (rag_agents)
 5. Finally, the CLI provides an interface for users to interact with the system
 
@@ -152,26 +167,27 @@ math_rag/
 │       │   ├── subsection_splitter.py              # Split sections into subsections
 │       │   ├── extract_atomic_units.py             # Extract definitions/theorems using LLM
 │       │   ├── section_headers.py                  # Section header management
-│       │   └── hierarchical_parser.py              # Document structure parsing
+│       │   └── migrate_to_sqlite.py                # Convert data format for graph building
 │       │
-│       ├── knowledge_graph/                        # 2. KNOWLEDGE GRAPH CONSTRUCTION
-│       │   ├── build_knowledge_graph.py            # Create knowledge graph + fulltext index
-│       │   ├── create_graph.py                     # Graph creation utilities
-│       │   ├── create_indexes.py                   # Index creation
-│       │   ├── cypher_tools.py                     # Cypher query tools
-│       │   └── cypher_query_generator.py           # Cypher query generation
+│       ├── graph_construction/                     # 2. KNOWLEDGE GRAPH CONSTRUCTION
+│       │   ├── build_kg_from_db.py                 # Create knowledge graph from database
+│       │   ├── build_kg_from_json.py               # Create knowledge graph from JSON files
+│       │   ├── add_reference_relationships.py      # Add reference relationships between atomic units
+│       │   └── cypher_tools.py                     # Cypher query tools for graph operations
 │       │
-│       ├── embeddings/                             # 3. VECTOR REPRESENTATIONS
-│       │   ├── create_embeddings_and_vector_index.py # Create embeddings + vector index
-│       │   ├── retrievers.py                       # Retrieval methods with different models
-│       │   └── cypher_embeddings.py                # Cypher + embeddings integration
+│       ├── graph_indexing/                         # 3. SEARCH INDEX CREATION
+│       │   ├── create_fulltext_index.py            # Create fulltext index for keyword search
+│       │   ├── create_vector_index_with_openai_embeddings.py    # Create vector index with OpenAI embeddings
+│       │   ├── create_vector_index_with_custom_embeddings.py    # Create vector index with custom models (E5, MXBAI)
+│       │   └── retrievers.py                       # Retrieval methods with different models
 │       │
 │       ├── rag_agents/                             # 4. RAG AGENT IMPLEMENTATION
-│       │   ├── agents.py                           # Agent system setup and configuration
-│       │   └── graph_meta_agent.py                 # Graph metadata agent
+│       │   └── agents.py                           # Agent system setup and configuration
 │       │
 │       ├── cli/                                    # 5. COMMAND-LINE INTERFACES
-│       │   └── graph_rag_cli.py                    # RAG chat command-line interface
+│       │   ├── graph_rag_cli.py                    # RAG chat command-line interface
+│       │   ├── db_cli.py                           # Database management CLI
+│       │   └── view_summaries_cli.py               # CLI for viewing document summaries
 │       │
 │       └── utils/                                  # Utility functions
 │           ├── infer_refs.py                       # Reference inference
@@ -198,14 +214,14 @@ The system supports multiple embedding models optimized for different use cases:
 You can specify which model to use when creating embeddings:
 
 ```bash
-# Use E5 Multilingual (default)
-python -m src/math_rag/embeddings/create_embeddings_and_vector_index --model "E5 Multilingual" --test
+# Use E5 Multilingual (default) - custom embeddings
+python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual" --test
 
-# Use MXBAI German
-python -m src/math_rag/embeddings/create_embeddings_and_vector_index --model "MXBAI German" --test
+# Use MXBAI German - custom embeddings
+python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German" --test
 
-# Use OpenAI
-python -m src/math_rag/embeddings/create_embeddings_and_vector_index --model "OpenAI" --test
+# Use OpenAI embeddings
+python src/math_rag/graph_indexing/create_vector_index_with_openai_embeddings.py --test
 ```
 
 ## 💡 Learnings
@@ -218,7 +234,7 @@ We initially explored two approaches for implementing embeddings in our Neo4j gr
 
 1. **Native Cypher Approach** (`cypher_embeddings.py`): This used Neo4j's built-in GenAI module with the `genai.vector.encodeBatch` function.
 
-2. **External Embedding Approach** (`create_embeddings_and_vector_index.py`): This generates embeddings through external providers (OpenAI, HuggingFace) and manually adds them to Neo4j.
+2. **External Embedding Approach** (`create_vector_index_with_custom_embeddings.py`): This generates embeddings through external providers (OpenAI, HuggingFace) and manually adds them to Neo4j.
 
 We've removed the native Cypher approach (`cypher_embeddings.py`) for the following reasons:
 
@@ -290,3 +306,23 @@ This Math-RAG system demonstrates the power of combining Knowledge Graphs with L
 ## 🤝 Contributions
 
 Contributions are welcome! Please feel free to submit a Pull Request with improvements, bug fixes, or new features.
+
+
+## Cypher Commands
+
+    CALL gds.graph.project(
+    'whole-graph',
+    // nodeQuery
+    ["AtomicUnit"],
+    // relationshipQuery
+    "REFERENCES"
+)
+
+//get top 5 most prolific actors (those in the most movies)
+//using degree centrality which counts number of `ACTED_IN` relationships
+CALL gds.eigenvector.stream('whole-graph')
+YIELD nodeId, score
+RETURN
+  gds.util.asNode(nodeId).number AS number,
+  score AS score
+ORDER BY score DESCENDING, number LIMIT 25
