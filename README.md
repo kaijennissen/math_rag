@@ -88,7 +88,7 @@ Key features:
    - **Database Setup**: Creates SQLite database, migrates extracted data, and generates RAG-optimized summaries for better retrieval
    - **Knowledge Graph Construction**: Creates the Neo4j graph structure from the database and adds reference relationships between concepts
    - **Search Index Creation**: Creates both keyword-based fulltext search and semantic vector search capabilities
-
+  </details>
 
    <details>
    <summary><strong>Detailed Usage for Each Tool (Click to expand)</strong></summary>
@@ -174,6 +174,7 @@ This structure reflects how information moves through the system:
 
 <details>
 <summary><strong>(Click to expand)</strong></summary>
+  
 ```
 math_rag/
 │
