@@ -74,20 +74,18 @@ Key features:
    python -m math_rag.cli.db_cli migrate                                          # Step 6: Migrate atomic units from JSON to database
    python -m math_rag.cli.db_cli summarize                                        # Step 7: Generate RAG-optimized summaries using LLM
 
-   # === KNOWLEDGE GRAPH CONSTRUCTION ===
-   python src/math_rag/graph_construction/build_kg_from_db.py                                                # Step 8: Create the knowledge graph from database
-   python src/math_rag/graph_construction/add_reference_relationships.py                                     # Step 9: Add reference relationships between atomic units
+   # === KNOWLEDGE GRAPH & INDEX CREATION (UNIFIED CLI) ===
+   python -m math_rag.cli.kg_cli build-all --model "E5 Multilingual"             # Step 8: Build complete knowledge graph with all indexes (ONE COMMAND!)
 
-   # === SEARCH INDEX CREATION ===
-   python src/math_rag/graph_indexing/create_fulltext_index.py --test                                        # Step 10: Create fulltext index for keyword search
-   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual" --test  # Step 11: Create embeddings and vector index
+   # OR use individual commands for more control:
+   # python -m math_rag.cli.kg_cli build-graph                                    # Build just the knowledge graph structure
+   # python -m math_rag.cli.kg_cli create-indexes --fulltext --vector --model "E5 Multilingual"  # Create indexes separately
    ```
 
    **What each phase accomplishes:**
    - **Document Processing**: Processes PDFs using MathPix, splits into sections/subsections, and extracts mathematical atomic units
    - **Database Setup**: Creates SQLite database, migrates extracted data, and generates RAG-optimized summaries for better retrieval
-   - **Knowledge Graph Construction**: Creates the Neo4j graph structure from the database and adds reference relationships between concepts
-   - **Search Index Creation**: Creates both keyword-based fulltext search and semantic vector search capabilities
+   - **Knowledge Graph & Index Creation**: Creates the complete Neo4j graph structure with reference relationships and both keyword-based fulltext search and semantic vector search capabilities
   </details>
 
    <details>
@@ -129,23 +127,33 @@ Key features:
    # View generated summaries
    micromamba run -n math_rag python -m math_rag.cli.view_summaries_cli --limit 10
 
-   # === KNOWLEDGE GRAPH CONSTRUCTION ===
+   # === KNOWLEDGE GRAPH & INDEX CREATION (UNIFIED CLI) ===
+   # Build complete knowledge graph with all indexes (recommended)
+   python -m math_rag.cli.kg_cli build-all --model "E5 Multilingual"
+   python -m math_rag.cli.kg_cli build-all --model "MXBAI German"
+
+   # Build only the graph structure
+   python -m math_rag.cli.kg_cli build-graph
+   python -m math_rag.cli.kg_cli build-graph --no-clear --document-name "custom_doc"
+
+   # Create only specific indexes
+   python -m math_rag.cli.kg_cli create-indexes --fulltext
+   python -m math_rag.cli.kg_cli create-indexes --vector --model "E5 Multilingual"
+   python -m math_rag.cli.kg_cli create-indexes --fulltext --vector --model "MXBAI German"
+
+   # === INDIVIDUAL SCRIPTS (for advanced users) ===
    # Build knowledge graph from database
-   python src/math_rag/graph_construction/build_kg_from_db.py
+   python src/math_rag/graph_construction/build_kg_from_db.py --clear
 
    # Add reference relationships between atomic units
    python src/math_rag/graph_construction/add_reference_relationships.py
 
-   # === SEARCH INDEX CREATION ===
    # Create fulltext index for keyword search
-   python src/math_rag/graph_indexing/create_fulltext_index.py --test
-
-   # Create vector index with OpenAI embeddings
-   python src/math_rag/graph_indexing/create_vector_index_with_openai_embeddings.py --test
+   python src/math_rag/graph_indexing/create_fulltext_index.py
 
    # Create embeddings and vector index with custom models
-   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual" --test
-   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German" --test
+   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual"
+   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German"
    ```
 
    </details>
@@ -224,6 +232,7 @@ math_rag/
 │       ├── cli/                                    # 5. COMMAND-LINE INTERFACES
 │       │   ├── graph_rag_cli.py                    # RAG chat command-line interface
 │       │   ├── db_cli.py                           # Database management CLI
+│       │   ├── kg_cli.py                           # Knowledge graph construction and indexing CLI
 │       │   └── view_summaries_cli.py               # CLI for viewing document summaries
 │       │
 │       └── utils/                                  # Utility functions
@@ -248,19 +257,21 @@ The system supports multiple embedding models optimized for different use cases:
 
 - **E5 Multilingual** (default): Best for academic German content, with strong performance on mathematical text
 - **MXBAI German**: Alternative for German language content with good performance in academic contexts
-- **OpenAI**: Standard OpenAI embeddings (text-embedding-3-small)
 
 You can specify which model to use when creating embeddings:
 
 ```bash
-# Use E5 Multilingual (default) - custom embeddings
-python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual" --test
+# Using the unified CLI (recommended)
+python -m math_rag.cli.kg_cli build-all --model "E5 Multilingual"
+python -m math_rag.cli.kg_cli build-all --model "MXBAI German"
 
-# Use MXBAI German - custom embeddings
-python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German" --test
+# Create only vector index with specific model
+python -m math_rag.cli.kg_cli create-indexes --vector --model "E5 Multilingual"
+python -m math_rag.cli.kg_cli create-indexes --vector --model "MXBAI German"
 
-# Use OpenAI embeddings
-python src/math_rag/graph_indexing/create_vector_index_with_openai_embeddings.py --test
+# Or using individual scripts
+python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual"
+python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German"
 ```
 
 ## 💡 Learnings

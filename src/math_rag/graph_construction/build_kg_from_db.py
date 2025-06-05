@@ -467,8 +467,32 @@ def build_knowledge_graph_from_sqlite(
         driver.close()
 
 
-def main():
-    """Main entry point for CLI usage."""
+def main(clear_first: bool = True, db_path: str = None):
+    """Main entry point for CLI usage.
+
+    Args:
+        clear_first: Whether to clear Neo4j database before building
+        db_path: Path to SQLite database (defaults to default path)
+    """
+    # Use default path if none provided
+    if db_path is None:
+        db_path = DB_PATH
+
+    # Create database manager
+    db_manager = DatabaseManager(db_path)
+    graph = Neo4jGraph(
+        url=os.getenv("NEO4J_URI"),
+        username=os.getenv("NEO4J_USERNAME"),
+        password=os.getenv("NEO4J_PASSWORD"),
+    )
+    build_knowledge_graph_from_sqlite(
+        graph=graph,
+        db_manager=db_manager,
+        clear_first=clear_first,
+    )
+
+
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
@@ -479,22 +503,9 @@ def main():
         action="store_true",
         help="Clear Neo4j database before building",
     )
+    parser.add_argument(
+        "--db-path", help=f"Path to SQLite database (default: {DB_PATH})"
+    )
 
     args = parser.parse_args()
-
-    # Create database manager
-    db_manager = DatabaseManager(DB_PATH)
-    graph = Neo4jGraph(
-        url=os.getenv("NEO4J_URI"),
-        username=os.getenv("NEO4J_USERNAME"),
-        password=os.getenv("NEO4J_PASSWORD"),
-    )
-    build_knowledge_graph_from_sqlite(
-        graph=graph,
-        db_manager=db_manager,
-        clear_first=args.clear,
-    )
-
-
-if __name__ == "__main__":
-    main()
+    main(clear_first=args.clear, db_path=args.db_path)

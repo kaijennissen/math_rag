@@ -53,9 +53,12 @@ def create_reference_relationship(
     logger.info(f"Created REFERENCES relationship: {source_number} -> {target_number}")
 
 
-def main():
+def main(document_name: str = DOCUMENT_NAME):
     """
     Main function to load reference tuples and create relationships in the graph.
+
+    Args:
+        document_name: Name of the document to process
     """
     logger.info("Starting reference relationship creation.")
 
@@ -90,7 +93,7 @@ def main():
         try:
             create_reference_relationship(
                 graph=graph,
-                document_name=DOCUMENT_NAME,
+                document_name=document_name,
                 source_number=source_number,
                 target_number=target_number,
             )
@@ -107,4 +110,16 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Add reference relationships to the knowledge graph"
+    )
+    parser.add_argument(
+        "--document-name",
+        default=DOCUMENT_NAME,
+        help=f"Name of the document to process (default: {DOCUMENT_NAME})",
+    )
+
+    args = parser.parse_args()
+    main(document_name=args.document_name)
