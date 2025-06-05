@@ -89,7 +89,6 @@ Key features:
    - **Knowledge Graph Construction**: Creates the Neo4j graph structure from the database and adds reference relationships between concepts
    - **Search Index Creation**: Creates both keyword-based fulltext search and semantic vector search capabilities
 
-   </details>
 
    <details>
    <summary><strong>Detailed Usage for Each Tool (Click to expand)</strong></summary>
