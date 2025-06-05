@@ -59,7 +59,9 @@ Key features:
 6. Process your mathematical documents:
    Place mathematical PDFs in the `./docs` folder and run the following workflows:
 
-   **Complete Workflow Overview:**
+   <details>
+   <summary><strong>Complete Workflow Overview (Click to expand)</strong></summary>
+
    ```bash
    # === DOCUMENT PROCESSING ===
    python src/math_rag/data_processing/pdf_to_text.py path/to/your/document.pdf                              # Step 1: Parse PDF with MathPix
@@ -87,7 +89,11 @@ Key features:
    - **Knowledge Graph Construction**: Creates the Neo4j graph structure from the database and adds reference relationships between concepts
    - **Search Index Creation**: Creates both keyword-based fulltext search and semantic vector search capabilities
 
-   **Detailed Usage for Each Tool**:
+   </details>
+
+   <details>
+   <summary><strong>Detailed Usage for Each Tool (Click to expand)</strong></summary>
+
    ```bash
    # === DOCUMENT PROCESSING ===
    # Process a single PDF file
@@ -143,6 +149,8 @@ Key features:
    python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German" --test
    ```
 
+   </details>
+
    The tools have these resilient features:
    - Page-by-page processing with checkpoints (pdf_to_text.py)
    - Automatic retries with exponential backoff for API failures
@@ -151,6 +159,9 @@ Key features:
 
 
 ## 📦 Project Structure
+
+<details>
+<summary><strong>Project Structure Overview (Click to expand)</strong></summary>
 
 The math_rag codebase is organized into logical modules that follow the natural flow of data through the system:
 
@@ -227,6 +238,8 @@ math_rag/
 ├── Makefile                                        # Build utilities
 └── README.md                                       # Project documentation
 ```
+
+</details>
 
 ## 📝 Embedding Models
 
