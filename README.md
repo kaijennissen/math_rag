@@ -160,8 +160,7 @@ Key features:
 
 ## 📦 Project Structure
 
-<details>
-<summary><strong>Project Structure Overview (Click to expand)</strong></summary>
+Project Structure Overview 
 
 The math_rag codebase is organized into logical modules that follow the natural flow of data through the system:
 
@@ -174,6 +173,8 @@ This structure reflects how information moves through the system:
 4. The agent system combines graph and embedding information to answer questions (rag_agents)
 5. Finally, the CLI provides an interface for users to interact with the system
 
+<details>
+<summary><strong>(Click to expand)</strong></summary>
 ```
 math_rag/
 │
