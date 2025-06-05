@@ -159,7 +159,7 @@ Key features:
 
 ## 📦 Project Structure
 
-Project Structure Overview 
+Project Structure Overview
 
 The math_rag codebase is organized into logical modules that follow the natural flow of data through the system:
 
@@ -174,13 +174,13 @@ This structure reflects how information moves through the system:
 
 <details>
 <summary><strong>(Click to expand)</strong></summary>
-  
+
 ```
 math_rag/
 │
 ├── config/
 │   ├── config.yaml                                 # Configuration file
-│   └── agents.yaml                     # Agent system configuration
+│   └── agents.yaml                                 # Agent system configuration
 │
 ├── docs/                                           # Folder for storing mathematical PDFs
 │
