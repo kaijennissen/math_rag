@@ -67,18 +67,24 @@ Key features:
    python src/math_rag/data_processing/subsection_splitter.py --section 5                                    # Step 3: Split sections into subsections
    python src/math_rag/data_processing/extract_atomic_units.py --section 5                                   # Step 4: Extract definitions, theorems, etc. with LLM
 
+   # === DATABASE SETUP ===
+   python -m math_rag.cli.db_cli init                                             # Step 5: Initialize SQLite database
+   python -m math_rag.cli.db_cli migrate                                          # Step 6: Migrate atomic units from JSON to database
+   python -m math_rag.cli.db_cli summarize                                        # Step 7: Generate RAG-optimized summaries using LLM
+
    # === KNOWLEDGE GRAPH CONSTRUCTION ===
-   python src/math_rag/graph_construction/build_kg_from_db.py                                                # Step 5: Create the knowledge graph
-   python src/math_rag/graph_construction/add_reference_relationships.py                                     # Step 6: Add reference relationships between atomic units
+   python src/math_rag/graph_construction/build_kg_from_db.py                                                # Step 8: Create the knowledge graph from database
+   python src/math_rag/graph_construction/add_reference_relationships.py                                     # Step 9: Add reference relationships between atomic units
 
    # === SEARCH INDEX CREATION ===
-   python src/math_rag/graph_indexing/create_fulltext_index.py --test                                        # Step 7: Create fulltext index for keyword search
-   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual" --test  # Step 8: Create embeddings and vector index
+   python src/math_rag/graph_indexing/create_fulltext_index.py --test                                        # Step 10: Create fulltext index for keyword search
+   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual" --test  # Step 11: Create embeddings and vector index
    ```
 
    **What each phase accomplishes:**
    - **Document Processing**: Processes PDFs using MathPix, splits into sections/subsections, and extracts mathematical atomic units
-   - **Knowledge Graph Construction**: Creates the Neo4j graph structure and adds reference relationships between concepts
+   - **Database Setup**: Creates SQLite database, migrates extracted data, and generates RAG-optimized summaries for better retrieval
+   - **Knowledge Graph Construction**: Creates the Neo4j graph structure from the database and adds reference relationships between concepts
    - **Search Index Creation**: Creates both keyword-based fulltext search and semantic vector search capabilities
 
    **Detailed Usage for Each Tool**:
@@ -99,8 +105,27 @@ Key features:
    python src/math_rag/data_processing/extract_atomic_units.py --subsection 5.1           # Process just subsection 5.1
    python src/math_rag/data_processing/extract_atomic_units.py --section 5 --section 6    # Process all subsections in sections 5 and 6
 
+   # === DATABASE SETUP ===
+   # Initialize SQLite database (creates tables if they don't exist)
+   micromamba run -n math_rag python -m math_rag.cli.db_cli init
+
+   # Migrate JSON atomic units to database
+   micromamba run -n math_rag python -m math_rag.cli.db_cli migrate
+
+   # Generate RAG-optimized summaries for all units
+   micromamba run -n math_rag python -m math_rag.cli.db_cli summarize
+
+   # Generate summaries with custom parameters
+   micromamba run -n math_rag python -m math_rag.cli.db_cli summarize --model gpt-4-turbo --batch-size 20
+
+   # Check database statistics
+   micromamba run -n math_rag python -m math_rag.cli.db_cli stats --verbose
+
+   # View generated summaries
+   micromamba run -n math_rag python -m math_rag.cli.view_summaries_cli --limit 10
+
    # === KNOWLEDGE GRAPH CONSTRUCTION ===
-   # Build knowledge graph
+   # Build knowledge graph from database
    python src/math_rag/graph_construction/build_kg_from_db.py
 
    # Add reference relationships between atomic units
