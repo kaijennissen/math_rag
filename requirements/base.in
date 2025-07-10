@@ -1,3 +1,4 @@
+-c ${CONSTRAINTS}
 coloredlogs
 langchain
 langchain-community

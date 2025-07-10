@@ -17,9 +17,14 @@ import os
 import yaml
 import sys
 from dotenv import load_dotenv
-from smolagents import CodeAgent, ToolCallingAgent, OpenAIServerModel, HfApiModel
-from math_rag.embeddings import GraphRetrieverTool
-from math_rag.knowledge_graph import CypherExecutorTool, SchemaInfoTool
+from smolagents import (
+    CodeAgent,
+    ToolCallingAgent,
+    OpenAIServerModel,
+    InferenceClientModel,
+)
+from math_rag.graph_tools import GraphRetrieverTool
+from math_rag.graph_tools import CypherExecutorTool, SchemaInfoTool
 from math_rag.core import ROOT
 
 load_dotenv()
@@ -45,7 +50,7 @@ def setup_rag_chat():
     """Setup a RAG chat agent with the graph-based retriever tool and meta-question subagent."""
 
     # Initialize the model inside this function
-    reasoning_model = HfApiModel(
+    reasoning_model = InferenceClientModel(
         # model_id="Qwen/Qwen2.5-Coder-32B-Instruct",
         # model_id="Qwen/QwQ-32B",
         # model_id="Qwen/Qwen3-32B",
@@ -66,6 +71,7 @@ def setup_rag_chat():
         verbosity_level=2,
         name="graph_retriever_agent",
         description=AGENT_DESCRIPTIONS["graph_retriever_agent"],
+        use_structured_outputs_internally=True,
     )
 
     cypher_agent = ToolCallingAgent(
@@ -75,6 +81,7 @@ def setup_rag_chat():
         verbosity_level=2,
         name="cypher_agent",
         description=AGENT_DESCRIPTIONS["cypher_agent"],
+        # use_structured_outputs_internally=True
     )
 
     graph_agent = CodeAgent(
@@ -84,6 +91,7 @@ def setup_rag_chat():
         max_steps=20,
         verbosity_level=2,
         planning_interval=3,
+        use_structured_outputs_internally=True,
     )
 
     return graph_agent

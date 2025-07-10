@@ -1,3 +1,4 @@
+-c ${CONSTRAINTS}
 pre-commit
 ruff
 pytest
