@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "GraphRAG for Mathematical Documents"
 readme = "README.md"
 authors = [
-    { name = "Kai Jennissen", email = "k_jennissen@icloud.com" }
+    { name = "Kai Jennissen" }
 ]
 requires-python = ">=3.12, <3.13"
 dependencies = [
