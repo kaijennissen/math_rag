@@ -218,7 +218,8 @@ def process_pdf(pdf_path: Path) -> List[Document]:
     else:
         logger.warning(
             f"Processing of {pdf_path.name} incomplete. "
-            f"Processed {len(checkpoint['processed_pages'])} of {checkpoint['total_pages']} pages. "
+            f"Processed {len(checkpoint['processed_pages'])} of "
+            f"{checkpoint['total_pages']} pages. "
             f"Failed pages: {checkpoint['failed_pages']}"
         )
 
@@ -253,7 +254,8 @@ def remove_image_urls(text: str) -> str:
 
 
 def save_processed_document(docs: List[Document], output_file: str) -> List[Document]:
-    """Save the final processed document as a single text file and return the documents."""
+    """Save the final processed document as a
+    single text file and return the documents."""
     output_dir = DOCS_PATH / "processed"
     output_dir.mkdir(exist_ok=True)
 

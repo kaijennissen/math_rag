@@ -70,7 +70,8 @@ def create_hierarchy_from_file(graph: Neo4jGraph):
         )
         for subsection in section.subsections:
             logger.info(
-                f"  Creating subsection node: {subsection.number} '{subsection.title}' (parent section: {section.number})"
+                f"  Creating subsection node: {subsection.number} '{subsection.title}' "
+                f"(parent section: {section.number})"
             )
             create_subsection_node(
                 graph=graph,
@@ -103,7 +104,8 @@ def create_hierarchy_from_file(graph: Neo4jGraph):
         )
         for current, next in zip(sorted_subs[:-1], sorted_subs[1:]):
             logger.info(
-                f"  Linking subsection {current.number} -> {next.number} (NEXT/PREVIOUS) in section {section.number}"
+                f"  Linking subsection {current.number} -> {next.number} "
+                f"(NEXT/PREVIOUS) in section {section.number}"
             )
             create_next_relationship(
                 graph,
@@ -220,14 +222,16 @@ def create_next_relationship(
 #         check_result = session.run(check_query, {"subsection_id": subsection_id})
 #         if not check_result.single():
 #             logger.warning(
-#                 f"Subsection {subsection_id} not found for atomic unit {subsubsection_number}"
+#                 f"Subsection {subsection_id} not found for atomic unit "
+#                 f"{subsubsection_number}"
 #             )
 #             continue
 
 #         # Construct the MERGE query dynamically with the sanitized label
 #         query = f"""
 #         MATCH (sub:Subsection {{id: $subsection_id}})
-#         MERGE (c:{sanitized_label} {{id: $subsubsection_id, number: $subsubsection_number}})
+#         MERGE (c:{sanitized_label} {{id: $subsubsection_id,
+#                                     number: $subsubsection_number}})
 #         SET c.text = $text,
 #             c.type = $type,
 #             c.title = $title,
@@ -239,7 +243,8 @@ def create_next_relationship(
 #         # Add summary if available
 #         if "summary" in unit and unit["summary"]:
 #             query = query.replace(
-#                 "c.textEmbedding = Null", "c.textEmbedding = Null, c.summary = $summary"
+#                 "c.textEmbedding = Null",
+#                 "c.textEmbedding = Null, c.summary = $summary"
 #             )
 
 #         session.run(
@@ -385,7 +390,8 @@ def create_atomic_unit_relationships(
         sorted_units = sorted(subsection_units, key=lambda u: u.subsubsection)
 
         logger.info(
-            f"Creating {len(sorted_units) - 1} relationships in subsection {subsection_key}"
+            f"Creating {len(sorted_units) - 1} relationships in subsection "
+            f"{subsection_key}"
         )
 
         # Create relationships between consecutive units
@@ -399,7 +405,8 @@ def create_atomic_unit_relationships(
             total_relationships += 1
 
     logger.info(
-        f"Created {total_relationships} NEXT/PREVIOUS relationships between atomic units"
+        f"Created {total_relationships} NEXT/PREVIOUS relationships "
+        f"between atomic units"
     )
 
 
@@ -410,10 +417,12 @@ def ensure_atomic_unit_label(driver):
         with driver.session() as session:
             result = session.run(
                 """
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
+                  Exercise|Remark)
             WHERE NOT n:AtomicUnit
             WITH count(n) AS missingLabel
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
+                  Exercise|Remark)
             WHERE NOT n:AtomicUnit
             SET n:AtomicUnit
             RETURN missingLabel, count(n) AS updated

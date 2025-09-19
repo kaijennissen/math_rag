@@ -14,7 +14,13 @@ load_dotenv()
 
 # User-editable text variables - modify these to compare different texts
 text1 = "Wie lautet die Definition für einen T_4-Raum?"  # Natural language question
-text2 = "(1) $\\underline{X}$ heißt $T_{4}$-Raum, wenn zu je zwei disjunkten abgeschlossenen Mengen $A$ und $B$ in $\\underline{X}$ (offene) Umgebungen $U$ von $A$ und $V$ von $B$ mit $U \\cap V=\\emptyset$ existieren.\n\n(2) $\\underline{X}$ heißt normal, wenn $\\underline{X}$ gleichzeitig $\\mathrm{T}_{4}$-Raum und $\\mathrm{T}_{1}$-Raum ist."  # LaTeX formatting
+text2 = (
+    "(1) $\\underline{X}$ heißt $T_{4}$-Raum, wenn zu je zwei disjunkten "
+    "abgeschlossenen Mengen $A$ und $B$ in $\\underline{X}$ (offene) Umgebungen $U$ "
+    "von $A$ und $V$ von $B$ mit $U \\cap V=\\emptyset$ existieren.\n\n"
+    "(2) $\\underline{X}$ heißt normal, wenn $\\underline{X}$ gleichzeitig "
+    "$\\mathrm{T}_{4}$-Raum und $\\mathrm{T}_{1}$-Raum ist."
+)  # LaTeX formatting
 
 # Initialize embedding model
 embedding_model = OpenAIEmbeddings(

@@ -47,7 +47,7 @@ repos:
   #       # Configures isort to use the Black formatting profile and only filter files that were selected by pre-commit.
   #       language_version: python3 # Specifies that this should run with Python 3.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.11.2" # Specific version of ruff, a fast Python linter.
+    rev: "v0.13.1" # Specific version of ruff, a fast Python linter.
     hooks:
       - id: ruff
         # Runs ruff to perform linting on the code, checking for stylistic and logical errors not covered by other tools.

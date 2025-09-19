@@ -55,14 +55,17 @@ class DocChunk(BaseModel):
     )
     subsubsection: Optional[int] = Field(
         default=None,
-        description="The relative subsubsection number (e.g., for 5.2.3, this would be 3)",
+        description="The relative subsubsection number (e.g., for 5.2.3, "
+        "this would be 3)",
     )
     type: str = Field(
-        description="The type of the mathematical entity (Definition, Theorem, Note, Exercise, Example, Lemma, Proposition, Introduction, Remark, etc.)"
+        description="The type of mathematical entity (Definition, Theorem, Note, "
+        "Exercise, Example, Lemma, Proposition, Introduction, Remark, etc.)"
     )
     identifier: Optional[str] = Field(
         default=None,
-        description="The 'german' identifier of the entity (e.g., 'Satz 5.1.2', 'Definition 5.2.2', 'Beispiel 5.3.2', 'Lemma 5.4.2')",
+        description="The 'german' identifier of the entity (e.g., 'Satz 5.1.2', "
+        "'Definition 5.2.2', 'Beispiel 5.3.2', 'Lemma 5.4.2')",
     )
     text: str = Field(description="The text contained in the chunk")
     proof: Optional[str] = Field(
@@ -80,38 +83,51 @@ class Chunks(BaseModel):
 
 # Create a more explicit system prompt
 system_prompt = """
-You are a precise mathematical document parser specializing in translating German mathematical documents into structured JSON. Your task is to analyze each document and create a hierarchical representation that maintains all mathematical content with perfect fidelity.
+You are a specialized parser for converting mathematical documents into structured JSON.
+Your task is to analyze each document and create a hierarchical representation that
+maintains all mathematical content with perfect fidelity.
 
 ## OUTPUT FORMAT
-Return ONLY a valid JSON object matching the schema exactly - no explanations, comments or markdown outside the JSON structure.
+Return ONLY a valid JSON object matching the schema exactly - no explanations, comments
+or markdown outside the JSON structure.
 
 ## PARSING RULES
 
 ### Hierarchical Structure:
-- Extract sections (e.g., 5, 6), subsections (e.g., 5.1, 5.2), and subsubsections (e.g., 5.1.1, 5.1.2)
+- Extract sections (e.g., 5, 6), subsections (e.g., 5.1, 5.2), and subsubsections
+  (e.g., 5.1.1, 5.1.2)
 - Capture their respective titles (e.g., 'Trennungsaxiome')
-- Maintain correct hierarchical relationships: 5.1.2 is a subsubsection of 5.1, which is a subsection of 5
-- Subsections and mathematical entities have the same level of hierarchy (e.g., Theorem 3.1.2 is equivalent to subsubsection 3.1.2)
+- Maintain correct hierarchical relationships: 5.1.2 is a subsubsection of 5.1,
+  which is a subsection of 5
+- Subsections and mathematical entities have the same level of hierarchy
+  (e.g., Theorem 3.1.2 is equivalent to subsubsection 3.1.2)
 
 ### Mathematical Entities:
-- Identify mathematical entities by their German names: Satz, Definition, Lemma, Beispiel, etc.
+- Identify mathematical entities by their German names: Satz, Definition, Lemma,
+  Beispiel, etc.
 - Convert to appropriate English types as specified in the terminology mapping
 - Use 'Remark' as the type if unable to identify the mathematical entity type
-- Use singular forms for all types, even when the German term is plural (e.g., 'Beispiele' → 'Example')
-- For verbose theorem names like "Satz von Pythagoras", use the entire phrase as the identifier
+- Use singular forms for all types, even when the German term is plural
+  (e.g., 'Beispiele' → 'Example')
+- For verbose theorem names like "Satz von Pythagoras", use the entire phrase as
+  the identifier
 
 ### Content Rules:
 - Preserve ALL LaTeX mathematical notation EXACTLY - this is CRITICAL
 - Do not modify, simplify, or escape any LaTeX code
-- Retain all backslashes (\\), special characters, and command structures exactly as they appear
+- Retain all backslashes (\\), special characters, and command structures exactly
+  as they appear
 - Include proofs with their associated theorems, lemmas, etc.
 - Skip notation comments that appear at the beginning of sections/subsections
 - Introductions ("Einleitung") are only allowed at the beginning of a section
 
 ### Special Cases:
-- When multiple entities appear consecutively without clear separation, create separate chunks
-- For content that doesn't match a standard pattern, use the most appropriate type based on context
-- If no identifier is present but the content is clearly a mathematical entity, generate an appropriate identifier
+- When multiple entities appear consecutively without clear separation, create
+  separate chunks
+- For content that doesn't match a standard pattern, use the most appropriate type
+  based on context
+- If no identifier is present but the content is clearly a mathematical entity,
+  generate an appropriate identifier
 
 ## GERMAN TO ENGLISH TERMINOLOGY
 - "Satz" → "Theorem"
@@ -135,9 +151,11 @@ German Source:
 
 Wir betrachten nun...
 
-Satz 5.1.1. Sei (X,T) ein topologischer Raum. X ist ein R_{{0}}-Raum genau dann, wenn für alle $x,y \\in X$ gilt: $\\overline{{x}} = \\overline{{y}} \\iff x = y$.
+Satz 5.1.1. Sei (X,T) ein topologischer Raum. X ist ein R_{{0}}-Raum genau dann,
+wenn für alle $x,y \\in X$ gilt: $\\overline{{x}} = \\overline{{y}} \\iff x = y$.
 
-Beweis. Sei X ein R_{{0}}-Raum und seien $x,y \\in X$ mit $\\overline{{x}} = \\overline{{y}}$...
+Beweis. Sei X ein R_{{0}}-Raum und seien $x,y \\in X$ mit
+$\\overline{{x}} = \\overline{{y}}$...
 ```
 
 JSON Output:
@@ -152,8 +170,11 @@ JSON Output:
       "subsubsection": 1,
       "type": "Theorem",
       "identifier": "Satz 5.1.1",
-      "text": "Sei (X,T) ein topologischer Raum. X ist ein R_{{0}}-Raum genau dann, wenn für alle $x,y \\in X$ gilt: $\\overline{{x}} = \\overline{{y}} \\iff x = y$.",
-      "proof": "Sei X ein R_{{0}}-Raum und seien $x,y \\in X$ mit $\\overline{{x}} = \\overline{{y}}$..."
+      "text": "Sei (X,T) ein topologischer Raum. X ist ein "
+              "R_{{0}}-Raum genau dann, wenn für alle $x,y \\in X$ gilt: "
+              "$\\overline{{x}} = \\overline{{y}} \\iff x = y$.",
+      "proof": "Sei X ein R_{{0}}-Raum und seien $x,y \\in X$ mit "
+               "$\\overline{{x}} = \\overline{{y}}$..."
     }}
   ]
 }}
@@ -166,7 +187,9 @@ chat_prompt = ChatPromptTemplate.from_messages(
         ("system", system_prompt),
         (
             "human",
-            """Parse the following German mathematical text into structured chunks according to the guidelines. Remember to preserve all LaTeX notation exactly as it appears in the text.
+            """Parse the following German mathematical text into structured chunks
+according to the guidelines. Remember to preserve all LaTeX notation
+exactly as it appears in the text.
 
         Text to parse:
 
@@ -254,7 +277,8 @@ def get_subsection_files_to_process(
                     logger.warning(f"No file found for subsection {subsection_id}")
             except ValueError:
                 logger.error(
-                    f"Invalid subsection format: {subsection_id}. Expected format: '5.1'"
+                    f"Invalid subsection format: {subsection_id}. "
+                    f"Expected format: '5.1'"
                 )
 
     unique_files = list(set(files_to_process))
@@ -352,7 +376,8 @@ def main(sections: List, subsections: List):
 
     total_chunks = sum(results.values())
     logger.info(
-        f"✅ Extraction complete! Processed {len(results)} files with {total_chunks} total atomic units."
+        f"✅ Extraction complete! Processed {len(results)} files with "
+        f"{total_chunks} total atomic units."
     )
 
 

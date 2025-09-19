@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
-Script to compare similarity scores across different embedding models for mathematical content.
+Script to compare similarity scores across different embedding models for mathematical
+content.
 """
 
 import importlib.util
@@ -17,7 +18,13 @@ load_dotenv()
 # Same texts as in calc_embedding_similarity.py
 # text1 = "Wie lautet die Definition für einen T_4-Raum?"  # Natural language question
 text1 = "Was ist ein T_{4}-Raum?"  # Natural language question
-text2 = "(1) $\\underline{X}$ heißt $T_{4}$-Raum, wenn zu je zwei disjunkten abgeschlossenen Mengen $A$ und $B$ in $\\underline{X}$ (offene) Umgebungen $U$ von $A$ und $V$ von $B$ mit $U \\cap V=\\emptyset$ existieren.\n\n(2) $\\underline{X}$ heißt normal, wenn $\\underline{X}$ gleichzeitig $\\mathrm{T}_{4}$-Raum und $\\mathrm{T}_{1}$-Raum ist."  # LaTeX formatting
+text2 = (
+    "(1) $\\underline{X}$ heißt $T_{4}$-Raum, wenn zu je zwei disjunkten "
+    "abgeschlossenen Mengen $A$ und $B$ in $\\underline{X}$ (offene) Umgebungen $U$ "
+    "von $A$ und $V$ von $B$ mit $U \\cap V=\\emptyset$ existieren.\n\n"
+    "(2) $\\underline{X}$ heißt normal, wenn $\\underline{X}$ gleichzeitig "
+    "$\\mathrm{T}_{4}$-Raum und $\\mathrm{T}_{1}$-Raum ist."
+)  # LaTeX formatting
 
 
 def calculate_cosine_similarity(embedding1, embedding2):

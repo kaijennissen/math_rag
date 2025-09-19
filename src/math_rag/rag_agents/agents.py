@@ -42,13 +42,15 @@ try:
 except FileNotFoundError:
     print(f"ERROR: Agent configuration file not found at {config_path}")
     print(
-        "Set the AGENT_CONFIG_PATH environment variable or ensure the agents.yaml file exists in the config directory"
+        "Set the AGENT_CONFIG_PATH environment variable or ensure the agents.yaml file "
+        "exists in the config directory"
     )
     sys.exit(1)
 
 
 def setup_rag_chat():
-    """Setup a RAG chat agent with the graph-based retriever tool and meta-question subagent."""
+    """Setup a RAG chat agent with the graph-based retriever tool and meta-question
+    subagent."""
 
     # Initialize the model inside this function
     reasoning_model = InferenceClientModel(

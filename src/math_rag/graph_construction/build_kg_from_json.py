@@ -1,5 +1,6 @@
 """
-Module for building a knowledge graph from atomic units extracted from mathematical text.
+Module for building a knowledge graph from atomic units extracted from
+mathematical text.
 The graph is stored in Neo4j and represents the document structure and relationships.
 
 This script handles:
@@ -219,10 +220,12 @@ def ensure_atomic_unit_label(driver):
         with driver.session() as session:
             result = session.run(
                 """
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
+                  Exercise|Remark)
             WHERE NOT n:AtomicUnit
             WITH count(n) AS missingLabel
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
+                  Exercise|Remark)
             WHERE NOT n:AtomicUnit
             SET n:AtomicUnit
             RETURN missingLabel, count(n) AS updated
@@ -306,7 +309,8 @@ def main():
         )
         for subsection in section.subsections:
             logger.info(
-                f"  Creating subsection node: {subsection.number} '{subsection.title}' (parent section: {section.number})"
+                f"  Creating subsection node: {subsection.number} '{subsection.title}' "
+                f"(parent section: {section.number})"
             )
             create_subsection_node(
                 graph=graph,
@@ -339,7 +343,8 @@ def main():
         )
         for current, next in zip(sorted_subs[:-1], sorted_subs[1:]):
             logger.info(
-                f"  Linking subsection {current.number} -> {next.number} (NEXT/PREVIOUS) in section {section.number}"
+                f"  Linking subsection {current.number} -> {next.number} "
+                f"(NEXT/PREVIOUS) in section {section.number}"
             )
             create_next_relationship(
                 graph,
@@ -384,7 +389,8 @@ def main():
 
     logger.info(
         "Knowledge graph construction completed with fulltext index. "
-        "Run create_embeddings_and_vector_index.py to add embeddings and create vector index."
+        "Run create_embeddings_and_vector_index.py to add embeddings and create "
+        "vector index."
     )
 
 

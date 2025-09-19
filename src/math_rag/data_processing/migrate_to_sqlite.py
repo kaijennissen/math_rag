@@ -114,7 +114,8 @@ def migrate_all_files(
 
     Args:
         db_manager: DatabaseManager instance (required)
-        source_dir: Directory containing atomic unit files, defaults to 'docs/atomic_units'
+        source_dir: Directory containing atomic unit files,
+                   defaults to 'docs/atomic_units'
         num_workers: Number of worker threads for parallel processing
 
     Returns:

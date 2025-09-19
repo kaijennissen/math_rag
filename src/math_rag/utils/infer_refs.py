@@ -57,7 +57,8 @@ def identify_source_context(doc, page, from_rect):
     Returns:
         Dictionary with source entity information
     """
-    # Define a larger rectangle for context (might need adjustment based on document structure)
+    # Define a larger rectangle for context
+    # (might need adjustment based on document structure)
     context_rect = pymupdf.Rect(
         x0=0,  # Start from left edge
         y0=max(0, from_rect.y0 - 400),  # Extend up
@@ -150,11 +151,14 @@ def extract_links_from_pdf(pdf_path: str, start_page: int) -> List[Dict]:
                 from_page = page_num
                 from_text_around = get_text_around_rect(page, from_rect)
 
-                # Identify the source context (which theorem/lemma/etc contains this link)
+                # Identify the source context
+                # (which theorem/lemma/etc contains this link)
                 source_context = identify_source_context(doc, page, from_rect)
                 source_page = link.get("page", 0)
                 if link["kind"] == pymupdf.LINK_NAMED:
-                    # if we haved a linked name, we have the additional information of a nameddest, which should match with from_text_around
+                    # if we haved a linked name, we have the additional
+                    # information of a nameddest,
+                    # which should match with from_text_around
                     from_nameddest = link.get("nameddest", "")
 
                     # # Extract destination reference info if possible

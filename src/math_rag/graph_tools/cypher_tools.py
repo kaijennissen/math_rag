@@ -1,5 +1,6 @@
 """
-Module providing tools for generating and executing Cypher queries for Neo4j graph metadata.
+Module providing tools for generating and executing Cypher queries for Neo4j graph
+metadata.
 """
 
 import logging
@@ -32,7 +33,10 @@ class CypherExecutorTool(Tool):
     """Tool that executes Cypher queries against a Neo4j database."""
 
     name = "cypher_executor"
-    description = "Executes a Cypher query against the Neo4j graph database and returns the results."
+    description = (
+        "Executes a Cypher query against the Neo4j graph database "
+        "and returns the results."
+    )
     inputs = {
         "query": {
             "type": "string",
@@ -128,7 +132,10 @@ class SchemaInfoTool(Tool):
     """Tool that retrieves the Neo4j graph schema information."""
 
     name = "schema_info"
-    description = "Retrieves the current Neo4j graph schema information, including node labels, relationship types, and properties."
+    description = (
+        "Retrieves the current Neo4j graph schema information, "
+        "including node labels, relationship types, and properties."
+    )
     inputs = {}  # No inputs needed
     output_type = "string"
 
@@ -160,7 +167,8 @@ class SchemaInfoTool(Tool):
             # Get relationship types
             with self.driver.session() as session:
                 result = session.run(
-                    "CALL db.relationshipTypes() YIELD relationshipType RETURN collect(relationshipType) AS types"
+                    "CALL db.relationshipTypes() YIELD relationshipType "
+                    "RETURN collect(relationshipType) AS types"
                 )
                 rel_types = [record.data() for record in result]
                 schema_info["relationship_types"] = (
@@ -170,7 +178,8 @@ class SchemaInfoTool(Tool):
             # Get property keys
             with self.driver.session() as session:
                 result = session.run(
-                    "CALL db.propertyKeys() YIELD propertyKey RETURN collect(propertyKey) AS keys"
+                    "CALL db.propertyKeys() YIELD propertyKey "
+                    "RETURN collect(propertyKey) AS keys"
                 )
                 property_keys = [record.data() for record in result]
                 schema_info["property_keys"] = (
@@ -236,11 +245,13 @@ class CypherQueryGeneratorTool(Tool):
     inputs = {
         "question": {
             "type": "string",
-            "description": "A natural language question about the graph structure or metadata",
+            "description": "A natural language question about the graph structure or "
+            "metadata",
         },
         "schema_info": {
             "type": "string",
-            "description": "The graph schema information to help generate an accurate query",
+            "description": "The graph schema information to help generate an accurate "
+            "query",
         },
     }
     output_type = "string"
@@ -265,7 +276,8 @@ class CypherQueryGeneratorTool(Tool):
             Generated Cypher query
         """
         prompt = f"""
-You are a Neo4j Cypher query expert. Your task is to convert natural language questions about a graph database into precise Cypher queries.
+You are a Neo4j Cypher query expert. Your task is to convert natural language questions
+about a graph database into precise Cypher queries.
 
 Here's the current schema of our Neo4j graph database:
 
@@ -276,8 +288,10 @@ IMPORTANT GUIDELINES:
 2. Ensure your query is syntactically correct
 3. Optimize for readability and performance
 4. If you need to count or aggregate, use appropriate functions
-5. For visualization-oriented questions, limit results to a reasonable number (e.g., top 10)
-6. If the question isn't clear, create a query that would most likely answer what they're asking
+5. For visualization-oriented questions, limit results to a reasonable number
+   (e.g., top 10)
+6. If the question isn't clear, create a query that would most likely answer what
+   they're asking
 
 User's question: {question}
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
-Analyze character lengths of atomic units to identify potential issues with vector embeddings.
+Analyze character lengths of atomic units to identify potential issues with vector
+embeddings.
 """
 
 import json
@@ -320,12 +321,15 @@ def generate_summary_report(stats: Dict[str, pd.DataFrame], df: pd.DataFrame) ->
 
     # Add recommendations based on findings
     if exceed_4k > 0:
-        report += "- Consider chunking units exceeding 4,000 characters, as they exceed most embedding models' limits.\n"
+        report += "- Consider chunking units exceeding 4,000 characters, "
+        report += "as they exceed most embedding models' limits.\n"
     if exceed_2k / len(df) > 0.1:  # If more than 10% exceed 2000 chars
         report += "- Implement a chunking strategy for units above 2,000 characters.\n"
 
-    report += "- Use hierarchical embedding approaches for very long units rather than embedding entire text at once.\n"
-    report += "- Consider text summarization for particularly long proofs while preserving key mathematical notation.\n"
+    report += "- Use hierarchical embedding approaches for very long units rather than "
+    report += "embedding entire text at once.\n"
+    report += "- Consider text summarization for particularly long proofs "
+    report += "while preserving key mathematical notation.\n"
 
     return report
 

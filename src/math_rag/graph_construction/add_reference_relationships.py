@@ -1,7 +1,8 @@
 """
-Script to add reference relationships to the knowledge graph based on extracted PDF references.
-This script loads reference tuples from a pickle file and creates REFERENCES relationships
-between atomic units in the Neo4j graph.
+Script to add reference relationships to the knowledge graph based on extracted PDF
+references.
+This script loads reference tuples from a pickle file and creates REFERENCES
+relationships between atomic units in the Neo4j graph.
 """
 
 import logging

@@ -101,7 +101,8 @@ def split_document_by_section_headers(
         section_headers: List of tuples (section_number, section_title)
 
     Returns:
-        Dict[int, str]: A dictionary mapping section numbers or identifiers to their content
+        Dict[int, str]: A dictionary mapping section numbers or identifiers
+                       to their content
     """
     logger.info("Splitting document by specified section headers...")
 

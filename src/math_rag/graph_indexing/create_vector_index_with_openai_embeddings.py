@@ -45,10 +45,12 @@ def ensure_atomic_unit_label():
         with driver.session() as session:
             result = session.run(
                 """
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
+                  Exercise|Remark)
             WHERE NOT n:AtomicUnit
             WITH count(n) AS missingLabel
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
+                  Exercise|Remark)
             WHERE NOT n:AtomicUnit
             SET n:AtomicUnit
             RETURN missingLabel, count(n) AS updated

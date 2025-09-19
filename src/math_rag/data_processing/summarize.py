@@ -41,7 +41,8 @@ MAX_RETRIES = 3
 RETRY_DELAY = 2
 
 # RAG-optimized summary prompt template
-SUMMARY_PROMPT_TEMPLATE = """Erstelle eine suchoptimierte deutsche Zusammenfassung (max. 80 Wörter) für ein RAG-System des folgenden mathematischen Inhalts.
+SUMMARY_PROMPT_TEMPLATE = """Erstelle eine suchoptimierte deutsche Zusammenfassung
+(max. 80 Wörter) für ein RAG-System des folgenden mathematischen Inhalts.
 
 OPTIMIERE FÜR RETRIEVAL:
 1. Beginne mit dem Konzepttyp (Definition, Satz, Beweis, Beispiel)
@@ -110,7 +111,12 @@ def generate_summary(unit: AtomicUnit, model_name: str) -> Optional[str]:
         try:
             messages = [
                 SystemMessage(
-                    content="Du bist ein Experte für Mathematik und spezialisiert auf das Erstellen suchoptimierter Zusammenfassungen für RAG-Systeme. Deine Aufgabe ist es, mathematische Inhalte so zusammenzufassen, dass sie optimal von Nutzern gefunden werden können, die nach verwandten Konzepten suchen."
+                    content="Du bist ein Experte für Mathematik und spezialisiert "
+                    "auf das Erstellen suchoptimierter Zusammenfassungen "
+                    "für RAG-Systeme. Deine Aufgabe ist es, mathematische "
+                    "Inhalte so zusammenzufassen, dass sie optimal von "
+                    "Nutzern gefunden werden können, die nach verwandten "
+                    "Konzepten suchen."
                 ),
                 HumanMessage(content=prompt),
             ]
@@ -121,14 +127,16 @@ def generate_summary(unit: AtomicUnit, model_name: str) -> Optional[str]:
 
         except Exception as e:
             logger.warning(
-                f"Error generating summary for unit {unit.id} (attempt {attempt}/{MAX_RETRIES}): {e}"
+                f"Error generating summary for unit {unit.id} "
+                f"(attempt {attempt}/{MAX_RETRIES}): {e}"
             )
 
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_DELAY * attempt)  # Exponential backoff
             else:
                 logger.error(
-                    f"Failed to generate summary for unit {unit.id} after {MAX_RETRIES} attempts"
+                    f"Failed to generate summary for unit {unit.id} "
+                    f"after {MAX_RETRIES} attempts"
                 )
                 return None
 

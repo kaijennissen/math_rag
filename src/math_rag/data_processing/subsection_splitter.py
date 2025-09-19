@@ -20,8 +20,10 @@ coloredlogs.install(
 
 def strip_loesungshinweise(document_content: str) -> tuple:
     """
-    Remove 'Lösungshinweise zu...' sections from the document content and return both parts.
-    Assumption is, that the 'Lösungshinweise' sections appear at the end of the document.
+    Remove 'Lösungshinweise zu...' sections from the document content and return both
+    parts.
+    Assumption is, that the 'Lösungshinweise' sections appear at the end of the
+    document.
 
     Args:
         document_content: The full text content of the document
@@ -54,7 +56,8 @@ def split_document_by_subsection_headers(
 
     Args:
         document_content: The full text content of the document
-        section_headers: List of section headers to split on (e.g., ["5.1 R_{0}-Räume", "5.2 T_{0}-Räume"])
+        section_headers: List of section headers to split on
+                        (e.g., ["5.1 R_{0}-Räume", "5.2 T_{0}-Räume"])
 
     Returns:
         Dict[str, str]: A dictionary mapping section headers to their content
@@ -71,15 +74,21 @@ def split_document_by_subsection_headers(
         if section_num_match:
             section_num = section_num_match.group(1)
 
-            # Create a single comprehensive regex pattern for both markdown and LaTeX formats
+            # Create a comprehensive regex pattern for both markdown and LaTeX formats
             # This pattern matches:
             # 1. ## or ### (markdown heading)
             # 2. Followed by either:
             #    a. The exact section number and optional content, OR
             #    b. $ followed by section number and LaTeX formatting commands
-            # Ensure we only match the exact section number pattern (e.g., 7.4 but not 7.4.3)
-            # Using word boundaries and negative lookahead to prevent matching subsubsections
-            pattern = rf"(?:##|###)\s+(?:{re.escape(header)}|{re.escape(section_num)}\b(?!\.)(?:\s+.*)?|(?:\${re.escape(section_num)}\b(?!\.)\s+\\(?:quad|mathrm).*?))"
+            # Ensure we only match the exact section number pattern
+            # (e.g., 7.4 but not 7.4.3)
+            # Using word boundaries and negative lookahead to prevent matching
+            # subsubsections
+            pattern = (
+                rf"(?:##|###)\s+(?:{re.escape(header)}|"
+                rf"{re.escape(section_num)}\b(?!\.)(?:\s+.*)?|"
+                rf"(?:\${re.escape(section_num)}\b(?!\.)\s+\\(?:quad|mathrm).*?))"
+            )
 
             # Find all matches
             for match in re.finditer(pattern, document_content):
@@ -233,7 +242,8 @@ def main(
     Main function to process a document for multiple section numbers.
 
     Args:
-        section_numbers: List of section numbers to process (e.g., [5, 6] for KE_5 and KE_6)
+        section_numbers: List of section numbers to process
+                        (e.g., [5, 6] for KE_5 and KE_6)
         yaml_file: Path to the YAML file containing section headers
         output_dir: Directory to save the processed sections
     """
@@ -295,7 +305,8 @@ if __name__ == "__main__":
         "--section",
         type=int,
         action="append",
-        help="Section number to process (e.g., 5 for KE_5). Can be used multiple times.",
+        help="Section number to process (e.g., 5 for KE_5). "
+        "Can be used multiple times.",
         required=True,
     )
     parser.add_argument(

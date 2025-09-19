@@ -1,5 +1,6 @@
 """
-Script to create embeddings and vector indexes in Neo4j using different embedding models.
+Script to create embeddings and vector indexes in Neo4j using different embedding
+models.
 
 This script uses the Neo4jVector.from_existing_graph method which efficiently:
 1. Generates embeddings for all nodes
@@ -15,9 +16,12 @@ Enhanced Usage Examples:
 - Default usage: python add_embeddings.py
 - Different model: python add_embeddings.py -m "OpenAI"
 - Custom node label: python add_embeddings.py --label MyNode
-- Custom text properties: python add_embeddings.py --text-properties text title description
-- Custom embedding property: python add_embeddings.py --embedding-property myCustomEmbedding
-- Single property embedding: python add_embeddings.py --text-properties title --embedding-property titleEmbedding
+- Custom text properties: python add_embeddings.py --text-properties text title \
+  description
+- Custom embedding property: python add_embeddings.py --embedding-property \
+  myCustomEmbedding
+- Single property embedding: python add_embeddings.py --text-properties title \
+  --embedding-property titleEmbedding
 - Test with custom query: python add_embeddings.py -t -q "topology definition"
 """
 
@@ -99,10 +103,12 @@ def ensure_atomic_unit_label():
         with driver.session() as session:
             result = session.run(
                 """
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
+                  Exercise|Remark)
             WHERE NOT n:AtomicUnit
             WITH count(n) AS missingLabel
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|Exercise|Remark)
+            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
+                  Exercise|Remark)
             WHERE NOT n:AtomicUnit
             SET n:AtomicUnit
             RETURN missingLabel, count(n) AS updated
@@ -131,7 +137,8 @@ def get_embedding_model(model_name):
     """
     if model_name not in MODEL_CONFIGS:
         raise ValueError(
-            f"Unknown model: {model_name}. Available models: {', '.join(MODEL_CONFIGS.keys())}"
+            f"Unknown model: {model_name}. Available models: "
+            f"{', '.join(MODEL_CONFIGS.keys())}"
         )
 
     config = MODEL_CONFIGS[model_name]
@@ -207,8 +214,10 @@ def add_embeddings_with_neo4j_vector(
     Args:
         model_name: Name of the embedding model to use
         label: Node label to process (default: AtomicUnit)
-        text_properties: List of properties to use for embedding calculation (default: ["text", "title"])
-        embedding_property: Property name to store embeddings (default: auto-generated from text_properties)
+        text_properties: List of properties to use for embedding calculation
+                        (default: ["text", "title"])
+        embedding_property: Property name to store embeddings
+                           (default: auto-generated from text_properties)
         index_name: Vector index name (default: auto-generated)
 
     Returns:
@@ -381,8 +390,9 @@ def main(
 
     if success:
         logger.info(
-            f"Embeddings and vector index created successfully for {label} nodes using {model_name}. "
-            f"Properties: {text_properties} -> {embedding_property or 'auto-generated'}. "
+            f"Embeddings and vector index created successfully for {label} nodes "
+            f"using {model_name}. Properties: {text_properties} -> "
+            f"{embedding_property or 'auto-generated'}. "
             f"The system is now ready for retrieval."
         )
     else:
@@ -428,7 +438,8 @@ if __name__ == "__main__":
         "-f",
         "--query-file",
         type=str,
-        help="Path to a file containing the query text (recommended for LaTeX expressions)",
+        help="Path to a file containing the query text (recommended for LaTeX "
+        "expressions)",
     )
     parser.add_argument(
         "--label",
@@ -445,7 +456,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--embedding-property",
         type=str,
-        help="Property name to store embeddings (default: auto-generated from text properties)",
+        help="Property name to store embeddings (default: auto-generated from text "
+        "properties)",
     )
 
     args = parser.parse_args()

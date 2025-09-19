@@ -11,7 +11,8 @@ def run_chat_interface():
 
     # Setup agent with graph retrieval
     console.print(
-        "[bold blue]Setting up Mathematical RAG system with Neo4j Knowledge Graph...[/bold blue]"
+        "[bold blue]Setting up Mathematical RAG system with Neo4j Knowledge Graph..."
+        "[/bold blue]"
     )
     agent = setup_rag_chat()
     agent.visualize()
@@ -19,10 +20,12 @@ def run_chat_interface():
     # Welcome message
     console.print("\n[bold green]Welcome to Mathematical RAG Chat![/bold green]")
     console.print(
-        "[bold white]Using Neo4j Knowledge Graph for mathematical content retrieval[/bold white]"
+        "[bold white]Using Neo4j Knowledge Graph for mathematical content retrieval"
+        "[/bold white]"
     )
     console.print(
-        "Type [bold red]exit[/bold red], [bold red]quit[/bold red], or [bold red]q[/bold red] to end the session"
+        "Type [bold red]exit[/bold red], [bold red]quit[/bold red], or "
+        "[bold red]q[/bold red] to end the session"
     )
     console.print("Type [bold yellow]clear[/bold yellow] to clear the screen\n")
 
@@ -30,7 +33,8 @@ def run_chat_interface():
     chat_history = []
     while True:
         try:
-            # Get user input - use console.print for prompt and regular input for user entry
+            # Get user input - use console.print for prompt and regular input for
+            # user entry
             console.print("[bold cyan]You:[/bold cyan]", end=" ")
             user_input = input().strip()
 
@@ -46,7 +50,8 @@ def run_chat_interface():
                     "[bold green]Welcome to Mathematical RAG Chat![/bold green]"
                 )
                 console.print(
-                    "[bold white]Using Neo4j Knowledge Graph for mathematical content retrieval[/bold white]"
+                    "[bold white]Using Neo4j Knowledge Graph for "
+                    "mathematical content retrieval[/bold white]"
                 )
                 continue
 
@@ -63,7 +68,8 @@ def run_chat_interface():
             console.print(response)
             console.print("\n" + "-" * 50 + "\n")
 
-            # Add to history (could be used for context in more advanced implementations)
+            # Add to history (could be used for context in more advanced
+            # implementations)
             chat_history.append({"user": user_input, "assistant": response})
 
         except KeyboardInterrupt:

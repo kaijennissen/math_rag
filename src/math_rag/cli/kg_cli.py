@@ -194,7 +194,10 @@ Examples:
     index_parser.add_argument(
         "--model",
         default="E5 Multilingual",
-        help="Embedding model for vector index (default: E5 Multilingual, options: 'E5 Multilingual', 'MXBAI German')",
+        help=(
+            "Embedding model for vector index "
+            "(default: E5 Multilingual, options: 'E5 Multilingual', 'MXBAI German')"
+        ),
     )
 
     # Build complete command

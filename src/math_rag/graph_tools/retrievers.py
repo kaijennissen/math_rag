@@ -50,7 +50,8 @@ def get_embedding_provider(model_name: str = DEFAULT_MODEL):
     """
     if model_name not in MODEL_CONFIGS:
         raise ValueError(
-            f"Unknown model: {model_name}. Available models: {', '.join(MODEL_CONFIGS.keys())}"
+            f"Unknown model: {model_name}. Available models: "
+            f"{', '.join(MODEL_CONFIGS.keys())}"
         )
 
     config = MODEL_CONFIGS[model_name]
@@ -70,7 +71,8 @@ def get_embedding_provider(model_name: str = DEFAULT_MODEL):
 
 
 class GraphRetrieverTool(Tool):
-    """A tool that retrieves documents from a Neo4j graph database using hybrid search."""
+    """A tool that retrieves documents from a Neo4j graph database
+    using hybrid search."""
 
     name = "graph_retriever"
     description = """Uses hybrid search (vector + keyword) to
@@ -78,12 +80,17 @@ class GraphRetrieverTool(Tool):
     inputs = {
         "query": {
             "type": "string",
-            "description": """The query to search for in the mathematical knowledge graph.
-            This can be a question or a statement about a mathematical concept. This should be semantically close to your target documents. Use the affirmative form rather than a question. Use german as language.""",
+            "description": """The query to search for in the mathematical
+            knowledge graph. This can be a question or a statement about
+            a mathematical concept. This should be semantically close to
+            your target documents. Use the affirmative form rather than
+            a question. Use german as language.""",
         },
         "model": {
             "type": "string",
-            "description": f"The embedding model to use. Available options: {', '.join(MODEL_CONFIGS.keys())}. Default is {DEFAULT_MODEL}.",
+            "description": f"The embedding model to use. Available options: "
+            f"{', '.join(MODEL_CONFIGS.keys())}. "
+            f"Default is {DEFAULT_MODEL}.",
             "default": DEFAULT_MODEL,
             "nullable": True,
         },
@@ -124,7 +131,8 @@ class GraphRetrieverTool(Tool):
         keyword_index_name = "fulltext_index_AtomicUnit"
 
         logger.info(
-            f"Creating hybrid retriever with model={model_name}, index_name={index_name}, keyword_index_name={keyword_index_name}"
+            f"Creating hybrid retriever with model={model_name}, "
+            f"index_name={index_name}, keyword_index_name={keyword_index_name}"
         )
 
         return Neo4jVector.from_existing_index(
@@ -214,7 +222,8 @@ def main(query: str, search_type: str, model: str = DEFAULT_MODEL, k: int = 5):
         k: Number of results to return
     """
     logger.info(
-        f"Retrieving {k} documents for query: '{query}' using {search_type} search with {model} embeddings."
+        f"Retrieving {k} documents for query: '{query}' "
+        f"using {search_type} search with {model} embeddings."
     )
 
     embedding_provider = get_embedding_provider(model)
