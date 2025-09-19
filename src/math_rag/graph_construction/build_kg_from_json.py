@@ -10,18 +10,19 @@ This script handles:
 
 """
 
+import json
+import logging
 import os
 from pathlib import Path
-import logging
+
 import coloredlogs
-from dotenv import load_dotenv
-import json
 import yaml
-from neo4j import GraphDatabase
-from math_rag.core import AtomicUnit, ROOT
-from langchain_openai import OpenAIEmbeddings
+from dotenv import load_dotenv
 from langchain_neo4j import Neo4jGraph
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from neo4j import GraphDatabase
+
+from math_rag.core import ROOT, AtomicUnit
 from math_rag.data_processing import SectionHeaders
 
 load_dotenv()

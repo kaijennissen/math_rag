@@ -1,20 +1,21 @@
-import concurrent.futures
-from tqdm import tqdm
 import argparse
+import concurrent.futures
 import logging
 import os
+import pickle
 import re
 from pathlib import Path
 from typing import List, Optional
-import yaml
-from math_rag.core import ROOT
 
 import coloredlogs
+import yaml
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
-import pickle
+from tqdm import tqdm
+
+from math_rag.core import ROOT
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -134,9 +135,9 @@ German Source:
 
 Wir betrachten nun...
 
-Satz 5.1.1. Sei (X,T) ein topologischer Raum. X ist ein R_{{0}}-Raum genau dann, wenn für alle $x,y \in X$ gilt: $\overline{{x}} = \overline{{y}} \iff x = y$.
+Satz 5.1.1. Sei (X,T) ein topologischer Raum. X ist ein R_{{0}}-Raum genau dann, wenn für alle $x,y \\in X$ gilt: $\\overline{{x}} = \\overline{{y}} \\iff x = y$.
 
-Beweis. Sei X ein R_{{0}}-Raum und seien $x,y \in X$ mit $\overline{{x}} = \overline{{y}}$...
+Beweis. Sei X ein R_{{0}}-Raum und seien $x,y \\in X$ mit $\\overline{{x}} = \\overline{{y}}$...
 ```
 
 JSON Output:

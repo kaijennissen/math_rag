@@ -7,12 +7,13 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+
 from tabulate import tabulate
 
 from math_rag.core.db_models import DatabaseManager
-from math_rag.data_processing.migrate_to_sqlite import migrate_all_files
-from math_rag.data_processing.summarize import process_summaries, get_progress_stats
 from math_rag.core.project_root import ROOT
+from math_rag.data_processing.migrate_to_sqlite import migrate_all_files
+from math_rag.data_processing.summarize import get_progress_stats, process_summaries
 
 # Hardcoded database path
 SQLITE_DB_PATH = ROOT / "data" / "atomic_units.sqlite"

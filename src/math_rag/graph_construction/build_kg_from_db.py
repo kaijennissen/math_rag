@@ -2,18 +2,19 @@
 Build Neo4j knowledge graph from SQLite database instead of files.
 """
 
-from sqlmodel import select
-import os
 import logging
+import os
 from collections import defaultdict
 
-from neo4j import GraphDatabase
 from dotenv import load_dotenv
-from math_rag.core.project_root import ROOT
-from math_rag.core.db_models import DatabaseManager, AtomicUnitDB
-from math_rag.data_processing import SectionHeaders
-from math_rag.core import AtomicUnit
 from langchain_neo4j import Neo4jGraph
+from neo4j import GraphDatabase
+from sqlmodel import select
+
+from math_rag.core import AtomicUnit
+from math_rag.core.db_models import AtomicUnitDB, DatabaseManager
+from math_rag.core.project_root import ROOT
+from math_rag.data_processing import SectionHeaders
 
 # Load environment variables
 load_dotenv()

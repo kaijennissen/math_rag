@@ -1,8 +1,10 @@
-import re
-from typing import Dict, List, Tuple
-import pymupdf
 import pickle
+import re
 from collections import defaultdict
+from typing import Dict, List, Tuple
+
+import pymupdf
+
 from math_rag.core import ROOT
 
 
@@ -40,13 +42,6 @@ def get_text_around_rect(page, rect, padding=(2, 5)):
         .strip("{")
         .strip()
     )
-    # Strip whitespace, brackets, colons, dots and special characters only at the beginning and end
-    # text = text.strip()
-    # text = re.sub(
-    #     r"^[\[\]\(\)\{\}\:\.\?\,\;\!\@\#\$\%\^\&\*]+|[\[\]\(\)\{\}\:\.\?\,\;\!\@\#\$\%\^\&\*]+$",
-    #     "",
-    #     text,
-    # )
     return text
 
 
@@ -86,12 +81,6 @@ def identify_source_context(doc, page, from_rect):
         "corollary": re.compile(r"((?:\d+(?:\.\d+)*)\s*(?:Korollar?\.?))", re.I),
         "exercise": re.compile(r"((?:\d+(?:\.\d+)*)\s*(?:Aufgabe?\.?))", re.I),
     }
-    # "theorem": re.compile(r"((?:\d+(?:\.\d+)*)\s*(?:Satz|Thm\.?))|(?:(Satz|Thm\.?)\s*(\d+(?:\.\d+)*))", re.I),
-    # "lemma": re.compile(r"((?:\d+(?:\.\d+)*)\s*(?:Lemma))|(?:(Lemma)\s*(\d+(?:\.\d+)*))", re.I),
-    # "definition": re.compile(r"((?:\d+(?:\.\d+)*)\s*(?:Def(?:inition)?\.?))|(?:(Def(?:inition)?\.?)\s*(\d+(?:\.\d+)*))", re.I),
-    # "proposition": re.compile(r"((?:\d+(?:\.\d+)*)\s*(?:Prop(?:osition)?\.?))|(?:(Prop(?:osition)?\.?)\s*(\d+(?:\.\d+)*))", re.I),
-    # "corollary": re.compile(r"((?:\d+(?:\.\d+)*)\s*(?:Kor(?:ollar)?\.?))|(?:(Kor(?:ollar)?\.?)\s*(\d+(?:\.\d+)*))", re.I),
-    # "exercise": re.compile(r"((?:\d+(?:\.\d+)*)\s*(?:Auf(?:gabe)?\.?))|(?:(Auf(?:gabe)?\.?)\s*(\d+(?:\.\d+)*))", re.I),
 
     # Collect all matches across all entity types
     all_matches = []

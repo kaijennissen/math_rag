@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import warnings
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from langchain.schema import Document
@@ -16,14 +16,14 @@ warnings.filterwarnings(
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="sys")
 
 from math_rag.data_processing.pdf_to_text import (  # noqa: E402
+    concatenate_docs,
     get_pdf_page_count,
     load_checkpoint,
+    load_page_results,
+    process_pdf,
+    process_pdf_page,
     save_checkpoint,
     save_page_result,
-    load_page_results,
-    process_pdf_page,
-    process_pdf,
-    concatenate_docs,
     save_processed_document,
 )
 

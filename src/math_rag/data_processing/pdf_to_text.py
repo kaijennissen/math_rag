@@ -1,18 +1,18 @@
 import argparse
+import json
 import logging
 import os
-import time
-import json
-import tempfile
-import shutil
-from pathlib import Path
-from typing import List, Dict, Optional
 import pickle
+import shutil
+import tempfile
+import time
+from pathlib import Path
+from typing import Dict, List, Optional
 
-from langchain_community.document_loaders import MathpixPDFLoader
-from langchain.schema import Document
-from dotenv import load_dotenv
 import fitz  # PyMuPDF
+from dotenv import load_dotenv
+from langchain.schema import Document
+from langchain_community.document_loaders import MathpixPDFLoader
 
 # Configure logging
 logging.basicConfig(

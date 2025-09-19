@@ -2,14 +2,15 @@
 Module providing tools for generating and executing Cypher queries for Neo4j graph metadata.
 """
 
-import os
 import logging
-import coloredlogs
+import os
 from typing import Dict, List, Optional
+
+import coloredlogs
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
 from neo4j import GraphDatabase
 from smolagents import Tool
-from langchain_openai import ChatOpenAI
 
 load_dotenv()
 

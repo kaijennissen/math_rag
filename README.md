@@ -29,18 +29,16 @@ Key features:
    cd math_rag
    ```
 
-2. Create and activate a virtual environment:
+2. Install dependencies using uv:
    ```
-   python -m venv venv
-   source venv/bin/activate  # On Windows, use venv\Scripts\activate
+   # Install uv if you haven't already
+   pip install uv
+
+   # Create virtual environment and install dependencies including the project
+   uv sync --extra dev
    ```
 
-3. Install dependencies:
-   ```
-   pip install -r requirements/dev.txt
-   ```
-
-4. Set up environment variables:
+3. Set up environment variables:
    Create a `.env` file with the following variables:
    ```
    OPENAI_API_KEY=your_openai_api_key  # Optional if using local models
@@ -51,7 +49,7 @@ Key features:
    NEO4J_PASSWORD=password
    ```
 
-5. Start the Neo4j database:
+4. Start the Neo4j database:
    ```
    docker-compose up -d
    ```
@@ -64,22 +62,22 @@ Key features:
 
    ```bash
    # === DOCUMENT PROCESSING ===
-   python src/math_rag/data_processing/pdf_to_text.py path/to/your/document.pdf                              # Step 1: Parse PDF with MathPix
-   python src/math_rag/data_processing/section_splitter.py --input docs/processed/document.pkl               # Step 2: Split document into sections
-   python src/math_rag/data_processing/subsection_splitter.py --section 5                                    # Step 3: Split sections into subsections
-   python src/math_rag/data_processing/extract_atomic_units.py --section 5                                   # Step 4: Extract definitions, theorems, etc. with LLM
+   uv run python src/math_rag/data_processing/pdf_to_text.py path/to/your/document.pdf                              # Step 1: Parse PDF with MathPix
+   uv run python src/math_rag/data_processing/section_splitter.py --input docs/processed/document.pkl               # Step 2: Split document into sections
+   uv run python src/math_rag/data_processing/subsection_splitter.py --section 5                                    # Step 3: Split sections into subsections
+   uv run python src/math_rag/data_processing/extract_atomic_units.py --section 5                                   # Step 4: Extract definitions, theorems, etc. with LLM
 
    # === DATABASE SETUP ===
-   python -m math_rag.cli.db_cli init                                             # Step 5: Initialize SQLite database
-   python -m math_rag.cli.db_cli migrate                                          # Step 6: Migrate atomic units from JSON to database
-   python -m math_rag.cli.db_cli summarize                                        # Step 7: Generate RAG-optimized summaries using LLM
+   uv run python -m math_rag.cli.db_cli init                                             # Step 5: Initialize SQLite database
+   uv run python -m math_rag.cli.db_cli migrate                                          # Step 6: Migrate atomic units from JSON to database
+   uv run python -m math_rag.cli.db_cli summarize                                        # Step 7: Generate RAG-optimized summaries using LLM
 
    # === KNOWLEDGE GRAPH & INDEX CREATION (UNIFIED CLI) ===
-   python -m math_rag.cli.kg_cli build-all --model "E5 Multilingual"             # Step 8: Build complete knowledge graph with all indexes (ONE COMMAND!)
+   uv run python -m math_rag.cli.kg_cli build-all --model "E5 Multilingual"             # Step 8: Build complete knowledge graph with all indexes (ONE COMMAND!)
 
    # OR use individual commands for more control:
-   # python -m math_rag.cli.kg_cli build-graph                                    # Build just the knowledge graph structure
-   # python -m math_rag.cli.kg_cli create-indexes --fulltext --vector --model "E5 Multilingual"  # Create indexes separately
+   # uv run python -m math_rag.cli.kg_cli build-graph                                    # Build just the knowledge graph structure
+   # uv run python -m math_rag.cli.kg_cli create-indexes --fulltext --vector --model "E5 Multilingual"  # Create indexes separately
    ```
 
    **What each phase accomplishes:**
@@ -94,66 +92,66 @@ Key features:
    ```bash
    # === DOCUMENT PROCESSING ===
    # Process a single PDF file
-   python src/math_rag/data_processing/pdf_to_text.py /absolute/path/to/your/document.pdf
+   uv run python src/math_rag/data_processing/pdf_to_text.py /absolute/path/to/your/document.pdf
 
    # Split document into major sections
-   python src/math_rag/data_processing/section_splitter.py --input docs/processed/document.pkl --section 5    # Process specific section
+   uv run python src/math_rag/data_processing/section_splitter.py --input docs/processed/document.pkl --section 5    # Process specific section
 
    # Split sections into subsections
-   python src/math_rag/data_processing/subsection_splitter.py --section 5                  # Process one section
-   python src/math_rag/data_processing/subsection_splitter.py --section 5 --section 6      # Process multiple sections
+   uv run python src/math_rag/data_processing/subsection_splitter.py --section 5                  # Process one section
+   uv run python src/math_rag/data_processing/subsection_splitter.py --section 5 --section 6      # Process multiple sections
 
    # Extract atomic units from sections or specific subsections
-   python src/math_rag/data_processing/extract_atomic_units.py --section 5                # Process all subsections in section 5
-   python src/math_rag/data_processing/extract_atomic_units.py --subsection 5.1           # Process just subsection 5.1
-   python src/math_rag/data_processing/extract_atomic_units.py --section 5 --section 6    # Process all subsections in sections 5 and 6
+   uv run python src/math_rag/data_processing/extract_atomic_units.py --section 5                # Process all subsections in section 5
+   uv run python src/math_rag/data_processing/extract_atomic_units.py --subsection 5.1           # Process just subsection 5.1
+   uv run python src/math_rag/data_processing/extract_atomic_units.py --section 5 --section 6    # Process all subsections in sections 5 and 6
 
    # === DATABASE SETUP ===
    # Initialize SQLite database (creates tables if they don't exist)
-   micromamba run -n math_rag python -m math_rag.cli.db_cli init
+   uv run python -m math_rag.cli.db_cli init
 
    # Migrate JSON atomic units to database
-   micromamba run -n math_rag python -m math_rag.cli.db_cli migrate
+   uv run python -m math_rag.cli.db_cli migrate
 
    # Generate RAG-optimized summaries for all units
-   micromamba run -n math_rag python -m math_rag.cli.db_cli summarize
+   uv run python -m math_rag.cli.db_cli summarize
 
    # Generate summaries with custom parameters
-   micromamba run -n math_rag python -m math_rag.cli.db_cli summarize --model gpt-4-turbo --batch-size 20
+   uv run python -m math_rag.cli.db_cli summarize --model gpt-4-turbo --batch-size 20
 
    # Check database statistics
-   micromamba run -n math_rag python -m math_rag.cli.db_cli stats --verbose
+   uv run python -m math_rag.cli.db_cli stats --verbose
 
    # View generated summaries
-   micromamba run -n math_rag python -m math_rag.cli.view_summaries_cli --limit 10
+   uv run python -m math_rag.cli.view_summaries_cli --limit 10
 
    # === KNOWLEDGE GRAPH & INDEX CREATION (UNIFIED CLI) ===
    # Build complete knowledge graph with all indexes (recommended)
-   python -m math_rag.cli.kg_cli build-all --model "E5 Multilingual"
-   python -m math_rag.cli.kg_cli build-all --model "MXBAI German"
+   uv run python -m math_rag.cli.kg_cli build-all --model "E5 Multilingual"
+   uv run python -m math_rag.cli.kg_cli build-all --model "MXBAI German"
 
    # Build only the graph structure
-   python -m math_rag.cli.kg_cli build-graph
-   python -m math_rag.cli.kg_cli build-graph --no-clear --document-name "custom_doc"
+   uv run python -m math_rag.cli.kg_cli build-graph
+   uv run python -m math_rag.cli.kg_cli build-graph --no-clear --document-name "custom_doc"
 
    # Create only specific indexes
-   python -m math_rag.cli.kg_cli create-indexes --fulltext
-   python -m math_rag.cli.kg_cli create-indexes --vector --model "E5 Multilingual"
-   python -m math_rag.cli.kg_cli create-indexes --fulltext --vector --model "MXBAI German"
+   uv run python -m math_rag.cli.kg_cli create-indexes --fulltext
+   uv run python -m math_rag.cli.kg_cli create-indexes --vector --model "E5 Multilingual"
+   uv run python -m math_rag.cli.kg_cli create-indexes --fulltext --vector --model "MXBAI German"
 
    # === INDIVIDUAL SCRIPTS (for advanced users) ===
    # Build knowledge graph from database
-   python src/math_rag/graph_construction/build_kg_from_db.py --clear
+   uv run python src/math_rag/graph_construction/build_kg_from_db.py --clear
 
    # Add reference relationships between atomic units
-   python src/math_rag/graph_construction/add_reference_relationships.py
+   uv run python src/math_rag/graph_construction/add_reference_relationships.py
 
    # Create fulltext index for keyword search
-   python src/math_rag/graph_indexing/create_fulltext_index.py
+   uv run python src/math_rag/graph_indexing/create_fulltext_index.py
 
    # Create embeddings and vector index with custom models
-   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual"
-   python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German"
+   uv run python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual"
+   uv run python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German"
    ```
 
    </details>
@@ -262,16 +260,16 @@ You can specify which model to use when creating embeddings:
 
 ```bash
 # Using the unified CLI (recommended)
-python -m math_rag.cli.kg_cli build-all --model "E5 Multilingual"
-python -m math_rag.cli.kg_cli build-all --model "MXBAI German"
+uv run python -m math_rag.cli.kg_cli build-all --model "E5 Multilingual"
+uv run python -m math_rag.cli.kg_cli build-all --model "MXBAI German"
 
 # Create only vector index with specific model
-python -m math_rag.cli.kg_cli create-indexes --vector --model "E5 Multilingual"
-python -m math_rag.cli.kg_cli create-indexes --vector --model "MXBAI German"
+uv run python -m math_rag.cli.kg_cli create-indexes --vector --model "E5 Multilingual"
+uv run python -m math_rag.cli.kg_cli create-indexes --vector --model "MXBAI German"
 
 # Or using individual scripts
-python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual"
-python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German"
+uv run python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "E5 Multilingual"
+uv run python src/math_rag/graph_indexing/create_vector_index_with_custom_embeddings.py --model "MXBAI German"
 ```
 
 ## 💡 Learnings

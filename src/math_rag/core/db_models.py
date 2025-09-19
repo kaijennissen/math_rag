@@ -5,8 +5,10 @@ SQLModel definitions for the SQLite database storing atomic units.
 import datetime
 from pathlib import Path
 from typing import Optional
-from sqlmodel import Field, SQLModel, create_engine, Session, select
+
 from pydantic import validator
+from sqlmodel import Field, Session, SQLModel, create_engine, select
+
 from math_rag.core.atomic_unit import AtomicUnit
 from math_rag.core.project_root import ROOT
 

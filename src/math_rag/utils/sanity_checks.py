@@ -1,7 +1,9 @@
-import logging
-from math_rag.atomic_unit import AtomicUnit
-import coloredlogs
 import json
+import logging
+
+import coloredlogs
+
+from math_rag.atomic_unit import AtomicUnit
 from math_rag.project_root import ROOT
 
 # Configure logger

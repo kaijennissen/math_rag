@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>64", "wheel"]
-build_backend = ["setuptools.build_meta"]
+build_backend = "setuptools.build_meta"
 
 [project]
 name = "math_rag"
@@ -10,14 +10,47 @@ readme = "README.md"
 authors = [
     { name = "Kai Jennissen", email = "k_jennissen@icloud.com" }
 ]
+requires-python = ">=3.12, <3.13"
+dependencies = [
+    "coloredlogs",
+    "langchain",
+    "langchain-community",
+    "langchain-core",
+    "langchain-openai",
+    "langchain-neo4j",
+    "langgraph",
+    "pandas",
+    "python-dotenv",
+    "pypdf",
+    "pymupdf",
+    "rich",
+    "scikit-learn",
+    "smolagents",
+    "sqlmodel",
+    "streamlit",
+    "tabulate",
+    "watchdog",
+    "pyyaml",
+    "detect-secrets>=1.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+    "ruff",
+    "pytest",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
+python_files = ["test_*.py"]
 
-[tool.black]
-line_length = 88
+[tool.ruff]
+line-length = 88
+src = ["src", "tests"]
 
-[tool.isort]
-profile = "black"
-src_paths = ["src", "tests"]
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.format]
+quote-style = "double"

@@ -1,6 +1,8 @@
-from math_rag.rag_agents.agents import setup_rag_chat
-from rich.console import Console
 import os
+
+from rich.console import Console
+
+from math_rag.rag_agents.agents import setup_rag_chat
 
 
 def run_chat_interface():

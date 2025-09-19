@@ -4,11 +4,12 @@ Test script for the Cypher tools and meta-agent.
 """
 
 import logging
+
 import coloredlogs
 from math_rag.cypher_tools import (
-    SchemaInfoTool,
-    CypherQueryGeneratorTool,
     CypherExecutorTool,
+    CypherQueryGeneratorTool,
+    SchemaInfoTool,
 )
 from math_rag.graph_meta_agent import query_graph_structure
 

@@ -1,10 +1,11 @@
-from langchain_neo4j import Neo4jVector
-from dotenv import load_dotenv
-from langchain_openai import OpenAIEmbeddings
-from langchain_huggingface import HuggingFaceEmbeddings
 import logging
-import coloredlogs
 import os
+
+import coloredlogs
+from dotenv import load_dotenv
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_neo4j import Neo4jVector
+from langchain_openai import OpenAIEmbeddings
 from smolagents import Tool
 
 load_dotenv()
@@ -72,11 +73,13 @@ class GraphRetrieverTool(Tool):
     """A tool that retrieves documents from a Neo4j graph database using hybrid search."""
 
     name = "graph_retriever"
-    description = "Uses hybrid search (vector + keyword) to retrieve mathematical content from a Neo4j graph database."
+    description = """Uses hybrid search (vector + keyword) to
+    retrieve mathematical content from a Neo4j graph database."""
     inputs = {
         "query": {
             "type": "string",
-            "description": "The query to search for in the mathematical knowledge graph. This can be a question or a statement about a mathematical concept. This should be semantically close to your target documents. Use the affirmative form rather than a question. Use german as language.",
+            "description": """The query to search for in the mathematical knowledge graph.
+            This can be a question or a statement about a mathematical concept. This should be semantically close to your target documents. Use the affirmative form rather than a question. Use german as language.""",
         },
         "model": {
             "type": "string",

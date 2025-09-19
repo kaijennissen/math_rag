@@ -4,15 +4,14 @@ Analyze character lengths of atomic units to identify potential issues with vect
 """
 
 import json
-from pathlib import Path
 import logging
+from pathlib import Path
 from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-
 from src.math_rag.atomic_unit import AtomicUnit
 
 # Configure logger

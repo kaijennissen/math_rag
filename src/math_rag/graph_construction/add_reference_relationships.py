@@ -4,12 +4,14 @@ This script loads reference tuples from a pickle file and creates REFERENCES rel
 between atomic units in the Neo4j graph.
 """
 
+import logging
 import os
 import pickle
-import logging
+
 import coloredlogs
 from dotenv import load_dotenv
 from langchain_neo4j import Neo4jGraph
+
 from math_rag.core import ROOT
 
 load_dotenv()

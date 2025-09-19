@@ -1,8 +1,12 @@
-import pytest
-import tempfile
 import os
+import tempfile
 
-from math_rag.data_processing.section_headers import SectionHeaders, Subsection  # noqa: E402
+import pytest
+
+from math_rag.data_processing.section_headers import (  # noqa: E402
+    SectionHeaders,
+    Subsection,
+)
 
 MOCK_YAML = """
 1 Topologische Strukturen, Grundbegriffe und Beispiele:

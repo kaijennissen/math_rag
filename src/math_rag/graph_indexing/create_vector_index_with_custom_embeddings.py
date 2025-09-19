@@ -21,15 +21,16 @@ Enhanced Usage Examples:
 - Test with custom query: python add_embeddings.py -t -q "topology definition"
 """
 
-import os
-import logging
-import time
 import argparse
+import logging
+import os
 import sys
+import time
+
 from dotenv import load_dotenv
-from neo4j import GraphDatabase
-from langchain_neo4j import Neo4jVector
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_neo4j import Neo4jVector
+from neo4j import GraphDatabase
 
 # Load environment variables
 load_dotenv()

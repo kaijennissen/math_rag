@@ -4,9 +4,10 @@ Direct Neo4j vector search using Cypher queries.
 """
 
 import os
+
 from dotenv import load_dotenv
-from neo4j import GraphDatabase
 from langchain_openai import OpenAIEmbeddings
+from neo4j import GraphDatabase
 
 # Load environment variables
 load_dotenv()

@@ -2,15 +2,15 @@
 Script to migrate existing atomic units from JSON/pickle files to SQLite database.
 """
 
-from pathlib import Path
 import json
 import logging
-from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Optional
 
-from math_rag.core.project_root import ROOT
 from math_rag.core.atomic_unit import AtomicUnit as CoreAtomicUnit
 from math_rag.core.db_models import AtomicUnit, DatabaseManager
+from math_rag.core.project_root import ROOT
 
 # Setup logging
 logging.basicConfig(

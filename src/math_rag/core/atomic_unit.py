@@ -1,7 +1,8 @@
-import re
 import logging
-from typing import Optional, Any
-from pydantic import BaseModel, field_validator, ConfigDict
+import re
+from typing import Any, Optional
+
+from pydantic import BaseModel, ConfigDict, field_validator
 
 # Setup basic logging configuration
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
@@ -144,6 +145,7 @@ class AtomicUnit(BaseModel):
 
 if __name__ == "__main__":
     import json
+
     from math_rag.core.project_root import ROOT
 
     # Get all JSON files in the atomic_units directory

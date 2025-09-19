@@ -1,11 +1,11 @@
 import argparse
 import logging
+import pickle
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import coloredlogs
-import pickle
 import yaml
 from langchain.schema import Document
 

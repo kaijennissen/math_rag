@@ -3,6 +3,7 @@ Simple CLI to view summaries alongside original content for quick comparison.
 """
 
 import argparse
+
 from math_rag.core.db_models import DatabaseManager
 from math_rag.core.project_root import ROOT
 
@@ -15,6 +16,7 @@ def show_summary_comparison(args):
 
     with db_manager.get_session() as session:
         from sqlmodel import select
+
         from math_rag.core.db_models import AtomicUnit
 
         statement = select(AtomicUnit).where(AtomicUnit.summary.is_not(None))

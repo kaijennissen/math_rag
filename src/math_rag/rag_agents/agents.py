@@ -14,18 +14,19 @@
 
 
 import os
-import yaml
 import sys
+
+import yaml
 from dotenv import load_dotenv
 from smolagents import (
     CodeAgent,
-    ToolCallingAgent,
-    OpenAIServerModel,
     InferenceClientModel,
+    OpenAIServerModel,
+    ToolCallingAgent,
 )
-from math_rag.graph_tools import GraphRetrieverTool
-from math_rag.graph_tools import CypherExecutorTool, SchemaInfoTool
+
 from math_rag.core import ROOT
+from math_rag.graph_tools import CypherExecutorTool, GraphRetrieverTool, SchemaInfoTool
 
 load_dotenv()
 

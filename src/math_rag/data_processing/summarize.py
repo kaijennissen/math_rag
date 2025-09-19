@@ -3,19 +3,19 @@ Module for generating summaries for atomic units using LLMs.
 """
 
 import logging
-import time
 import os
-from typing import Optional
+import time
 from pathlib import Path
+from typing import Optional
 
 import yaml
 from dotenv import load_dotenv
-from tqdm import tqdm
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from tqdm import tqdm
 
-from math_rag.core.db_models import AtomicUnit, DatabaseManager
 from math_rag.core import ROOT
+from math_rag.core.db_models import AtomicUnit, DatabaseManager
 
 # Load environment variables
 load_dotenv()

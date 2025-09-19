@@ -5,6 +5,7 @@ This demonstrates both direct use of the meta-agent and use via the main RAG age
 """
 
 import logging
+
 import coloredlogs
 from math_rag.graph_meta_agent import query_graph_structure
 from smolagents_rag import setup_rag_chat

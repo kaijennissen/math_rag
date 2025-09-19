@@ -3,12 +3,13 @@
 Script to compare similarity scores across different embedding models for mathematical content.
 """
 
-import numpy as np
-import os
-from dotenv import load_dotenv
 import importlib.util
+import os
 import time
 from typing import List, Tuple
+
+import numpy as np
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()

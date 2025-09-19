@@ -3,8 +3,9 @@
 Simple script to calculate cosine similarity between two text embeddings.
 """
 
-import numpy as np
 import os
+
+import numpy as np
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 

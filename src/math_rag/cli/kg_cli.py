@@ -11,10 +11,10 @@ import argparse
 import logging
 import sys
 
-from math_rag.graph_construction.build_kg_from_db import main as build_kg_main
 from math_rag.graph_construction.add_reference_relationships import (
     main as add_refs_main,
 )
+from math_rag.graph_construction.build_kg_from_db import main as build_kg_main
 from math_rag.graph_indexing.create_fulltext_index import main as fulltext_main
 from math_rag.graph_indexing.create_vector_index_with_custom_embeddings import (
     main as custom_main,

@@ -10,9 +10,10 @@ Note: This script specifically uses OpenAI embeddings (text-embedding-3-small).
 For custom embedding models, use create_vector_index_with_custom_embeddings.py instead.
 """
 
-import os
-import logging
 import argparse
+import logging
+import os
+
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 

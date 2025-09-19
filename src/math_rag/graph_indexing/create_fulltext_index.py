@@ -7,9 +7,10 @@ This script handles:
 3. Testing the fulltext index with sample queries
 """
 
-import os
-import logging
 import argparse
+import logging
+import os
+
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 

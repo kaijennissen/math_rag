@@ -1,9 +1,10 @@
 import logging
 import re
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import pytest
-from math_rag.core.atomic_unit import AtomicUnit, GERMAN_TO_ENGLISH_TYPE
+
+from math_rag.core.atomic_unit import GERMAN_TO_ENGLISH_TYPE, AtomicUnit
 
 # --- Valid Test Cases ---
 
