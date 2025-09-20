@@ -2,7 +2,7 @@
 
 ## 🧭 Project Overview
 
-This project implements a agentic GraphRAG system for question-answering on mathematical documents. It combines the power of Knowledge Graphs with Retrieval-Augmented Generation to provide accurate answers to mathematical queries by capturing the hierarchical and relational structure of mathematical concepts.
+This project implements an agentic GraphRAG system for question-answering on mathematical documents. It combines the power of Knowledge Graphs with Retrieval-Augmented Generation to provide accurate answers to mathematical queries by capturing the hierarchical and relational structure of mathematical concepts.
 
 Key features:
 - 🧠 Knowledge Graph construction from mathematical PDFs with Neo4j
