@@ -5,6 +5,7 @@ metadata.
 
 import logging
 import os
+import warnings
 from typing import Dict, List, Optional
 
 import coloredlogs
@@ -53,6 +54,12 @@ class CypherExecutorTool(Tool):
 
     def __init__(self, **kwargs):
         """Initialize the CypherExecutorTool with Neo4j connection details."""
+        warnings.warn(
+            """CypherExecutorTool is deprecated in favour of MCP client with
+            mcp-neo4j-cypher server.""",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(**kwargs)
         self.uri = NEO4J_URI
         self.username = NEO4J_USERNAME
@@ -141,6 +148,12 @@ class SchemaInfoTool(Tool):
 
     def __init__(self, **kwargs):
         """Initialize the SchemaInfoTool with Neo4j connection details."""
+        warnings.warn(
+            """SchemaInfoTool is deprecated in favour of MCP client
+            with mcp-neo4j-cypher server.""",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(**kwargs)
         self.uri = NEO4J_URI
         self.username = NEO4J_USERNAME
