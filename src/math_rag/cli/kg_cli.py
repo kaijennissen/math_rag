@@ -115,31 +115,6 @@ def create_vector_index_func(model: str):
         return False
 
 
-def build_complete_command(
-    clear_first: bool, db_path: str, document_name: str, model: str
-):
-    """Build complete knowledge graph with indexes."""
-    logger.info("Starting complete knowledge graph build...")
-
-    # Step 1: Build knowledge graph
-    logger.info("=== Phase 1: Building Knowledge Graph ===")
-    if not build_graph_command(clear_first, db_path, document_name):
-        logger.error("Failed to build knowledge graph")
-        return False
-
-    # Step 2: Create indexes
-    logger.info("=== Phase 2: Creating Indexes ===")
-    # Always create both fulltext and vector indexes for build-all
-    if not create_indexes_command(
-        create_fulltext=True, create_vector=True, model=model
-    ):
-        logger.error("Failed to create indexes")
-        return False
-
-    logger.info("Complete knowledge graph build finished")
-    return True
-
-
 def main():
     """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
@@ -242,12 +217,28 @@ Examples:
             create_fulltext=args.fulltext, create_vector=args.vector, model=args.model
         )
     elif args.command == "build-all":
-        success = build_complete_command(
+        logger.info("Starting complete knowledge graph build...")
+
+        # Step 1: Build knowledge graph
+        logger.info("=== Phase 1: Building Knowledge Graph ===")
+        success = build_graph_command(
             clear_first=not args.no_clear,
             db_path=args.db_path,
             document_name=args.document_name,
-            model=args.model,
         )
+
+        # Step 2: Create indexes (only if graph build succeeded)
+        if success:
+            logger.info("=== Phase 2: Creating Indexes ===")
+            # Always create both fulltext and vector indexes for build-all
+            success = create_indexes_command(
+                create_fulltext=True, create_vector=True, model=args.model
+            )
+
+        if success:
+            logger.info("Complete knowledge graph build finished")
+        else:
+            logger.error("Complete knowledge graph build failed")
     else:
         parser.print_help()
         sys.exit(1)

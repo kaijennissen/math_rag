@@ -3,8 +3,8 @@ services:
     image: neo4j:latest
     container_name: neo4j-mathrag
     ports:
-      - "7474:7474" # HTTP
-      - "7688:7687" # Bolt
+      - "7474:7474" # HTTP -> UI
+      - "7688:7687" # Bolt -> outside:inside
     environment:
       - NEO4J_AUTH=neo4j/password
       - NEO4J_PLUGINS=["apoc", "genai","graph-data-science"]
