@@ -17,16 +17,13 @@ import os
 from pathlib import Path
 
 import coloredlogs
-import yaml
 from dotenv import load_dotenv
 from langchain_neo4j import Neo4jGraph
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from neo4j import GraphDatabase
 
-from math_rag.core import ROOT, AtomicUnit
+from math_rag.core import AtomicItem
 from math_rag.data_processing import SectionHeaders
 
-load_dotenv()
 # Configure logger
 logger = logging.getLogger(__name__)
 coloredlogs.install(
@@ -35,59 +32,17 @@ coloredlogs.install(
     fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
+# Default paths and names
 DOCS_PATH = Path("docs/atomic_units/")
 SECTION_HEADERS_PATH = Path("docs/section_headers.yaml")
 ATOMIC_UNITS_PATH = Path("docs/atomic_units")
 DOCUMENT_NAME = "topological_spaces"
 
-# Neo4j connection details
-NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
-# Direct Neo4j driver for index creation
-driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
-
-# Load LLM configuration
-config_path = ROOT / "config" / "config.yaml"
-with open(config_path, "r") as file:
-    config = yaml.safe_load(file)
-
-model_name = config.get("llm", {}).get("model", "gpt-4.1")
-llm = ChatOpenAI(openai_api_key=os.getenv("OPENAI_API_KEY"), model_name=model_name)
-
-embedding_provider = OpenAIEmbeddings(
-    openai_api_key=os.getenv("OPENAI_API_KEY"), model="text-embedding-3-small"
-)
-
-graph = Neo4jGraph(
-    url=os.getenv("NEO4J_URI"),
-    username=os.getenv("NEO4J_USERNAME"),
-    password=os.getenv("NEO4J_PASSWORD"),
-)
-
-
-def link_previous_section(graph: Neo4jGraph, document_name: str, section_number: int):
-    previous_section_id = f"{document_name}.section_{section_number - 1}"
-    if section_number > 1 and graph.exists_node(previous_section_id):
-        graph.query(
-            """
-            MATCH (s1:Section {id: $previous_section_id}),
-                  (s2:Section {id: $section_id})
-            MERGE (s1)-[:NEXT]->(s2)
-            """,
-            {
-                "section_id": f"{document_name}.section_{section_number}",
-                "previous_section_id": previous_section_id,
-            },
-        )
-
-
-# Create nodes for each section to establish hierarchy
 def create_section_node(
     graph: Neo4jGraph, document_name: str, section_number: int, title: str
 ):
-    # Create section node
+    """Create section node and link to document."""
     graph.query(
         """
         MERGE (d:Document {id: $document_id})
@@ -112,7 +67,7 @@ def create_subsection_node(
     subsection_number: int,
     title: str,
 ):
-    # Create subsection node
+    """Create subsection node and link to section."""
     graph.query(
         """
         MERGE (s1:Section {id: $section_id, number: $section_number})
@@ -132,7 +87,8 @@ def create_subsection_node(
     logger.info(f"Created subsection node for Subsection {subsection_number}")
 
 
-def add_chunk_to_graph(graph: Neo4jGraph, document_name: str, chunk: AtomicUnit):
+def add_chunk_to_graph(graph: Neo4jGraph, document_name: str, chunk: AtomicItem):
+    """Add an atomic unit chunk to the graph."""
     subsection_number = chunk.get_subsection_number()
     subsubsection_number = chunk.get_full_number()
     logger.info(f"Adding subsubsection: {subsubsection_number}")
@@ -171,6 +127,7 @@ def create_next_relationship(
     current_number,
     next_number,
 ):
+    """Create NEXT/PREVIOUS relationships between nodes."""
     if node_type == "section":
         current_id = f"{document_name}_{current_number}"
         next_id = f"{document_name}_{next_number}"
@@ -199,6 +156,7 @@ def create_previous_relationship_atomic_units(
     current_number,
     next_number,
 ):
+    """Create NEXT/PREVIOUS relationships between atomic units."""
     current_id = f"{document_name}_{current_number}"
     next_id = f"{document_name}_{next_number}"
 
@@ -214,86 +172,59 @@ def create_previous_relationship_atomic_units(
 
 
 def ensure_atomic_unit_label(driver):
-    """Ensure that all content nodes have the AtomicUnit label."""
-    logger.info("Ensuring all content nodes have the AtomicUnit label...")
+    """Ensure that all content nodes have the AtomicItem label."""
+    logger.info("Ensuring all content nodes have the AtomicItem label...")
     try:
         with driver.session() as session:
             result = session.run(
                 """
             MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
                   Exercise|Remark)
-            WHERE NOT n:AtomicUnit
+            WHERE NOT n:AtomicItem
             WITH count(n) AS missingLabel
             MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
                   Exercise|Remark)
-            WHERE NOT n:AtomicUnit
-            SET n:AtomicUnit
+            WHERE NOT n:AtomicItem
+            SET n:AtomicItem
             RETURN missingLabel, count(n) AS updated
             """
             )
             record = result.single()
             if record and record["missingLabel"] > 0:
-                logger.info(f"Added AtomicUnit label to {record['updated']} nodes")
+                logger.info(f"Added AtomicItem label to {record['updated']} nodes")
             else:
-                logger.info("All content nodes already have the AtomicUnit label")
+                logger.info("All content nodes already have the AtomicItem label")
             return True
     except Exception as e:
-        logger.error(f"Error ensuring AtomicUnit label: {e}")
+        logger.error(f"Error ensuring AtomicItem label: {e}")
         return False
 
 
-# def create_fulltext_index():
-#     """Create a fulltext index for AtomicUnit nodes."""
-#     properties = ["text", "title", "proof"]
-#     property_list = ", ".join([f"n.{prop}" for prop in properties])
-#     index_name = "fulltext_index_AtomicUnit"
-
-#     logger.info(
-#         f"Creating fulltext index {index_name} for nodes on properties {properties}"
-#     )
-
-#     # Drop existing index if it exists
-#     try:
-#         logger.info(f"Dropping existing fulltext index {index_name} if it exists...")
-#         with driver.session() as session:
-#             session.run(f"DROP INDEX {index_name} IF EXISTS")
-#     except Exception as e:
-#         logger.warning(f"Error dropping index: {e}")
-
-#     # Create new fulltext index
-#     try:
-#         with driver.session() as session:
-#             session.run(f"""
-#             CREATE FULLTEXT INDEX {index_name}
-#             FOR (n:AtomicUnit) ON EACH [{property_list}]
-#             """)
-#         logger.info(f"Successfully created fulltext index {index_name}")
-#         return True
-#     except Exception as e:
-#         logger.error(f"Failed to create fulltext index: {e}")
-#         return False
-
-
-def main():
+def build_knowledge_graph(
+    graph: Neo4jGraph,
+    driver,
+    document_name: str,
+    section_headers_path: Path,
+    atomic_units_path: Path,
+):
     """
-    Main function to build the knowledge graph.
+    Build the complete knowledge graph.
     Creates document, section, and subsection nodes and their relationships.
     Adds atomic units from JSON files and establishes their relationships.
-    Finally, creates a fulltext index for keyword search.
     """
     logger.info("Starting knowledge graph construction.")
-    section_headers = SectionHeaders(SECTION_HEADERS_PATH)
+    section_headers = SectionHeaders(section_headers_path)
 
     # First, create the document node
-    logger.info(f"Creating document node for '{DOCUMENT_NAME}'")
+    logger.info(f"Creating document node for '{document_name}'")
     graph.query(
         """
         MERGE (d:Document {id: $document_id})
         SET d.title = $title
         """,
         {
-            "document_id": DOCUMENT_NAME,
-            "title": f"Mathematical document: {DOCUMENT_NAME}",
+            "document_id": document_name,
+            "title": f"Mathematical document: {document_name}",
         },
     )
 
@@ -303,7 +234,7 @@ def main():
         logger.info(f"Creating section node: {section.number} '{section.title}'")
         create_section_node(
             graph=graph,
-            document_name=DOCUMENT_NAME,
+            document_name=document_name,
             section_number=section.number,
             title=section.title,
         )
@@ -314,12 +245,11 @@ def main():
             )
             create_subsection_node(
                 graph=graph,
-                document_name=DOCUMENT_NAME,
+                document_name=document_name,
                 section_number=section.number,
                 subsection_number=subsection.number,
                 title=subsection.title,
             )
-            # Add PART_OF relationship: subsection -> section
 
     # Step 2: Create NEXT relationships
     logger.info("Creating NEXT/PREVIOUS relationships for sections...")
@@ -330,7 +260,7 @@ def main():
         )
         create_next_relationship(
             graph=graph,
-            document_name=DOCUMENT_NAME,
+            document_name=document_name,
             node_type="section",
             current_number=current.number,
             next_number=next.number,
@@ -348,50 +278,73 @@ def main():
             )
             create_next_relationship(
                 graph,
-                document_name=DOCUMENT_NAME,
+                document_name=document_name,
                 node_type="subsection",
                 current_number=current.number,
                 next_number=next.number,
             )
-    logger.info("Knowledge graph construction completed.")
 
     # Add atomic unit chunks from docs/atomic_units
     logger.info("Adding atomic unit chunks from docs/atomic_units...")
 
-    # for json_file in ATOMIC_UNITS_PATH.glob("subsection_*_*_units.json"):
-    #     logger.info(f"  Processing file: {json_file.name}")
-    #     with open(json_file, "r") as f:
-    #         data = json.load(f)
-
-    #     atomic_units = data.get("chunks", [])
-
-    for json_file in ATOMIC_UNITS_PATH.glob("subsection_*_*_units.json"):
+    for json_file in atomic_units_path.glob("subsection_*_*_units.json"):
         logger.info(f"  Processing file: {json_file.name}")
         with open(json_file, "r") as f:
             data = json.load(f)
-        atomic_units = [AtomicUnit.from_dict(unit) for unit in data.get("chunks")]
+        atomic_units = [AtomicItem.from_dict(unit) for unit in data.get("chunks")]
 
         for unit in atomic_units:
-            add_chunk_to_graph(graph=graph, document_name=DOCUMENT_NAME, chunk=unit)
+            add_chunk_to_graph(graph=graph, document_name=document_name, chunk=unit)
 
         for current, next in zip(atomic_units[:-1], atomic_units[1:]):
             create_previous_relationship_atomic_units(
                 graph,
-                document_name=DOCUMENT_NAME,
+                document_name=document_name,
                 current_number=current.get_full_number(),
                 next_number=next.get_full_number(),
             )
 
     logger.info("All atomic unit chunks have been added to the graph.")
 
-    # Ensure all content nodes have the AtomicUnit label
-    ensure_atomic_unit_label()
+    # Ensure all content nodes have the AtomicItem label
+    ensure_atomic_unit_label(driver)
 
     logger.info(
-        "Knowledge graph construction completed with fulltext index. "
+        "Knowledge graph construction completed. "
         "Run create_embeddings_and_vector_index.py to add embeddings and create "
         "vector index."
     )
+
+
+def main():
+    """
+    Main function to build the knowledge graph.
+    Creates all necessary resources and builds the graph.
+    """
+
+    load_dotenv()
+    neo4j_uri = os.getenv("NEO4J_URI")
+    neo4j_username = os.getenv("NEO4J_USERNAME")
+    neo4j_password = os.getenv("NEO4J_PASSWORD")
+
+    graph = Neo4jGraph(
+        url=neo4j_uri,
+        username=neo4j_username,
+        password=neo4j_password,
+    )
+
+    driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
+
+    try:
+        build_knowledge_graph(
+            graph=graph,
+            driver=driver,
+            document_name=DOCUMENT_NAME,
+            section_headers_path=SECTION_HEADERS_PATH,
+            atomic_units_path=ATOMIC_UNITS_PATH,
+        )
+    finally:
+        driver.close()
 
 
 if __name__ == "__main__":

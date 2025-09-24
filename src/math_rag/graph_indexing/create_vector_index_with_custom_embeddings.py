@@ -102,7 +102,7 @@ def get_embedding_model(model_name):
 def add_embeddings_with_neo4j_vector(
     driver: GraphDatabase.driver,
     embedding_model,
-    label: str = "AtomicUnit",
+    label: str = "AtomicItem",
     text_properties: list = None,
     embedding_property: str = None,
     index_name: str = None,
@@ -114,7 +114,7 @@ def add_embeddings_with_neo4j_vector(
     Args:
         driver: Neo4j driver instance
         embedding_model: Initialized embedding model instance
-        label: Node label to process (default: AtomicUnit)
+        label: Node label to process (default: AtomicItem)
         text_properties: List of properties to use for embedding calculation
                         (default: ["text", "title"])
         embedding_property: Property name to store embeddings
@@ -181,7 +181,7 @@ def test_vector_search(
     driver: GraphDatabase.driver,
     embedding_model,
     query: str = "Zusammenhang",
-    label: str = "AtomicUnit",
+    label: str = "AtomicItem",
     index_name: str | None = None,
 ):
     """
@@ -191,7 +191,7 @@ def test_vector_search(
         driver: Neo4j driver instance
         embedding_model: Initialized embedding model instance
         query: The query string
-        label: Node label to search (default: AtomicUnit)
+        label: Node label to search (default: AtomicItem)
         index_name: Vector index name (default: auto-generated)
     """
 
@@ -249,7 +249,7 @@ def main(
     test: bool,
     query: str,
     text_properties: list,
-    label: str = "AtomicUnit",
+    label: str = "AtomicItem",
     embedding_property: str = None,
 ) -> None:
     """Main function to create embeddings and vector index."""
@@ -266,8 +266,8 @@ def main(
     driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
 
     try:
-        # Ensure AtomicUnit label
-        logger.info("Ensuring AtomicUnit label...")
+        # Ensure AtomicItem label
+        logger.info("Ensuring AtomicItem label...")
         ensure_atomic_unit_label(driver)
 
         # Verify Neo4j connection and nodes
@@ -345,8 +345,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--label",
         type=str,
-        default="AtomicUnit",
-        help="Node label to process (default: AtomicUnit)",
+        default="AtomicItem",
+        help="Node label to process (default: AtomicItem)",
     )
     parser.add_argument(
         "--text-properties",

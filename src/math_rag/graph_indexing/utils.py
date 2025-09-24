@@ -16,35 +16,35 @@ logger = logging.getLogger(__name__)
 
 def ensure_atomic_unit_label(driver: GraphDatabase.driver) -> None:
     """
-    Ensure that all content nodes have the AtomicUnit label.
+    Ensure that all content nodes have the AtomicItem label.
 
-    This function adds the AtomicUnit label to all content nodes
+    This function adds the AtomicItem label to all content nodes
     (Introduction, Definition, Corollary, Theorem, Lemma, Proof, Example,
     Exercise, Remark) that don't already have it.
 
     Args:
         driver: Neo4j driver instance
     """
-    logger.info("Ensuring all content nodes have the AtomicUnit label...")
+    logger.info("Ensuring all content nodes have the AtomicItem label...")
     with driver.session() as session:
         result = session.run(
             """
             MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
                   Exercise|Remark)
-            WHERE NOT n:AtomicUnit
+            WHERE NOT n:AtomicItem
             WITH count(n) AS missingLabel
             MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
                   Exercise|Remark)
-            WHERE NOT n:AtomicUnit
-            SET n:AtomicUnit
+            WHERE NOT n:AtomicItem
+            SET n:AtomicItem
             RETURN missingLabel, count(n) AS updated
             """
         )
         record = result.single()
         if record and record["missingLabel"] > 0:
-            logger.info(f"Added AtomicUnit label to {record['updated']} nodes")
+            logger.info(f"Added AtomicItem label to {record['updated']} nodes")
         else:
-            logger.info("All content nodes already have the AtomicUnit label")
+            logger.info("All content nodes already have the AtomicItem label")
 
 
 def drop_index_if_exists(driver: GraphDatabase.driver, index_name: str) -> bool:

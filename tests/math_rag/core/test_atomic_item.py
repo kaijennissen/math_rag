@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 
 import pytest
 
-from math_rag.core.atomic_unit import GERMAN_TO_ENGLISH_TYPE, AtomicUnit
+from math_rag.core.atomic_item import GERMAN_TO_ENGLISH_TYPE, AtomicItem
 
 # --- Valid Test Cases ---
 
@@ -96,8 +96,8 @@ valid_test_data = [
 
 @pytest.mark.parametrize("data, expected_number", valid_test_data)
 def test_atomic_unit_valid(data, expected_number):
-    """Tests successful creation of AtomicUnit with valid data."""
-    unit = AtomicUnit.from_dict(data)
+    """Tests successful creation of AtomicItem with valid data."""
+    unit = AtomicItem.from_dict(data)
     # Add assertions for potentially None fields with defaults
     assert unit.section == data["section"]
     assert unit.subsection == data.get("subsection")
@@ -242,9 +242,9 @@ invalid_test_data_for_warnings = [
 def test_atomic_unit_all_warnings(
     data, expected_log_level, log_message_contains, caplog
 ):
-    """Tests creation of AtomicUnit logs the expected warnings (or no warnings)."""
+    """Tests creation of AtomicItem logs the expected warnings (or no warnings)."""
     caplog.set_level(logging.WARNING)
-    AtomicUnit.from_dict(data)
+    AtomicItem.from_dict(data)
 
     if expected_log_level is not None:
         assert any(
@@ -287,8 +287,8 @@ PROPERTY_TEST_DATA = [
 
 @pytest.mark.parametrize("data,expected_full,expected_subsection", PROPERTY_TEST_DATA)
 def test_properties(data: Dict[str, Any], expected_full: str, expected_subsection: str):
-    """Test the property methods of AtomicUnit."""
-    unit = AtomicUnit.from_dict(data)
+    """Test the property methods of AtomicItem."""
+    unit = AtomicItem.from_dict(data)
     assert unit.get_full_number() == expected_full
     assert unit.get_subsection_number() == expected_subsection
 
@@ -340,7 +340,7 @@ def test_identifier_validation(
 ):
     """Test identifier validation logic."""
     caplog.set_level(logging.WARNING)
-    AtomicUnit.from_dict(data)
+    AtomicItem.from_dict(data)
 
     if log_level is not None:
         assert any(
@@ -383,7 +383,7 @@ def test_type_validation(data: Dict[str, Any], is_valid: bool, caplog):
     """Test type validation logic."""
     caplog.set_level(logging.WARNING)
     try:
-        AtomicUnit.from_dict(data)
+        AtomicItem.from_dict(data)
         assert is_valid
         if not is_valid:
             pytest.fail("Expected validation error but none occurred")

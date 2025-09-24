@@ -6,16 +6,11 @@ relationships between atomic units in the Neo4j graph.
 """
 
 import logging
-import os
 import pickle
+from pathlib import Path
 
 import coloredlogs
-from dotenv import load_dotenv
 from langchain_neo4j import Neo4jGraph
-
-from math_rag.core import ROOT
-
-load_dotenv()
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -24,8 +19,6 @@ coloredlogs.install(
     logger=logger,
     fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-
-DOCUMENT_NAME = "topological_spaces"
 
 
 def create_reference_relationship(
@@ -48,7 +41,7 @@ def create_reference_relationship(
         """
         MATCH (source WHERE source.id = $source_id)
         MATCH (target WHERE target.id = $target_id)
-        MERGE (source)-[:REFERENCED_IN]->(target)
+        MERGE (target)-[:CITES]->(source)
         """,
         {"source_id": source_id, "target_id": target_id},
     )
@@ -56,42 +49,45 @@ def create_reference_relationship(
     logger.info(f"Created REFERENCES relationship: {source_number} -> {target_number}")
 
 
-def main(document_name: str = DOCUMENT_NAME):
+def load_reference_tuples(pickle_path: Path) -> list:
     """
-    Main function to load reference tuples and create relationships in the graph.
+    Load reference tuples from pickle file.
 
     Args:
-        document_name: Name of the document to process
+        pickle_path: Path to the pickle file
+
+    Returns:
+        List of reference tuples
     """
-    logger.info("Starting reference relationship creation.")
-
-    # Load reference tuples from pickle file
-    pickle_path = ROOT / "data" / "reference_tuples.pkl"
-    # Neo4j connection details
-    NEO4J_URI = os.getenv("NEO4J_URI")
-    NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
-    NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
-
-    graph = Neo4jGraph(
-        url=NEO4J_URI,
-        username=NEO4J_USERNAME,
-        password=NEO4J_PASSWORD,
-    )
-
     if not pickle_path.exists():
         logger.error(f"Reference tuples file not found at {pickle_path}")
         logger.error("Please run infer_refs.py first to generate the reference tuples.")
-        return
+        return []
 
     with open(pickle_path, "rb") as f:
         reference_tuples = pickle.load(f)
 
     logger.info(f"Loaded {len(reference_tuples)} reference tuples from {pickle_path}")
+    return reference_tuples
 
-    # Create relationships for each tuple
+
+def add_references_to_graph(
+    graph: Neo4jGraph, document_name: str, reference_tuples: list
+) -> int:
+    """
+    Add reference relationships to the graph.
+
+    Args:
+        graph: Neo4j graph instance
+        document_name: Name of the document
+        reference_tuples: List of (target, source) tuples
+
+    Returns:
+        Number of relationships created
+    """
     relationships_created = 0
-    # reverse the tuples as this is how links in the pdf are stored
 
+    # Reverse the tuples as this is how links in the pdf are stored
     for target_number, source_number in reference_tuples:
         try:
             create_reference_relationship(
@@ -106,23 +102,4 @@ def main(document_name: str = DOCUMENT_NAME):
                 f"Failed to create relationship {source_number} -> {target_number}: {e}"
             )
 
-    logger.info(
-        f"Successfully created {relationships_created} REFERENCES relationships."
-    )
-    logger.info("Reference relationship creation completed.")
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Add reference relationships to the knowledge graph"
-    )
-    parser.add_argument(
-        "--document-name",
-        default=DOCUMENT_NAME,
-        help=f"Name of the document to process (default: {DOCUMENT_NAME})",
-    )
-
-    args = parser.parse_args()
-    main(document_name=args.document_name)
+    return relationships_created

@@ -12,22 +12,15 @@ from langchain_neo4j import Neo4jGraph
 from neo4j import GraphDatabase
 from sqlmodel import select
 
-from math_rag.core import AtomicUnit
-from math_rag.core.db_models import AtomicUnitDB, DatabaseManager
+from math_rag.core import AtomicItem
+from math_rag.core.db_models import AtomicItemDB, DatabaseManager
 from math_rag.core.project_root import ROOT
 from math_rag.data_processing import SectionHeaders
 
-# Load environment variables
-load_dotenv()
-
-# Default database path
+# Default paths and names
 DB_PATH = ROOT / "data" / "atomic_units.sqlite"
 SECTION_HEADERS_PATH = ROOT / "docs" / "section_headers.yaml"
 DOCUMENT_NAME = "topological_spaces"
-
-NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
 # Setup logging
 logging.basicConfig(
@@ -36,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def create_hierarchy_from_file(graph: Neo4jGraph):
+def create_hierarchy_from_file(graph: Neo4jGraph, document_name: str):
     """
     Main function to build the knowledge graph.
     Creates document, section, and subsection nodes and their relationships.
@@ -47,15 +40,15 @@ def create_hierarchy_from_file(graph: Neo4jGraph):
     section_headers = SectionHeaders(SECTION_HEADERS_PATH)
 
     # First, create the document node
-    logger.info(f"Creating document node for '{DOCUMENT_NAME}'")
+    logger.info(f"Creating document node for '{document_name}'")
     graph.query(
         """
         MERGE (d:Document {id: $document_id})
         SET d.title = $title
         """,
         {
-            "document_id": DOCUMENT_NAME,
-            "title": f"Mathematical document: {DOCUMENT_NAME}",
+            "document_id": document_name,
+            "title": f"Mathematical document: {document_name}",
         },
     )
 
@@ -65,7 +58,7 @@ def create_hierarchy_from_file(graph: Neo4jGraph):
         logger.info(f"Creating section node: {section.number} '{section.title}'")
         create_section_node(
             graph=graph,
-            document_name=DOCUMENT_NAME,
+            document_name=document_name,
             section_number=section.number,
             title=section.title,
         )
@@ -76,12 +69,11 @@ def create_hierarchy_from_file(graph: Neo4jGraph):
             )
             create_subsection_node(
                 graph=graph,
-                document_name=DOCUMENT_NAME,
+                document_name=document_name,
                 section_number=section.number,
                 subsection_number=subsection.number,
                 title=subsection.title,
             )
-            # Add PART_OF relationship: subsection -> section
 
     # Step 2: Create NEXT relationships
     logger.info("Creating NEXT/PREVIOUS relationships for sections...")
@@ -92,7 +84,7 @@ def create_hierarchy_from_file(graph: Neo4jGraph):
         )
         create_next_relationship(
             graph=graph,
-            document_name=DOCUMENT_NAME,
+            document_name=document_name,
             node_type="section",
             current_number=current.number,
             next_number=next.number,
@@ -110,7 +102,7 @@ def create_hierarchy_from_file(graph: Neo4jGraph):
             )
             create_next_relationship(
                 graph,
-                document_name=DOCUMENT_NAME,
+                document_name=document_name,
                 node_type="subsection",
                 current_number=current.number,
                 next_number=next.number,
@@ -118,17 +110,16 @@ def create_hierarchy_from_file(graph: Neo4jGraph):
     logger.info("Knowledge graph construction completed.")
 
 
-# Create nodes for each section to establish hierarchy
 def create_section_node(
     graph: Neo4jGraph, document_name: str, section_number: int, title: str
 ):
-    # Create section node
+    """Create section node and link to document."""
     graph.query(
         """
         MERGE (d:Document {id: $document_id})
         MERGE (s:Section {id: $section_id, number: $section_number})
         SET s.title = $title
-        MERGE (s)-[:PART_OF]->(d)
+        MERGE (s)-[:SECTION_OF]->(d)
         """,
         {
             "document_id": document_name,
@@ -147,13 +138,13 @@ def create_subsection_node(
     subsection_number: int,
     title: str,
 ):
-    # Create subsection node
+    """Create subsection node and link to section."""
     graph.query(
         """
         MERGE (s1:Section {id: $section_id, number: $section_number})
         MERGE (s2:Subsection {id: $subsection_id, number: $subsection_number})
         SET s2.title = $title
-        MERGE (s2)-[:PART_OF]->(s1)
+        MERGE (s2)-[:SUBSECTION_OF]->(s1)
         """,
         {
             "document_id": document_name,
@@ -174,29 +165,24 @@ def create_next_relationship(
     current_number,
     next_number,
 ):
-    if node_type == "section":
-        current_id = f"{document_name}_{current_number}"
-        next_id = f"{document_name}_{next_number}"
-        label = "Section"
-    elif node_type == "subsection":
-        current_id = f"{document_name}_{current_number}"
-        next_id = f"{document_name}_{next_number}"
-        label = "Subsection"
-    else:
-        raise ValueError("node_type must be 'section' or 'subsection'")
+    """Create NEXT_*/PREVIOUS_* relationships between nodes."""
+    current_id = f"{document_name}_{current_number}"
+    next_id = f"{document_name}_{next_number}"
+    label = node_type.capitalize()
 
+    query = f"""
+    MATCH (a:{label} {{id: $current_id}})
+    MATCH (b:{label} {{id: $next_id}})
+    MERGE (a)-[:NEXT_{label.upper()}]->(b)
+    MERGE (a)<-[:PREVIOUS_{label.upper()}]-(b)
+    """
     graph.query(
-        f"""
-        MATCH (a:{label} {{id: $current_id}})
-        MATCH (b:{label} {{id: $next_id}})
-        MERGE (a)-[:NEXT]->(b)
-        MERGE (a)<-[:PREVIOUS]-(b)
-        """,
+        query,
         {"current_id": current_id, "next_id": next_id},
     )
 
 
-def clear_neo4j_database(driver) -> None:
+def clear_neo4j_database(driver: GraphDatabase.driver) -> None:
     """Clear all data from the Neo4j database."""
     with driver.session() as session:
         session.run("MATCH (n) DETACH DELETE n")
@@ -204,8 +190,9 @@ def clear_neo4j_database(driver) -> None:
 
 
 def add_atomic_unit_to_graph(
-    graph: Neo4jGraph, document_name: str, atomic_unit: AtomicUnit
+    graph: Neo4jGraph, document_name: str, atomic_unit: AtomicItem
 ):
+    """Add a single atomic unit to the graph."""
     subsection_number = atomic_unit.get_subsection_number()
     subsubsection_number = atomic_unit.get_full_number()
     logger.info(f"Adding subsubsection: {subsubsection_number}")
@@ -220,7 +207,7 @@ def add_atomic_unit_to_graph(
         c.title = $title,
         c.proof = $proof,
         c.summary = $summary
-    MERGE (c)-[:PART_OF]->(sub)
+    MERGE (c)-[:ITEM_OF]->(sub)
     """
 
     graph.query(
@@ -241,43 +228,46 @@ def add_atomic_unit_to_graph(
 def create_next_relationship_atomic_units(
     graph: Neo4jGraph,
     document_name: str,
-    current_number,
-    next_number,
+    current_number: str,
+    next_number: str,
 ):
+    """Create NEXT/PREVIOUS relationships between atomic units."""
     current_id = f"{document_name}_{current_number}"
     next_id = f"{document_name}_{next_number}"
 
-    graph.query(
-        """
-        MATCH (a WHERE a.id = $current_id)
-        MATCH (b WHERE b.id= $next_id)
-        MERGE (a)-[:NEXT]->(b)
-        MERGE (a)<-[:PREVIOUS]-(b)
-        """,
-        {"current_id": current_id, "next_id": next_id},
-    )
-
-
-def create_atomic_units_from_list(graph: Neo4jGraph, units: list[AtomicUnit]) -> None:
+    query = """
+    MATCH (a WHERE a.id = $current_id)
+    MATCH (b WHERE b.id= $next_id)
+    MERGE (a)-[:NEXT_ITEM]->(b)
+    MERGE (a)<-[:PREVIOUS_ITEM]-(b)
     """
-    Create atomic unit nodes in Neo4j from SQLite database.
+
+    graph.query(query, {"current_id": current_id, "next_id": next_id})
+
+
+def create_atomic_units_from_list(
+    graph: Neo4jGraph, document_name: str, units: list[AtomicItem]
+) -> None:
+    """
+    Create atomic unit nodes in Neo4j from a list of AtomicItem objects.
 
     Args:
         graph: Neo4j graph instance
-        units: List of AtomicUnit objects
+        document_name: Name of the document
+        units: List of AtomicItem objects
     """
     logger.info(f"Creating {len(units)} atomic unit nodes in Neo4j")
 
     # Create atomic unit nodes
     for atomic_unit in units:
         add_atomic_unit_to_graph(
-            graph=graph, document_name=DOCUMENT_NAME, atomic_unit=atomic_unit
+            graph=graph, document_name=document_name, atomic_unit=atomic_unit
         )
 
     logger.info(f"Created {len(units)} atomic unit nodes in Neo4j")
 
 
-def get_atomic_units_from_db(db_manager: DatabaseManager) -> list[AtomicUnit]:
+def get_atomic_units_from_db(db_manager: DatabaseManager) -> list[AtomicItem]:
     """
     Retrieve atomic units from SQLite database.
 
@@ -285,21 +275,16 @@ def get_atomic_units_from_db(db_manager: DatabaseManager) -> list[AtomicUnit]:
         db_manager: Database manager instance
 
     Returns:
-        List of AtomicUnit objects
+        List of AtomicItem objects
     """
     with db_manager.get_session() as session:
-        db_rows = session.exec(select(AtomicUnitDB)).all()
+        db_rows = session.exec(select(AtomicItemDB)).all()
         units = [row.to_core_atomic_unit() for row in db_rows]
     return units
 
 
-def create_atomic_units_from_db(db_manager: DatabaseManager, graph: Neo4jGraph) -> None:
-    atomic_units = get_atomic_units_from_db(db_manager)
-    create_atomic_units_from_list(graph=graph, units=atomic_units)
-
-
 def create_atomic_unit_relationships(
-    graph: Neo4jGraph, units: list[AtomicUnit]
+    graph: Neo4jGraph, document_name: str, units: list[AtomicItem]
 ) -> None:
     """
     Create NEXT/PREVIOUS relationships between atomic units within each subsection.
@@ -320,7 +305,7 @@ def create_atomic_unit_relationships(
         if len(subsection_units) < 2:
             continue  # Need at least 2 units to create relationships
 
-        # Sort by subsubsection number (they should already be sorted from SQL ORDER BY)
+        # Sort by subsubsection number
         sorted_units = sorted(subsection_units, key=lambda u: u.subsubsection)
 
         logger.info(
@@ -332,7 +317,7 @@ def create_atomic_unit_relationships(
         for current, next_unit in zip(sorted_units[:-1], sorted_units[1:]):
             create_next_relationship_atomic_units(
                 graph=graph,
-                document_name=DOCUMENT_NAME,
+                document_name=document_name,
                 current_number=f"{current.section}.{current.subsection}.{current.subsubsection}",
                 next_number=f"{next_unit.section}.{next_unit.subsection}.{next_unit.subsubsection}",
             )
@@ -345,37 +330,39 @@ def create_atomic_unit_relationships(
 
 
 def ensure_atomic_unit_label(driver):
-    """Ensure that all content nodes have the AtomicUnit label."""
-    logger.info("Ensuring all content nodes have the AtomicUnit label...")
+    """Ensure that all content nodes have the AtomicItem label."""
+    logger.info("Ensuring all content nodes have the AtomicItem label...")
     try:
         with driver.session() as session:
             result = session.run(
                 """
             MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
                   Exercise|Remark)
-            WHERE NOT n:AtomicUnit
+            WHERE NOT n:AtomicItem
             WITH count(n) AS missingLabel
             MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
                   Exercise|Remark)
-            WHERE NOT n:AtomicUnit
-            SET n:AtomicUnit
+            WHERE NOT n:AtomicItem
+            SET n:AtomicItem
             RETURN missingLabel, count(n) AS updated
             """
             )
             record = result.single()
             if record and record["missingLabel"] > 0:
-                logger.info(f"Added AtomicUnit label to {record['updated']} nodes")
+                logger.info(f"Added AtomicItem label to {record['updated']} nodes")
             else:
-                logger.info("All content nodes already have the AtomicUnit label")
+                logger.info("All content nodes already have the AtomicItem label")
             return True
     except Exception as e:
-        logger.error(f"Error ensuring AtomicUnit label: {e}")
+        logger.error(f"Error ensuring AtomicItem label: {e}")
         return False
 
 
 def build_knowledge_graph_from_sqlite(
     db_manager: DatabaseManager,
     graph: Neo4jGraph,
+    driver: GraphDatabase.driver,
+    document_name: str,
     clear_first: bool = True,
 ) -> None:
     """
@@ -383,35 +370,32 @@ def build_knowledge_graph_from_sqlite(
 
     Args:
         db_manager: Database manager instance
+        graph: Neo4j graph instance
+        driver: Neo4j driver instance
+        document_name: Name of the document
         clear_first: Whether to clear the database before building
     """
+    if clear_first:
+        clear_neo4j_database(driver)
 
-    # Create Neo4j connection
-    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
+    # Create document structure from file
+    create_hierarchy_from_file(graph, document_name)
 
-    try:
-        if clear_first:
-            clear_neo4j_database(driver)
+    # Create atomic unit nodes
+    atomic_units = get_atomic_units_from_db(db_manager)
+    create_atomic_units_from_list(
+        graph=graph, document_name=document_name, units=atomic_units
+    )
 
-        # Create document structure from file
-        create_hierarchy_from_file(graph)
+    ensure_atomic_unit_label(driver)
 
-        # Create atomic unit nodes
-        atomic_units = get_atomic_units_from_db(db_manager)
-        create_atomic_units_from_list(graph=graph, units=atomic_units)
-
-        ensure_atomic_unit_label(driver)
-
-        # Create atomic unit relationships
-        create_atomic_unit_relationships(graph=graph, units=atomic_units)
-
-        logger.info("Knowledge graph build complete")
-
-    finally:
-        driver.close()
+    # Create atomic unit relationships
+    create_atomic_unit_relationships(
+        graph=graph, document_name=document_name, units=atomic_units
+    )
 
 
-def main(clear_first: bool, db_path: str):
+def main(clear_first: bool, db_path: str | Path):
     """Main entry point for CLI usage.
 
     Args:
@@ -419,18 +403,35 @@ def main(clear_first: bool, db_path: str):
         db_path: Path to SQLite database (defaults to default path)
     """
 
-    # Create database manager
+    load_dotenv()
+    neo4j_uri = os.getenv("NEO4J_URI")
+    neo4j_username = os.getenv("NEO4J_USERNAME")
+    neo4j_password = os.getenv("NEO4J_PASSWORD")
+
     db_manager = DatabaseManager(Path(db_path))
     graph = Neo4jGraph(
-        url=os.getenv("NEO4J_URI"),
-        username=os.getenv("NEO4J_USERNAME"),
-        password=os.getenv("NEO4J_PASSWORD"),
+        url=neo4j_uri,
+        username=neo4j_username,
+        password=neo4j_password,
     )
-    build_knowledge_graph_from_sqlite(
-        graph=graph,
-        db_manager=db_manager,
-        clear_first=clear_first,
-    )
+    driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
+
+    try:
+        logger.info("Start building knowledge graph.")
+        build_knowledge_graph_from_sqlite(
+            db_manager=db_manager,
+            graph=graph,
+            driver=driver,
+            document_name=DOCUMENT_NAME,
+            clear_first=clear_first,
+        )
+        logger.info("Knowledge graph build complete")
+
+    except Exception as e:
+        logger.error(f"Error building knowledge graph: {e}")
+        raise
+    finally:
+        driver.close()
 
 
 if __name__ == "__main__":
@@ -446,7 +447,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--db-path",
-        default=DB_PATH,
+        default=str(DB_PATH),
         help=f"Path to SQLite database (default: {DB_PATH})",
     )
 

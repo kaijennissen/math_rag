@@ -32,24 +32,6 @@ from math_rag.core import ROOT
 from math_rag.graph_tools import GraphRetrieverTool
 
 logger = logging.getLogger(__name__)
-load_dotenv()
-
-# Load agent descriptions from YAML config file
-# First try environment variable, then use project root-based path
-config_path = os.getenv("AGENT_CONFIG_PATH")
-if not config_path:
-    config_path = ROOT / "config" / "agents.yaml"
-
-try:
-    with open(config_path, "r") as file:
-        AGENT_DESCRIPTIONS = yaml.safe_load(file)
-except FileNotFoundError:
-    logger.error(f"Agent configuration file not found at {config_path}")
-    logger.error(
-        "Set the AGENT_CONFIG_PATH environment variable or ensure the agents.yaml file "
-        "exists in the config directory"
-    )
-    sys.exit(1)
 
 
 def setup_rag_chat():
@@ -60,6 +42,25 @@ def setup_rag_chat():
         tuple: A tuple containing (graph_agent, mcp_client). The mcp_client must be
                disconnected when done using the agent.
     """
+
+    load_dotenv()
+
+    # Load agent descriptions from YAML config file
+    # First try environment variable, then use project root-based path
+    config_path = os.getenv("AGENT_CONFIG_PATH")
+    if not config_path:
+        config_path = ROOT / "config" / "agents.yaml"
+
+    try:
+        with open(config_path, "r") as file:
+            AGENT_DESCRIPTIONS = yaml.safe_load(file)
+    except FileNotFoundError:
+        logger.error(f"Agent configuration file not found at {config_path}")
+        logger.error(
+            """Set the AGENT_CONFIG_PATH environment variable or ensure
+            the agents.yaml file exists in the config directory"""
+        )
+        sys.exit(1)
 
     # Initialize the model inside this function
     # reasoning_model = InferenceClientModel(

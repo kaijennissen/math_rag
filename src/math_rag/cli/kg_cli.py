@@ -1,23 +1,38 @@
 """
-CLI for Knowledge Graph construction and indexing operations.
+CLI for building the complete Knowledge Graph with all indices.
 
-This module provides unified commands to:
-1. Build the knowledge graph from database
-2. Add reference relationships
-3. Create fulltext and vector indexes
+This module provides a simple interface to build the entire knowledge graph including:
+1. Graph structure from database
+2. Reference relationships
+3. Fulltext index
+4. Vector index
 """
 
 import argparse
 import logging
+import os
 import sys
+from pathlib import Path
 
+from dotenv import load_dotenv
+from langchain_neo4j import Neo4jGraph
+from neo4j import GraphDatabase
+
+from math_rag.core.db_models import DatabaseManager
+from math_rag.core.project_root import ROOT
 from math_rag.graph_construction.add_reference_relationships import (
-    main as add_refs_main,
+    add_references_to_graph,
+    load_reference_tuples,
 )
-from math_rag.graph_construction.build_kg_from_db import main as build_kg_main
-from math_rag.graph_indexing.create_fulltext_index import main as fulltext_main
+from math_rag.graph_construction.build_kg_from_db import (
+    build_knowledge_graph_from_sqlite,
+)
+from math_rag.graph_indexing.create_fulltext_index import (
+    create_fulltext_index as create_fulltext_index_impl,
+)
 from math_rag.graph_indexing.create_vector_index_with_custom_embeddings import (
-    main as custom_main,
+    add_embeddings_with_neo4j_vector,
+    get_embedding_model,
 )
 
 # Setup logging
@@ -26,226 +41,175 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-def build_graph_command(clear_first: bool, db_path: str, document_name: str):
-    """Build the knowledge graph from the database."""
-    logger.info("Starting knowledge graph construction...")
-
-    try:
-        # Build knowledge graph
-        logger.info("Building knowledge graph from SQLite database...")
-        build_kg_main(clear_first=clear_first, db_path=db_path)
-
-        # Add reference relationships
-        logger.info("Adding reference relationships...")
-        add_refs_main(document_name=document_name)
-
-        logger.info("Knowledge graph construction completed")
-        return True
-
-    except Exception as e:
-        logger.error(f"Failed to build knowledge graph: {e}")
-        return False
+# Default paths and names
+DB_PATH = ROOT / "data" / "atomic_units.sqlite"
+REFERENCE_TUPLES_PATH = ROOT / "data" / "reference_tuples.pkl"
+DOCUMENT_NAME = "topological_spaces"
 
 
-def create_indexes_command(create_fulltext: bool, create_vector: bool, model: str):
-    """Create fulltext and vector indexes."""
-    logger.info("Starting index creation...")
+def build_complete_knowledge_graph(
+    db_manager: DatabaseManager,
+    graph: Neo4jGraph,
+    driver: GraphDatabase.driver,
+    document_name: str,
+    clear_first: bool = True,
+):
+    """
+    Orchestrate the complete knowledge graph build.
 
-    success = True
+    Args:
+        db_manager: Database manager instance
+        graph: Neo4j graph instance
+        driver: Neo4j driver instance
+        document_name: Name of the document to process
+        clear_first: Whether to clear existing graph data
 
-    try:
-        # Create fulltext index if requested
-        if create_fulltext:
-            logger.info("Creating fulltext index...")
-            success &= create_fulltext_index_func()
+    Returns:
+        bool: True if successful, False otherwise
+    """
 
-        # Create vector index if requested
-        if create_vector and success:
-            logger.info(f"Creating vector index with model: {model}")
-            success &= create_vector_index_func(model)
+    # Phase 1: Build graph structure and add atomic items
+    logger.info("=== Phase 1: Building Knowledge Graph Structure ===")
+    build_knowledge_graph_from_sqlite(
+        db_manager=db_manager,
+        graph=graph,
+        driver=driver,
+        document_name=document_name,
+        clear_first=clear_first,
+    )
+    logger.info("✓ Graph structure and atomic items added successfully")
 
-        if success:
-            logger.info("Index creation completed")
-        else:
-            logger.error("Index creation failed")
-
-        return success
-
-    except Exception as e:
-        logger.error(f"Index creation failed: {e}")
-        return False
-
-
-def create_fulltext_index_func():
-    """Create fulltext index using existing main function."""
-    try:
-        fulltext_main(
-            test=False,
-            query="",
-            label="AtomicUnit",
-            properties=["text", "title", "proof", "summary"],
+    # Phase 2: Add reference relationships
+    logger.info("=== Phase 2: Adding Reference Relationships ===")
+    reference_tuples = load_reference_tuples(REFERENCE_TUPLES_PATH)
+    if reference_tuples:
+        relationships_created = add_references_to_graph(
+            graph=graph,
+            document_name=document_name,
+            reference_tuples=reference_tuples,
         )
-
-        logger.info("Fulltext index created successfully")
-        return True
-
-    except Exception as e:
-        logger.error(f"Failed to create fulltext index: {e}")
-        return False
-
-
-def create_vector_index_func(model: str):
-    """Create vector index with custom embeddings."""
-    try:
-        custom_main(
-            model_name=model,
-            test=False,
-            query="",
-            text_properties=["text", "title"],
-            label="AtomicUnit",
-            embedding_property=None,  # Will be auto-generated
-        )
-
-        logger.info(f"Vector index created successfully with {model}")
-        return True
-
-    except Exception as e:
-        logger.error(f"Failed to create vector index: {e}")
-        return False
-
-
-def main():
-    """Main entry point for the CLI."""
-    parser = argparse.ArgumentParser(
-        description="Knowledge Graph Construction and Indexing CLI",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Build complete knowledge graph with all indexes
-  python -m math_rag.cli.kg_cli build-all --model "E5 Multilingual"
-
-  # Build only the graph structure
-  python -m math_rag.cli.kg_cli build-graph
-
-  # Create only fulltext index
-  python -m math_rag.cli.kg_cli create-indexes --fulltext
-
-  # Create only vector index with custom model
-  python -m math_rag.cli.kg_cli create-indexes --vector --model "MXBAI German"
-        """,
-    )
-
-    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
-
-    # Build graph command
-    build_parser = subparsers.add_parser(
-        "build-graph", help="Build knowledge graph from database"
-    )
-    build_parser.add_argument(
-        "--no-clear",
-        action="store_true",
-        help="Don't clear existing graph data before building",
-    )
-    build_parser.add_argument(
-        "--db-path", help="Path to SQLite database (uses default if not specified)"
-    )
-    build_parser.add_argument(
-        "--document-name",
-        default="topological_spaces",
-        help="Name of the document to process (default: topological_spaces)",
-    )
-
-    # Create indexes command
-    index_parser = subparsers.add_parser(
-        "create-indexes", help="Create fulltext and/or vector indexes"
-    )
-    index_parser.add_argument(
-        "--fulltext", action="store_true", help="Create fulltext index"
-    )
-    index_parser.add_argument(
-        "--vector", action="store_true", help="Create vector index"
-    )
-    index_parser.add_argument(
-        "--model",
-        default="E5 Multilingual",
-        help=(
-            "Embedding model for vector index "
-            "(default: E5 Multilingual, options: 'E5 Multilingual', 'MXBAI German')"
-        ),
-    )
-
-    # Build complete command
-    complete_parser = subparsers.add_parser(
-        "build-all", help="Build complete knowledge graph with indexes"
-    )
-    complete_parser.add_argument(
-        "--no-clear",
-        action="store_true",
-        help="Don't clear existing graph data before building",
-    )
-    complete_parser.add_argument(
-        "--db-path", help="Path to SQLite database (uses default if not specified)"
-    )
-    complete_parser.add_argument(
-        "--document-name",
-        default="topological_spaces",
-        help="Name of the document to process (default: topological_spaces)",
-    )
-    complete_parser.add_argument(
-        "--model",
-        default="E5 Multilingual",
-        help="Embedding model for vector index (default: E5 Multilingual)",
-    )
-    # No need for set_defaults since build-all always creates both indexes
-
-    # Parse args
-    args = parser.parse_args()
-
-    # Execute command
-    if args.command == "build-graph":
-        success = build_graph_command(
-            clear_first=not args.no_clear,
-            db_path=args.db_path,
-            document_name=args.document_name,
-        )
-    elif args.command == "create-indexes":
-        if not (args.fulltext or args.vector):
-            logger.error("Must specify --fulltext and/or --vector")
-            sys.exit(1)
-        success = create_indexes_command(
-            create_fulltext=args.fulltext, create_vector=args.vector, model=args.model
-        )
-    elif args.command == "build-all":
-        logger.info("Starting complete knowledge graph build...")
-
-        # Step 1: Build knowledge graph
-        logger.info("=== Phase 1: Building Knowledge Graph ===")
-        success = build_graph_command(
-            clear_first=not args.no_clear,
-            db_path=args.db_path,
-            document_name=args.document_name,
-        )
-
-        # Step 2: Create indexes (only if graph build succeeded)
-        if success:
-            logger.info("=== Phase 2: Creating Indexes ===")
-            # Always create both fulltext and vector indexes for build-all
-            success = create_indexes_command(
-                create_fulltext=True, create_vector=True, model=args.model
-            )
-
-        if success:
-            logger.info("Complete knowledge graph build finished")
-        else:
-            logger.error("Complete knowledge graph build failed")
+        logger.info(f"✓ Added {relationships_created} reference relationships")
     else:
-        parser.print_help()
+        logger.warning("No reference tuples found, skipping references")
+
+    # Phase 3: Create fulltext index
+    logger.info("=== Phase 3: Creating Fulltext Index ===")
+    create_fulltext_index_impl(
+        driver=driver,
+        label="AtomicItem",
+        properties=["text", "title", "proof", "summary"],
+    )
+    logger.info("✓ Fulltext index created successfully")
+
+    # Phase 4: Create vector index with embeddings
+    logger.info("=== Phase 4: Creating Vector Index with Embeddings ===")
+    # Use E5 Multilingual model by default (best for German academic content)
+    embedding_model = get_embedding_model("E5 Multilingual")
+    add_embeddings_with_neo4j_vector(
+        driver=driver,
+        embedding_model=embedding_model,
+        label="AtomicItem",
+        text_properties=["text", "title"],
+        embedding_property="text_title_Embedding",
+    )
+    logger.info("✓ Vector index and embeddings created successfully")
+
+    logger.info("=== ✓ Complete knowledge graph build finished successfully ===")
+
+
+def main(db_path: str, document_name: str, clear: bool):
+    """Main entry point for the CLI.
+
+    Args:
+        db_path: Path to SQLite database
+        document_name: Name of the document to process
+        clear_first: Whether to clear existing graph data before building
+    """
+
+    # Load environment variables
+    load_dotenv()
+    neo4j_uri = os.getenv("NEO4J_URI")
+    neo4j_username = os.getenv("NEO4J_USERNAME")
+    neo4j_password = os.getenv("NEO4J_PASSWORD")
+
+    if not all([neo4j_uri, neo4j_username, neo4j_password]):
+        logger.error("Neo4j credentials not found in environment variables")
         sys.exit(1)
 
-    if not success:
+    # Create all resources
+    logger.info("Creating database connections and resources...")
+    db_manager = DatabaseManager(Path(db_path))
+    graph = Neo4jGraph(
+        url=neo4j_uri,
+        username=neo4j_username,
+        password=neo4j_password,
+    )
+    driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
+
+    try:
+        logger.info("Starting complete knowledge graph build")
+        logger.info(f"  Database: {db_path}")
+        logger.info(f"  Document: {document_name}")
+
+        success = build_complete_knowledge_graph(
+            db_manager=db_manager,
+            graph=graph,
+            driver=driver,
+            document_name=document_name,
+            clear_first=clear,
+        )
+
+        if not success:
+            sys.exit(1)
+
+    except KeyboardInterrupt:
+        logger.info("Build interrupted by user")
         sys.exit(1)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        sys.exit(1)
+    finally:
+        logger.info("Closing database connections...")
+        driver.close()
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Build complete Knowledge Graph with all indices",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Build complete knowledge graph with default settings
+  python -m math_rag.cli.kg_cli
+
+  # Build with custom database path
+  python -m math_rag.cli.kg_cli --db-path /path/to/database.sqlite
+
+  # Build without clearing existing data
+  python -m math_rag.cli.kg_cli --no-clear
+
+  # Build for a different document
+  python -m math_rag.cli.kg_cli --document-name my_document
+        """,
+    )
+
+    parser.add_argument(
+        "--db-path",
+        type=str,
+        default=str(DB_PATH),
+        help=f"Path to SQLite database (default: {DB_PATH})",
+    )
+    parser.add_argument(
+        "--document-name",
+        type=str,
+        default=DOCUMENT_NAME,
+        help=f"Name of the document to process (default: {DOCUMENT_NAME})",
+    )
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="Clear existing graph data before building.",
+    )
+
+    args = parser.parse_args()
+    main(db_path=args.db_path, document_name=args.document_name, clear=args.clear)

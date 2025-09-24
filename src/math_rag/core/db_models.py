@@ -9,11 +9,11 @@ from typing import Optional
 from pydantic import validator
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-from math_rag.core.atomic_unit import AtomicUnit
+from math_rag.core.atomic_item import AtomicItem
 from math_rag.core.project_root import ROOT
 
 
-class AtomicUnitBase(SQLModel):
+class AtomicItemBase(SQLModel):
     """Base model for atomic units with common fields."""
 
     section: int = Field(index=True)
@@ -35,10 +35,10 @@ class AtomicUnitBase(SQLModel):
         return v
 
 
-class AtomicUnitDB(AtomicUnitBase, table=True):
+class AtomicItemDB(AtomicItemBase, table=True):
     """SQLModel class for atomic units stored in the database."""
 
-    __tablename__ = "atomicunit"
+    __tablename__ = "AtomicUnit"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime.datetime = Field(
@@ -49,10 +49,10 @@ class AtomicUnitDB(AtomicUnitBase, table=True):
     )
     source_file: str = Field(index=True)
 
-    def to_core_atomic_unit(self) -> AtomicUnit:
-        """Convert to the core AtomicUnit dataclass for compatibility."""
+    def to_core_atomic_unit(self) -> AtomicItem:
+        """Convert to the core AtomicItem dataclass for compatibility."""
 
-        return AtomicUnit(
+        return AtomicItem(
             section=self.section,
             subsection=self.subsection,
             subsubsection=self.subsubsection,
@@ -66,8 +66,8 @@ class AtomicUnitDB(AtomicUnitBase, table=True):
         )
 
     @classmethod
-    def from_core_atomic_unit(cls, unit: "AtomicUnit", source_file: str):
-        """Create from a core AtomicUnit instance."""
+    def from_core_atomic_unit(cls, unit: "AtomicItem", source_file: str):
+        """Create from a core AtomicItem instance."""
         return cls(
             section=unit.section,
             section_title=unit.section_title,
@@ -103,7 +103,7 @@ class DatabaseManager:
         """Get a new database session."""
         return Session(self.engine)
 
-    def add_atomic_unit(self, unit: AtomicUnitDB) -> int:
+    def add_atomic_unit(self, unit: AtomicItemDB) -> int:
         """Add an atomic unit to the database and return its ID."""
         with self.get_session() as session:
             session.add(unit)
@@ -111,7 +111,7 @@ class DatabaseManager:
             session.refresh(unit)
             return unit.id
 
-    def add_atomic_units_batch(self, units: list[AtomicUnitDB]) -> list[int]:
+    def add_atomic_units_batch(self, units: list[AtomicItemDB]) -> list[int]:
         """Add multiple atomic units in a batch and return their IDs."""
         with self.get_session() as session:
             session.add_all(units)
@@ -120,39 +120,39 @@ class DatabaseManager:
                 session.refresh(unit)
             return [unit.id for unit in units]
 
-    def get_atomic_unit(self, unit_id: int) -> Optional[AtomicUnitDB]:
+    def get_atomic_unit(self, unit_id: int) -> Optional[AtomicItemDB]:
         """Get an atomic unit by ID."""
         with self.get_session() as session:
-            return session.get(AtomicUnitDB, unit_id)
+            return session.get(AtomicItemDB, unit_id)
 
-    def get_atomic_units_by_section(self, section: int) -> list[AtomicUnitDB]:
+    def get_atomic_units_by_section(self, section: int) -> list[AtomicItemDB]:
         """Get all atomic units for a section."""
         with self.get_session() as session:
-            statement = select(AtomicUnitDB).where(AtomicUnitDB.section == section)
+            statement = select(AtomicItemDB).where(AtomicItemDB.section == section)
             return session.exec(statement).all()
 
     def get_atomic_units_by_subsection(
         self, section: int, subsection: int
-    ) -> list[AtomicUnitDB]:
+    ) -> list[AtomicItemDB]:
         """Get all atomic units for a specific subsection."""
         with self.get_session() as session:
-            statement = select(AtomicUnitDB).where(
-                AtomicUnitDB.section == section, AtomicUnitDB.subsection == subsection
+            statement = select(AtomicItemDB).where(
+                AtomicItemDB.section == section, AtomicItemDB.subsection == subsection
             )
             return session.exec(statement).all()
 
-    def get_atomic_units_without_summary(self, limit: int = 100) -> list[AtomicUnitDB]:
+    def get_atomic_units_without_summary(self, limit: int = 100) -> list[AtomicItemDB]:
         """Get atomic units without summaries, for batch processing."""
         with self.get_session() as session:
             statement = (
-                select(AtomicUnitDB).where(AtomicUnitDB.summary == None).limit(limit)  # noqa: E711
+                select(AtomicItemDB).where(AtomicItemDB.summary == None).limit(limit)  # noqa: E711
             )
             return list(session.exec(statement))
 
     def update_summary(self, unit_id: int, summary: str) -> bool:
         """Update the summary for an atomic unit and return success status."""
         with self.get_session() as session:
-            unit = session.get(AtomicUnitDB, unit_id)
+            unit = session.get(AtomicItemDB, unit_id)
             if not unit:
                 return False
             unit.summary = summary
@@ -161,23 +161,23 @@ class DatabaseManager:
             session.commit()
             return True
 
-    def get_units_by_source_file(self, source_file: str) -> list[AtomicUnitDB]:
+    def get_units_by_source_file(self, source_file: str) -> list[AtomicItemDB]:
         """Get all units from a specific source file."""
         with self.get_session() as session:
-            statement = select(AtomicUnitDB).where(
-                AtomicUnitDB.source_file == source_file
+            statement = select(AtomicItemDB).where(
+                AtomicItemDB.source_file == source_file
             )
             return session.exec(statement).all()
 
     def delete_units_by_source_file(self, source_file: str) -> int:
         """Delete all units from a specific source file and return count."""
         with self.get_session() as session:
-            units = select(AtomicUnitDB).where(AtomicUnitDB.source_file == source_file)
+            units = select(AtomicItemDB).where(AtomicItemDB.source_file == source_file)
             count = len(session.exec(units).all())
 
             if count > 0:
                 session.exec(
-                    f"DELETE FROM atomicunit WHERE source_file = '{source_file}'"
+                    f"DELETE FROM AtomicItem WHERE source_file = '{source_file}'"
                 )
                 session.commit()
 
@@ -186,19 +186,19 @@ class DatabaseManager:
     def get_all_source_files(self) -> list[str]:
         """Get a list of all source files in the database."""
         with self.get_session() as session:
-            statement = select(AtomicUnitDB.source_file).distinct()
+            statement = select(AtomicItemDB.source_file).distinct()
             return list(session.exec(statement))
 
     def count_total_units(self) -> int:
         """Count the total number of atomic units in the database."""
         with self.get_session() as session:
-            statement = select(AtomicUnitDB)
+            statement = select(AtomicItemDB)
             return len(session.exec(statement).all())
 
     def count_units_with_summary(self) -> int:
         """Count atomic units with summaries."""
         with self.get_session() as session:
-            statement = select(AtomicUnitDB).where(AtomicUnitDB.summary != None)  # noqa: E711
+            statement = select(AtomicItemDB).where(AtomicItemDB.summary != None)  # noqa: E711
             return len(session.exec(statement).all())
 
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     engine = create_engine(f"sqlite:///{str(DB_PATH)}", echo=False)
     with Session(engine) as session:
         db_rows = session.exec(
-            select(AtomicUnitDB)
-        ).all()  # This returns a list of AtomicUnitDB
+            select(AtomicItemDB)
+        ).all()  # This returns a list of AtomicItemDB
         units = [row.to_core_atomic_unit() for row in db_rows]
     print(len(units))

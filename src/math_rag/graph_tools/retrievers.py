@@ -128,7 +128,7 @@ class GraphRetrieverTool(Tool):
         index_name = "vector_index_summaryEmbedding"
         embedding_property = "summaryEmbedding"
 
-        keyword_index_name = "fulltext_index_AtomicUnit"
+        keyword_index_name = "fulltext_index_AtomicItem"
 
         logger.info(
             f"Creating hybrid retriever with model={model_name}, "
@@ -229,7 +229,7 @@ def main(query: str, search_type: str, model: str = DEFAULT_MODEL, k: int = 5):
     embedding_provider = get_embedding_provider(model)
 
     # Determine the correct index and property names based on model
-    index_name = "vector_index_AtomicUnit"
+    index_name = "vector_index_AtomicItem"
     embedding_property = "textEmbedding"
 
     if search_type == "vector":
@@ -244,7 +244,7 @@ def main(query: str, search_type: str, model: str = DEFAULT_MODEL, k: int = 5):
         results = store.similarity_search_with_score(query, k=k, threshold=0.25)
 
     elif search_type == "hybrid":
-        keyword_index_name = "fulltext_index_AtomicUnit"
+        keyword_index_name = "fulltext_index_AtomicItem"
         store = Neo4jVector.from_existing_index(
             embedding_provider,
             url=os.getenv("NEO4J_URI"),

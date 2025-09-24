@@ -8,8 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
 
-from math_rag.core.atomic_unit import AtomicUnit as CoreAtomicUnit
-from math_rag.core.db_models import AtomicUnit, DatabaseManager
+from math_rag.core.atomic_unit import AtomicItem as CoreAtomicItem
+from math_rag.core.db_models import AtomicItem, DatabaseManager
 from math_rag.core.project_root import ROOT
 
 # Setup logging
@@ -79,15 +79,15 @@ def process_file(file_path: Path, db_manager: DatabaseManager) -> int:
     atomic_units = []
     for chunk_data in chunks:
         try:
-            if isinstance(chunk_data, CoreAtomicUnit):
+            if isinstance(chunk_data, CoreAtomicItem):
                 core_unit = chunk_data
             elif isinstance(chunk_data, dict):
-                core_unit = CoreAtomicUnit.from_dict(chunk_data)
+                core_unit = CoreAtomicItem.from_dict(chunk_data)
             else:
                 logger.warning(f"Unknown chunk type in {file_path}: {type(chunk_data)}")
                 continue
 
-            db_unit = AtomicUnit.from_core_atomic_unit(
+            db_unit = AtomicItem.from_core_atomic_unit(
                 core_unit, source_file=file_identifier
             )
             atomic_units.append(db_unit)

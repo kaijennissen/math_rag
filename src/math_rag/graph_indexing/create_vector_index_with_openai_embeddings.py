@@ -2,7 +2,7 @@
 Script to create vector indexes in Neo4j using OpenAI embeddings for similarity search.
 
 This script handles:
-1. Creating the AtomicUnit label on all content nodes
+1. Creating the AtomicItem label on all content nodes
 2. Creating vector indexes for embedding-based similarity search using OpenAI embeddings
 3. Testing the vector index with sample queries
 
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 def create_vector_index(
     driver: GraphDatabase.driver,
-    label: str = "AtomicUnit",
+    label: str = "AtomicItem",
     property_name: str = "textEmbedding",
     dimensions: int = 1536,
     similarity_function: str = "cosine",
@@ -44,7 +44,7 @@ def create_vector_index(
 
     Args:
         driver: Neo4j driver instance
-        label: Node label to index (default: AtomicUnit)
+        label: Node label to index (default: AtomicItem)
         property_name: Property containing vector embeddings (default: textEmbedding)
         dimensions: Vector dimensions (default: 1536 for OpenAI text-embedding-3-small)
         similarity_function: Similarity function (default: cosine)
@@ -103,7 +103,7 @@ def test_vector_search(driver: GraphDatabase.driver, query: str = "Topologie"):
         search_result = session.run(
             """
             CALL db.index.vector.queryNodes(
-              'vector_index_AtomicUnit',
+              'vector_index_AtomicItem',
               5,
               $embedding
             )
@@ -143,7 +143,7 @@ def test_vector_search(driver: GraphDatabase.driver, query: str = "Topologie"):
 def main(
     test: bool = False,
     query: str = "",
-    label: str = "AtomicUnit",
+    label: str = "AtomicItem",
     property_name: str = "textEmbedding",
 ):
     """Main function to create and test vector index."""
@@ -160,8 +160,8 @@ def main(
     driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
 
     try:
-        # Ensure AtomicUnit label
-        logger.info("Ensuring AtomicUnit label...")
+        # Ensure AtomicItem label
+        logger.info("Ensuring AtomicItem label...")
         ensure_atomic_unit_label(driver)
 
         # Create vector index
@@ -192,8 +192,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--label",
         type=str,
-        default="AtomicUnit",
-        help="Node label to create index for (default: AtomicUnit)",
+        default="AtomicItem",
+        help="Node label to create index for (default: AtomicItem)",
     )
     parser.add_argument(
         "--property",

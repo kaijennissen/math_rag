@@ -17,9 +17,9 @@ def show_summary_comparison(args):
     with db_manager.get_session() as session:
         from sqlmodel import select
 
-        from math_rag.core.db_models import AtomicUnit
+        from math_rag.core.db_models import AtomicItem
 
-        statement = select(AtomicUnit).where(AtomicUnit.summary.is_not(None))
+        statement = select(AtomicItem).where(AtomicItem.summary.is_not(None))
         if args.limit:
             statement = statement.limit(args.limit)
 

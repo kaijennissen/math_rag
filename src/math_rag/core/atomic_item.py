@@ -29,7 +29,7 @@ GERMAN_TO_ENGLISH_TYPE = {
 }
 
 
-class AtomicUnit(BaseModel):
+class AtomicItem(BaseModel):
     """Represents a single atomic unit of mathematical content."""
 
     section: int
@@ -106,26 +106,26 @@ class AtomicUnit(BaseModel):
         return v
 
     @classmethod
-    def from_dict(cls, data: dict) -> "AtomicUnit":
+    def from_dict(cls, data: dict) -> "AtomicItem":
         """
-        Creates an AtomicUnit instance from a dictionary.
+        Creates an AtomicItem instance from a dictionary.
 
         Args:
             data: Dictionary containing the atomic unit data
 
         Returns:
-            An instance of AtomicUnit
+            An instance of AtomicItem
         """
         return cls.model_validate(data)
 
     @classmethod
-    def from_db_row(cls, db_row: Any) -> "AtomicUnit":
+    def from_db_row(cls, db_row: Any) -> "AtomicItem":
         """
-        Creates an AtomicUnit instance from a database row (db_models.AtomicUnit).
+        Creates an AtomicItem instance from a database row (db_models.AtomicItem).
         Args:
-            db_row: An instance of db_models.AtomicUnit (SQLModel row).
+            db_row: An instance of db_models.AtomicItem (SQLModel row).
         Returns:
-            AtomicUnit: The Pydantic model instance.
+            AtomicItem: The Pydantic model instance.
         """
         return cls.model_validate(
             {
@@ -167,7 +167,7 @@ if __name__ == "__main__":
             print(f"  Found {len(chunks)} chunks")
             for i, chunk in enumerate(chunks, 1):
                 try:
-                    unit = AtomicUnit.from_dict(chunk)
+                    unit = AtomicItem.from_dict(chunk)
                     # print(f"    [OK] Chunk {i}/{len(chunks)}: {unit.identifier}")
                 except Exception as e:
                     print(f"    [FAIL] Chunk {i}/{len(chunks)}: {e}")

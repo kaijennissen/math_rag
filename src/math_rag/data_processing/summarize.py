@@ -15,7 +15,7 @@ from langchain_openai import ChatOpenAI
 from tqdm import tqdm
 
 from math_rag.core import ROOT
-from math_rag.core.db_models import AtomicUnit, DatabaseManager
+from math_rag.core.db_models import AtomicItem, DatabaseManager
 
 # Load environment variables
 load_dotenv()
@@ -59,7 +59,7 @@ INHALT:
 SUCHOPTIMIERTE ZUSAMMENFASSUNG:"""
 
 
-def generate_summary_prompt(unit: AtomicUnit) -> str:
+def generate_summary_prompt(unit: AtomicItem) -> str:
     """
     Generate a prompt for summarizing an atomic unit.
 
@@ -88,7 +88,7 @@ def generate_summary_prompt(unit: AtomicUnit) -> str:
     )
 
 
-def generate_summary(unit: AtomicUnit, model_name: str) -> Optional[str]:
+def generate_summary(unit: AtomicItem, model_name: str) -> Optional[str]:
     """
     Generate a summary for an atomic unit using the configured LLM.
 

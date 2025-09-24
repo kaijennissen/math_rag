@@ -2,7 +2,7 @@
 Script to create fulltext indexes in Neo4j for keyword search in the knowledge graph.
 
 This script handles:
-1. Creating the AtomicUnit label on all content nodes
+1. Creating the AtomicItem label on all content nodes
 2. Creating fulltext indexes for keyword search
 3. Testing the fulltext index with sample queries
 """
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 def create_fulltext_index(
     driver: GraphDatabase.driver,
-    label: str = "AtomicUnit",
+    label: str = "AtomicItem",
     properties: list = None,
     index_name: str = None,
 ):
@@ -38,7 +38,7 @@ def create_fulltext_index(
 
     Args:
         driver: Neo4j driver instance
-        label: Node label to index (default: AtomicUnit)
+        label: Node label to index (default: AtomicItem)
         properties: List of properties to index (default: ["text", "title", "proof"])
         index_name: Custom index name (default: fulltext_index_{label})
     """
@@ -76,7 +76,7 @@ def test_fulltext_search(driver: GraphDatabase.driver, query: str = "Umgebungsba
         search_result = session.run(
             """
             CALL db.index.fulltext.queryNodes(
-              "fulltext_index_AtomicUnit",
+              "fulltext_index_AtomicItem",
               $query,
               {limit: 5}
             )
@@ -116,7 +116,7 @@ def test_fulltext_search(driver: GraphDatabase.driver, query: str = "Umgebungsba
 def main(
     test: bool = False,
     query: str = "",
-    label: str = "AtomicUnit",
+    label: str = "AtomicItem",
     properties: list = [],
 ):
     """Main function to create and test fulltext index."""
@@ -133,8 +133,8 @@ def main(
     driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
 
     try:
-        # Ensure AtomicUnit label
-        logger.info("Ensuring AtomicUnit label...")
+        # Ensure AtomicItem label
+        logger.info("Ensuring AtomicItem label...")
         ensure_atomic_unit_label(driver)
 
         # Set default properties if not provided
@@ -171,8 +171,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--label",
         type=str,
-        default="AtomicUnit",
-        help="Node label to create index for (default: AtomicUnit)",
+        default="AtomicItem",
+        help="Node label to create index for (default: AtomicItem)",
     )
     parser.add_argument(
         "--properties",
