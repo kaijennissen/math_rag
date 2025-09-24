@@ -304,6 +304,8 @@ The system creates a knowledge graph that captures the following elements from m
 
 This structure enables more sophisticated retrieval than traditional vector-based approaches, allowing the system to answer complex mathematical questions that require understanding of mathematical relationships.
 
+![Schema](MathRAG.excalidraw.svg)
+
 ## 🚀 Using the Chat Interface
 
 You can interact with the graph-based RAG system through the command-line interface:

@@ -5,14 +5,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Development Guidelines for math_rag
 
 ## Environment Setup
-- All commands must be run in the micromamba environment: `micromamba run -n math_rag <command>`
-- IMPORTANT: Never use pip directly. Always use `python -m pip` to ensure the correct pip is used
+- Use `uv` for Python environment and dependency management
+- IMPORTANT: Use `uv` commands for all package operations to ensure fast and reliable dependency resolution
 
 ## Build and Test Commands
-- Install dependencies: `micromamba run -n math_rag python -m pip install -r requirements/dev.txt`
-- Run all tests: `micromamba run -n math_rag pytest`
-- Run a single test: `micromamba run -n math_rag pytest tests/test_rag_chatbot.py::test_create_rag_chatbot -v`
-- Lint code: `micromamba run -n math_rag ruff format src/ tests/` and `micromamba run -n math_rag ruff check src/ tests/`
+- Sync all dependencies: `uv sync --all-extras`
+- Add new dependencies: `uv add <package-name>`
+- Add development dependencies: `uv add --dev <package-name>`
+- Run all tests: `pytest`
+- Run a single test: `pytest tests/test_rag_chatbot.py::test_create_rag_chatbot -v`
+- Lint code: `ruff format src/ tests/` and `ruff check src/ tests/`
 
 ## Code Style
 - Formatting: Use ruff with 88 character line length
