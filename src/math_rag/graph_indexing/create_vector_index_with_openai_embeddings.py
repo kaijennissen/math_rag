@@ -17,6 +17,12 @@ import os
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
+from math_rag.graph_indexing.utils import (
+    drop_index_if_exists,
+    ensure_atomic_unit_label,
+    verify_nodes,
+)
+
 # Load environment variables
 load_dotenv()
 
@@ -38,81 +44,13 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
 
-def ensure_atomic_unit_label():
-    """Ensure that all content nodes have the AtomicUnit label."""
-    logger.info("Ensuring all content nodes have the AtomicUnit label...")
-    try:
-        with driver.session() as session:
-            result = session.run(
-                """
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
-                  Exercise|Remark)
-            WHERE NOT n:AtomicUnit
-            WITH count(n) AS missingLabel
-            MATCH (n:Introduction|Definition|Corollary|Theorem|Lemma|Proof|Example|
-                  Exercise|Remark)
-            WHERE NOT n:AtomicUnit
-            SET n:AtomicUnit
-            RETURN missingLabel, count(n) AS updated
-            """
-            )
-            record = result.single()
-            if record and record["missingLabel"] > 0:
-                logger.info(f"Added AtomicUnit label to {record['updated']} nodes")
-            else:
-                logger.info("All content nodes already have the AtomicUnit label")
-            return True
-    except Exception as e:
-        logger.error(f"Error ensuring AtomicUnit label: {e}")
-        return False
-
-
-def verify_vector_property_exists(label: str, property_name: str) -> bool:
-    """Verify that nodes have the required vector property."""
-    try:
-        logger.info(f"Verifying {property_name} property exists on {label} nodes...")
-        with driver.session() as session:
-            result = session.run(
-                f"""
-            MATCH (n:{label})
-            WHERE n.{property_name} IS NOT NULL
-            RETURN count(n) as count
-            """
-            )
-            node_count = result.single()["count"]
-
-        if node_count == 0:
-            logger.warning(f"No {label} nodes with {property_name} property found.")
-            return False
-        else:
-            logger.info(
-                f"Found {node_count} {label} nodes with {property_name} property."
-            )
-            return True
-    except Exception as e:
-        logger.error(f"Error verifying {property_name} property: {e}")
-        return False
-
-
-def drop_index_if_exists(index_name: str) -> bool:
-    """Drop an index if it exists."""
-    try:
-        logger.info(f"Dropping existing index {index_name} if it exists...")
-        with driver.session() as session:
-            session.run(f"DROP INDEX {index_name} IF EXISTS")
-        return True
-    except Exception as e:
-        logger.warning(f"Error dropping index {index_name}: {e}")
-        return False
-
-
 def create_vector_index(
     label: str = "AtomicUnit",
     property_name: str = "textEmbedding",
     dimensions: int = 1536,
     similarity_function: str = "cosine",
     index_name: str = None,
-) -> bool:
+):
     """Create or recreate a vector index for specified nodes and property.
 
     Args:
@@ -121,27 +59,24 @@ def create_vector_index(
         dimensions: Vector dimensions (default: 1536 for OpenAI text-embedding-3-small)
         similarity_function: Similarity function (default: cosine)
         index_name: Custom index name (default: vector_index_{label})
-
-    Returns:
-        True if successful, False otherwise
     """
     if index_name is None:
         index_name = f"vector_index_{label}"
 
     # Verify nodes have the required property
-    if not verify_vector_property_exists(label, property_name):
-        return False
+    exists, count = verify_nodes(driver, label, property_name)
+    if not exists:
+        logger.error(f"No {label} nodes with {property_name} property found.")
+        return
 
     # Drop existing index
-    if not drop_index_if_exists(index_name):
-        logger.warning("Failed to drop existing index, but continuing...")
+    drop_index_if_exists(driver, index_name)
 
     # Create new vector index
-    try:
-        logger.info(f"Creating vector index {index_name} on {label}.{property_name}...")
-        with driver.session() as session:
-            session.run(
-                f"""
+    logger.info(f"Creating vector index {index_name} on {label}.{property_name}...")
+    with driver.session() as session:
+        session.run(
+            f"""
             CREATE VECTOR INDEX {index_name}
             FOR (n:{label}) ON n.{property_name}
             OPTIONS {{
@@ -151,35 +86,29 @@ def create_vector_index(
                 }}
             }}
             """
-            )
-        logger.info(f"Successfully created vector index {index_name}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to create vector index {index_name}: {e}")
-        return False
+        )
+    logger.info(f"Successfully created vector index {index_name}")
 
 
 def test_vector_search(query="Topologie"):
     """Test vector search with a sample query using OpenAI embeddings."""
-    # Add extra debug logging for the query
     logger.info(f"Testing vector search with query: '{query}'")
 
-    try:
-        # Import OpenAI embeddings here to avoid circular imports
-        from langchain_openai import OpenAIEmbeddings
+    # Import OpenAI embeddings here to avoid circular imports
+    from langchain_openai import OpenAIEmbeddings
 
-        # Initialize embedding model
-        embedding_model = OpenAIEmbeddings(
-            openai_api_key=OPENAI_API_KEY, model="text-embedding-3-small"
-        )
+    # Initialize embedding model
+    embedding_model = OpenAIEmbeddings(
+        openai_api_key=OPENAI_API_KEY, model="text-embedding-3-small"
+    )
 
-        # Generate embedding for the query using LangChain
-        query_embedding = embedding_model.embed_query(query)
+    # Generate embedding for the query using LangChain
+    query_embedding = embedding_model.embed_query(query)
 
-        # Perform vector search
-        with driver.session() as session:
-            search_result = session.run(
-                """
+    # Perform vector search
+    with driver.session() as session:
+        search_result = session.run(
+            """
             CALL db.index.vector.queryNodes(
               'vector_index_AtomicUnit',
               5,
@@ -194,33 +123,28 @@ def test_vector_search(query="Topologie"):
               node.identifier AS identifier
             ORDER BY score DESC
             """,
-                {"embedding": query_embedding},
-            )
+            {"embedding": query_embedding},
+        )
 
-            results = list(search_result)
+        results = list(search_result)
 
-            logger.info(f"Found {len(results)} results")
+        logger.info(f"Found {len(results)} results")
 
-            for i, record in enumerate(results):
-                logger.info(f"Result {i + 1} (Score: {record['score']:.4f}):")
-                if "identifier" in record and record["identifier"]:
-                    logger.info(f"Identifier: {record['identifier']}")
-                if "type" in record and record["type"]:
-                    logger.info(f"Type: {record['type']}")
-                if "title" in record and record["title"]:
-                    logger.info(f"Title: {record['title']}")
+        for i, record in enumerate(results):
+            logger.info(f"Result {i + 1} (Score: {record['score']:.4f}):")
+            if "identifier" in record and record["identifier"]:
+                logger.info(f"Identifier: {record['identifier']}")
+            if "type" in record and record["type"]:
+                logger.info(f"Type: {record['type']}")
+            if "title" in record and record["title"]:
+                logger.info(f"Title: {record['title']}")
 
-                # Show a preview of the text
-                text_preview = record["text"]
-                if len(text_preview) > 200:
-                    text_preview = text_preview[:200] + "..."
-                logger.info(f"Text: {text_preview}")
-                logger.info("-" * 40)
-
-            return len(results) > 0
-    except Exception as e:
-        logger.error(f"Error testing vector search: {e}")
-        return False
+            # Show a preview of the text
+            text_preview = record["text"]
+            if len(text_preview) > 200:
+                text_preview = text_preview[:200] + "..."
+            logger.info(f"Text: {text_preview}")
+            logger.info("-" * 40)
 
 
 def main(
@@ -233,21 +157,16 @@ def main(
 
     # Ensure AtomicUnit label
     logger.info("Ensuring AtomicUnit label...")
-    ensure_atomic_unit_label()
+    ensure_atomic_unit_label(driver)
 
     # Create vector index
     logger.info(f"Creating vector index for {label}.{property_name}...")
-    success = create_vector_index(label=label, property_name=property_name)
-    if success:
-        logger.info("Vector index created successfully.")
-        if test and query:
-            test_vector_search(query)
-    else:
-        logger.error("Failed to create vector index.")
+    create_vector_index(label=label, property_name=property_name)
+    logger.info("Vector index created successfully.")
 
-    # If only testing was requested
-    if test and not query:
-        test_vector_search()
+    # Test if requested
+    if test:
+        test_vector_search(query if query else "Topologie")
 
     logger.info("Vector index operations completed.")
 
