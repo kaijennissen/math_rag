@@ -8,18 +8,15 @@ This module provides a simple interface to build the entire knowledge graph incl
 4. Vector index
 """
 
-import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
 from langchain_neo4j import Neo4jGraph
 from neo4j import GraphDatabase
 
+from math_rag.config.settings import KnowledgeGraphSettings
 from math_rag.core.db_models import DatabaseManager
-from math_rag.core.project_root import ROOT
 from math_rag.graph_construction.add_reference_relationships import (
     add_references_to_graph,
     load_reference_tuples,
@@ -41,17 +38,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Default paths and names
-DB_PATH = ROOT / "data" / "atomic_units.sqlite"
-REFERENCE_TUPLES_PATH = ROOT / "data" / "reference_tuples.pkl"
-DOCUMENT_NAME = "topological_spaces"
-
 
 def build_complete_knowledge_graph(
     db_manager: DatabaseManager,
     graph: Neo4jGraph,
     driver: GraphDatabase.driver,
     document_name: str,
+    reference_tuples_path: Path,
     clear_first: bool = True,
 ):
     """
@@ -81,7 +74,7 @@ def build_complete_knowledge_graph(
 
     # Phase 2: Add reference relationships
     logger.info("=== Phase 2: Adding Reference Relationships ===")
-    reference_tuples = load_reference_tuples(REFERENCE_TUPLES_PATH)
+    reference_tuples = load_reference_tuples(reference_tuples_path)
     if reference_tuples:
         relationships_created = add_references_to_graph(
             graph=graph,
@@ -117,28 +110,30 @@ def build_complete_knowledge_graph(
     logger.info("=== ✓ Complete knowledge graph build finished successfully ===")
 
 
-def main(db_path: str, document_name: str, clear: bool):
+def main(
+    db_path: Path,
+    document_name: str,
+    clear: bool,
+    neo4j_uri: str,
+    neo4j_username: str,
+    neo4j_password: str,
+    reference_tuples_path: Path,
+):
     """Main entry point for the CLI.
 
     Args:
         db_path: Path to SQLite database
         document_name: Name of the document to process
-        clear_first: Whether to clear existing graph data before building
+        clear: Whether to clear existing graph data
+        neo4j_uri: Neo4j connection URI
+        neo4j_username: Neo4j username
+        neo4j_password: Neo4j password
+        reference_tuples_path: Path to reference tuples pickle file
     """
-
-    # Load environment variables
-    load_dotenv()
-    neo4j_uri = os.getenv("NEO4J_URI")
-    neo4j_username = os.getenv("NEO4J_USERNAME")
-    neo4j_password = os.getenv("NEO4J_PASSWORD")
-
-    if not all([neo4j_uri, neo4j_username, neo4j_password]):
-        logger.error("Neo4j credentials not found in environment variables")
-        sys.exit(1)
 
     # Create all resources
     logger.info("Creating database connections and resources...")
-    db_manager = DatabaseManager(Path(db_path))
+    db_manager = DatabaseManager(db_path)
     graph = Neo4jGraph(
         url=neo4j_uri,
         username=neo4j_username,
@@ -156,6 +151,7 @@ def main(db_path: str, document_name: str, clear: bool):
             graph=graph,
             driver=driver,
             document_name=document_name,
+            reference_tuples_path=reference_tuples_path,
             clear_first=clear,
         )
 
@@ -174,42 +170,20 @@ def main(db_path: str, document_name: str, clear: bool):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Build complete Knowledge Graph with all indices",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Build complete knowledge graph with default settings
-  python -m math_rag.cli.kg_cli
+    # Pydantic-settings handles both environment variables and CLI arguments
+    # Usage examples:
+    #   python -m math_rag.cli.kg_cli
+    #   python -m math_rag.cli.kg_cli --db-path /path/to/database.sqlite
+    #   python -m math_rag.cli.kg_cli --document-name my_document
+    #   python -m math_rag.cli.kg_cli --clear
 
-  # Build with custom database path
-  python -m math_rag.cli.kg_cli --db-path /path/to/database.sqlite
-
-  # Build without clearing existing data
-  python -m math_rag.cli.kg_cli --no-clear
-
-  # Build for a different document
-  python -m math_rag.cli.kg_cli --document-name my_document
-        """,
+    settings = KnowledgeGraphSettings()
+    main(
+        db_path=settings.db_path,
+        document_name=settings.document_name,
+        clear=settings.clear,
+        neo4j_uri=settings.neo4j_uri,
+        neo4j_username=settings.neo4j_username,
+        neo4j_password=settings.neo4j_password,
+        reference_tuples_path=settings.reference_tuples_path,
     )
-
-    parser.add_argument(
-        "--db-path",
-        type=str,
-        default=str(DB_PATH),
-        help=f"Path to SQLite database (default: {DB_PATH})",
-    )
-    parser.add_argument(
-        "--document-name",
-        type=str,
-        default=DOCUMENT_NAME,
-        help=f"Name of the document to process (default: {DOCUMENT_NAME})",
-    )
-    parser.add_argument(
-        "--clear",
-        action="store_true",
-        help="Clear existing graph data before building.",
-    )
-
-    args = parser.parse_args()
-    main(db_path=args.db_path, document_name=args.document_name, clear=args.clear)
