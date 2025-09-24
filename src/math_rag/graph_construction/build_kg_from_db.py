@@ -5,6 +5,7 @@ Build Neo4j knowledge graph from SQLite database instead of files.
 import logging
 import os
 from collections import defaultdict
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain_neo4j import Neo4jGraph
@@ -193,73 +194,6 @@ def create_next_relationship(
         """,
         {"current_id": current_id, "next_id": next_id},
     )
-
-
-# def create_atomic_unit_nodes(session, unit_data: List[Dict[str, Any]]) -> None:
-#     """
-#     Create atomic unit nodes in Neo4j from unit data.
-
-#     Args:
-#         session: Neo4j session
-#         unit_data: List of atomic unit dictionaries
-#     """
-#     for unit in unit_data:
-#         document_name = DOCUMENT_NAME
-#         subsection_number = f"{unit['section']}.{unit['subsection']}"
-#         subsubsection_number = (
-#             f"{unit['section']}.{unit['subsection']}.{unit['subsubsection']}"
-#         )
-#         sanitized_label = unit["type"]
-
-#         # Create the subsection ID that matches what create_document_hierarchy creates
-#         subsection_id = f"{document_name}_{subsection_number}"
-
-#         # First, verify the subsection exists (this helps debug missing connections)
-#         check_query = """
-#         MATCH (sub:Subsection {id: $subsection_id})
-#         RETURN sub.id as id
-#         """
-#         check_result = session.run(check_query, {"subsection_id": subsection_id})
-#         if not check_result.single():
-#             logger.warning(
-#                 f"Subsection {subsection_id} not found for atomic unit "
-#                 f"{subsubsection_number}"
-#             )
-#             continue
-
-#         # Construct the MERGE query dynamically with the sanitized label
-#         query = f"""
-#         MATCH (sub:Subsection {{id: $subsection_id}})
-#         MERGE (c:{sanitized_label} {{id: $subsubsection_id,
-#                                     number: $subsubsection_number}})
-#         SET c.text = $text,
-#             c.type = $type,
-#             c.title = $title,
-#             c.proof = $proof,
-#             c.textEmbedding = Null
-#         MERGE (c)-[:PART_OF]->(sub)
-#         """
-
-#         # Add summary if available
-#         if "summary" in unit and unit["summary"]:
-#             query = query.replace(
-#                 "c.textEmbedding = Null",
-#                 "c.textEmbedding = Null, c.summary = $summary"
-#             )
-
-#         session.run(
-#             query,
-#             {
-#                 "subsection_id": subsection_id,
-#                 "subsubsection_id": f"{document_name}_{subsubsection_number}",
-#                 "subsubsection_number": subsubsection_number,
-#                 "text": unit["text"],
-#                 "type": unit["type"],
-#                 "title": unit.get("identifier", ""),
-#                 "proof": unit.get("proof"),
-#                 "summary": unit.get("summary"),
-#             },
-#         )
 
 
 def clear_neo4j_database(driver) -> None:
@@ -477,19 +411,16 @@ def build_knowledge_graph_from_sqlite(
         driver.close()
 
 
-def main(clear_first: bool = True, db_path: str = None):
+def main(clear_first: bool, db_path: str):
     """Main entry point for CLI usage.
 
     Args:
         clear_first: Whether to clear Neo4j database before building
         db_path: Path to SQLite database (defaults to default path)
     """
-    # Use default path if none provided
-    if db_path is None:
-        db_path = DB_PATH
 
     # Create database manager
-    db_manager = DatabaseManager(db_path)
+    db_manager = DatabaseManager(Path(db_path))
     graph = Neo4jGraph(
         url=os.getenv("NEO4J_URI"),
         username=os.getenv("NEO4J_USERNAME"),
@@ -514,7 +445,9 @@ if __name__ == "__main__":
         help="Clear Neo4j database before building",
     )
     parser.add_argument(
-        "--db-path", help=f"Path to SQLite database (default: {DB_PATH})"
+        "--db-path",
+        default=DB_PATH,
+        help=f"Path to SQLite database (default: {DB_PATH})",
     )
 
     args = parser.parse_args()

@@ -19,9 +19,6 @@ from math_rag.graph_indexing.utils import (
     ensure_atomic_unit_label,
 )
 
-# Load environment variables
-load_dotenv()
-
 # Configure logger
 logging.basicConfig(
     level=logging.INFO,
@@ -30,21 +27,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Neo4j connection details
-NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
-
-# Direct Neo4j driver
-driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
-
 
 def create_fulltext_index(
-    label: str = "AtomicUnit", properties: list = None, index_name: str = None
+    driver: GraphDatabase.driver,
+    label: str = "AtomicUnit",
+    properties: list = None,
+    index_name: str = None,
 ):
     """Create a fulltext index for specified nodes and properties.
 
     Args:
+        driver: Neo4j driver instance
         label: Node label to index (default: AtomicUnit)
         properties: List of properties to index (default: ["text", "title", "proof"])
         index_name: Custom index name (default: fulltext_index_{label})
@@ -75,7 +68,7 @@ def create_fulltext_index(
     logger.info(f"Successfully created fulltext index {index_name}")
 
 
-def test_fulltext_search(query="topologisch"):
+def test_fulltext_search(driver: GraphDatabase.driver, query: str = "Umgebungsbasis"):
     """Test fulltext search with a sample query."""
     logger.info(f"Testing fulltext search with query: '{query}'")
 
@@ -124,28 +117,44 @@ def main(
     test: bool = False,
     query: str = "",
     label: str = "AtomicUnit",
-    properties: list = None,
+    properties: list = [],
 ):
     """Main function to create and test fulltext index."""
 
-    # Ensure AtomicUnit label
-    logger.info("Ensuring AtomicUnit label...")
-    ensure_atomic_unit_label(driver)
+    # Load environment variables
+    load_dotenv()
 
-    # Set default properties if not provided
-    if properties is None:
-        properties = ["text", "title", "proof"]
+    # Get Neo4j connection details
+    neo4j_uri = os.getenv("NEO4J_URI")
+    neo4j_username = os.getenv("NEO4J_USERNAME")
+    neo4j_password = os.getenv("NEO4J_PASSWORD")
 
-    # Create fulltext index
-    logger.info(f"Creating fulltext index for {label} on properties {properties}...")
-    create_fulltext_index(label=label, properties=properties)
-    logger.info("Fulltext index created successfully.")
+    # Create driver
+    driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
 
-    # Test if requested
-    if test:
-        test_fulltext_search(query if query else "topologisch")
+    try:
+        # Ensure AtomicUnit label
+        logger.info("Ensuring AtomicUnit label...")
+        ensure_atomic_unit_label(driver)
 
-    logger.info("Fulltext index operations completed.")
+        # Set default properties if not provided
+        if not properties:
+            properties = ["text", "title", "proof"]
+
+        # Create fulltext index
+        logger.info(
+            f"Creating fulltext index for {label} on properties {properties}..."
+        )
+        create_fulltext_index(driver, label=label, properties=properties)
+        logger.info("Fulltext index created successfully.")
+
+        # Test if requested
+        if test:
+            test_fulltext_search(driver, query if query else "topologisch")
+
+        logger.info("Fulltext index operations completed.")
+    finally:
+        driver.close()
 
 
 if __name__ == "__main__":

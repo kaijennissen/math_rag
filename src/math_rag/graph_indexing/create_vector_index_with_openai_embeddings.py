@@ -23,9 +23,6 @@ from math_rag.graph_indexing.utils import (
     verify_nodes,
 )
 
-# Load environment variables
-load_dotenv()
-
 # Configure logger
 logging.basicConfig(
     level=logging.INFO,
@@ -34,17 +31,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Neo4j connection details
-NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-# Direct Neo4j driver
-driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
-
 
 def create_vector_index(
+    driver: GraphDatabase.driver,
     label: str = "AtomicUnit",
     property_name: str = "textEmbedding",
     dimensions: int = 1536,
@@ -54,6 +43,7 @@ def create_vector_index(
     """Create or recreate a vector index for specified nodes and property.
 
     Args:
+        driver: Neo4j driver instance
         label: Node label to index (default: AtomicUnit)
         property_name: Property containing vector embeddings (default: textEmbedding)
         dimensions: Vector dimensions (default: 1536 for OpenAI text-embedding-3-small)
@@ -90,16 +80,19 @@ def create_vector_index(
     logger.info(f"Successfully created vector index {index_name}")
 
 
-def test_vector_search(query="Topologie"):
+def test_vector_search(driver: GraphDatabase.driver, query: str = "Topologie"):
     """Test vector search with a sample query using OpenAI embeddings."""
     logger.info(f"Testing vector search with query: '{query}'")
 
     # Import OpenAI embeddings here to avoid circular imports
     from langchain_openai import OpenAIEmbeddings
 
+    # Get OpenAI API key
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+
     # Initialize embedding model
     embedding_model = OpenAIEmbeddings(
-        openai_api_key=OPENAI_API_KEY, model="text-embedding-3-small"
+        openai_api_key=openai_api_key, model="text-embedding-3-small"
     )
 
     # Generate embedding for the query using LangChain
@@ -155,20 +148,34 @@ def main(
 ):
     """Main function to create and test vector index."""
 
-    # Ensure AtomicUnit label
-    logger.info("Ensuring AtomicUnit label...")
-    ensure_atomic_unit_label(driver)
+    # Load environment variables
+    load_dotenv()
 
-    # Create vector index
-    logger.info(f"Creating vector index for {label}.{property_name}...")
-    create_vector_index(label=label, property_name=property_name)
-    logger.info("Vector index created successfully.")
+    # Get Neo4j connection details
+    neo4j_uri = os.getenv("NEO4J_URI")
+    neo4j_username = os.getenv("NEO4J_USERNAME")
+    neo4j_password = os.getenv("NEO4J_PASSWORD")
 
-    # Test if requested
-    if test:
-        test_vector_search(query if query else "Topologie")
+    # Create driver
+    driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
 
-    logger.info("Vector index operations completed.")
+    try:
+        # Ensure AtomicUnit label
+        logger.info("Ensuring AtomicUnit label...")
+        ensure_atomic_unit_label(driver)
+
+        # Create vector index
+        logger.info(f"Creating vector index for {label}.{property_name}...")
+        create_vector_index(driver, label=label, property_name=property_name)
+        logger.info("Vector index created successfully.")
+
+        # Test if requested
+        if test:
+            test_vector_search(driver, query if query else "Topologie")
+
+        logger.info("Vector index operations completed.")
+    finally:
+        driver.close()
 
 
 if __name__ == "__main__":

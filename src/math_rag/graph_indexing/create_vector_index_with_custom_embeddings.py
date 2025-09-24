@@ -43,9 +43,6 @@ from math_rag.graph_indexing.utils import (
     verify_property_populated,
 )
 
-# Load environment variables
-load_dotenv()
-
 # Configure logger
 logging.basicConfig(
     level=logging.INFO,
@@ -53,12 +50,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
-
-# Neo4j connection details
-NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Embedding model configuration
 DEFAULT_MODEL = "E5 Multilingual"
@@ -79,9 +70,6 @@ MODEL_CONFIGS = {
         "dimensions": 1024,
     },
 }
-
-# Direct Neo4j driver for verification
-driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
 
 def get_embedding_model(model_name):
@@ -112,7 +100,8 @@ def get_embedding_model(model_name):
 
 
 def add_embeddings_with_neo4j_vector(
-    model_name: str,
+    driver: GraphDatabase.driver,
+    embedding_model,
     label: str = "AtomicUnit",
     text_properties: list = None,
     embedding_property: str = None,
@@ -123,7 +112,8 @@ def add_embeddings_with_neo4j_vector(
     This method handles both embedding creation and index creation in one step.
 
     Args:
-        model_name: Name of the embedding model to use
+        driver: Neo4j driver instance
+        embedding_model: Initialized embedding model instance
         label: Node label to process (default: AtomicUnit)
         text_properties: List of properties to use for embedding calculation
                         (default: ["text", "title"])
@@ -141,13 +131,10 @@ def add_embeddings_with_neo4j_vector(
     if index_name is None:
         index_name = f"vector_index_{embedding_property}"
 
-    logger.info(f"Creating embeddings and vector index using {model_name}...")
+    logger.info("Creating embeddings and vector index...")
     logger.info(
         f"Target: {label} nodes, properties: {text_properties} -> {embedding_property}"
     )
-
-    # Initialize the embedding model
-    embedding_model = get_embedding_model(model_name)
 
     # Count nodes that need embeddings
     node_count = count_nodes_without_property(
@@ -165,9 +152,9 @@ def add_embeddings_with_neo4j_vector(
     logger.info(f"Creating Neo4jVector from existing graph with index {index_name}...")
     Neo4jVector.from_existing_graph(
         embedding=embedding_model,
-        url=NEO4J_URI,
-        username=NEO4J_USERNAME,
-        password=NEO4J_PASSWORD,
+        url=os.getenv("NEO4J_URI"),
+        username=os.getenv("NEO4J_USERNAME"),
+        password=os.getenv("NEO4J_PASSWORD"),
         index_name=index_name,
         node_label=label,
         text_node_properties=text_properties,
@@ -191,17 +178,23 @@ def add_embeddings_with_neo4j_vector(
 
 
 def test_vector_search(
-    query="Topologie", model_name=DEFAULT_MODEL, label="AtomicUnit", index_name=None
+    driver: GraphDatabase.driver,
+    embedding_model,
+    query: str = "Zusammenhang",
+    label: str = "AtomicUnit",
+    index_name: str | None = None,
 ):
     """
     Test vector search with a sample query using the specified embedding model.
 
     Args:
+        driver: Neo4j driver instance
+        embedding_model: Initialized embedding model instance
         query: The query string
-        model_name: Name of the embedding model to use
         label: Node label to search (default: AtomicUnit)
         index_name: Vector index name (default: auto-generated)
     """
+
     if index_name is None:
         index_name = f"vector_index_{label}"
 
@@ -210,9 +203,6 @@ def test_vector_search(
     logger.info(f"Raw query input: '{query}'")
     logger.info(f"Query type: {type(query)}")
     logger.info(f"Query length: {len(query)}")
-
-    # Initialize embedding model
-    embedding_model = get_embedding_model(model_name)
 
     # Generate embedding for the query
     query_embedding = embedding_model.embed_query(query)
@@ -264,40 +254,59 @@ def main(
 ) -> None:
     """Main function to create embeddings and vector index."""
 
-    # Ensure AtomicUnit label
-    logger.info("Ensuring AtomicUnit label...")
-    ensure_atomic_unit_label(driver)
+    # Load environment variables
+    load_dotenv()
 
-    # Verify Neo4j connection and nodes
-    exists, count = verify_nodes(driver, label)
-    if not exists:
-        logger.error(
-            f"No {label} nodes found. Make sure your graph is properly populated."
+    # Get Neo4j connection details
+    neo4j_uri = os.getenv("NEO4J_URI")
+    neo4j_username = os.getenv("NEO4J_USERNAME")
+    neo4j_password = os.getenv("NEO4J_PASSWORD")
+
+    # Create driver
+    driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
+
+    try:
+        # Ensure AtomicUnit label
+        logger.info("Ensuring AtomicUnit label...")
+        ensure_atomic_unit_label(driver)
+
+        # Verify Neo4j connection and nodes
+        exists, _ = verify_nodes(driver, label)
+        if not exists:
+            logger.error(
+                f"No {label} nodes found. Make sure your graph is properly populated."
+            )
+            return
+
+        # Initialize embedding model once
+        logger.info(f"Initializing embedding model: {model_name}")
+        embedding_model = get_embedding_model(model_name)
+
+        # Add embeddings to nodes
+        add_embeddings_with_neo4j_vector(
+            driver,
+            embedding_model,
+            label=label,
+            text_properties=text_properties,
+            embedding_property=embedding_property,
         )
-        return
 
-    # Add embeddings to nodes
-    add_embeddings_with_neo4j_vector(
-        model_name=model_name,
-        label=label,
-        text_properties=text_properties,
-        embedding_property=embedding_property,
-    )
+        logger.info(
+            f"Embeddings and vector index created successfully for {label} nodes "
+            f"using {model_name}. Properties: {text_properties} -> "
+            f"{embedding_property or 'auto-generated'}. "
+            f"The system is now ready for retrieval."
+        )
 
-    logger.info(
-        f"Embeddings and vector index created successfully for {label} nodes "
-        f"using {model_name}. Properties: {text_properties} -> "
-        f"{embedding_property or 'auto-generated'}. "
-        f"The system is now ready for retrieval."
-    )
+        # Test vector search if requested
+        if test:
+            logger.info(f"Query for testing: '{query}'")
+            logger.info(f"Sending to test_vector_search: '{query}'")
+            test_vector_search(driver, embedding_model, query=query, label=label)
 
-    # Test vector search if requested
-    if test:
-        logger.info(f"Query for testing: '{query}'")
-        logger.info(f"Sending to test_vector_search: '{query}'")
-        test_vector_search(query=query, model_name=model_name, label=label)
-
-    logger.info("Process completed.")
+        logger.info("Process completed.")
+    finally:
+        driver.close()
 
 
 if __name__ == "__main__":
