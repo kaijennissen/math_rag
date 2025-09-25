@@ -361,7 +361,7 @@ def ensure_atomic_unit_label(driver):
 def build_knowledge_graph_from_sqlite(
     db_manager: DatabaseManager,
     graph: Neo4jGraph,
-    driver: GraphDatabase.driver,
+    driver: Driver,
     document_name: str,
     clear_first: bool = True,
 ) -> None:

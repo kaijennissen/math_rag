@@ -178,7 +178,7 @@ def add_embeddings_with_neo4j_vector(
 
 
 def test_vector_search(
-    driver: GraphDatabase.driver,
+    driver: Driver,
     embedding_model,
     query: str = "Zusammenhang",
     label: str = "AtomicItem",

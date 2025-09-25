@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_fulltext_index(
-    driver: GraphDatabase.driver,
+    driver: Driver,
     label: str = "AtomicItem",
     properties: list = None,
     index_name: str = None,

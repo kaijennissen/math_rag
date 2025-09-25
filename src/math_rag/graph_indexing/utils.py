@@ -8,7 +8,7 @@ to reduce code duplication and improve maintainability.
 import logging
 from typing import Optional, Tuple
 
-from neo4j import Driver, GraphDatabase
+from neo4j import Driver
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -123,7 +123,7 @@ def verify_nodes(
 
 
 def count_nodes_without_property(
-    driver: GraphDatabase.driver,
+    driver: Driver,
     label: str,
     text_properties: list,
     target_property: str,
@@ -159,7 +159,7 @@ def count_nodes_without_property(
 
 
 def verify_property_populated(
-    driver: GraphDatabase.driver,
+    driver: Driver,
     label: str,
     text_properties: list,
     target_property: str,

@@ -5,6 +5,7 @@ import coloredlogs
 from dotenv import load_dotenv
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_neo4j import Neo4jVector
+from langchain_neo4j.vectorstores.neo4j_vector import SearchType
 from langchain_openai import OpenAIEmbeddings
 from smolagents import Tool
 
@@ -143,7 +144,7 @@ class GraphRetrieverTool(Tool):
             index_name=index_name,  # name of the vector index
             keyword_index_name=keyword_index_name,  # name of the fulltext index
             embedding_node_property=embedding_property,
-            search_type="vector",
+            search_type=SearchType.VECTOR,
         )
 
     def forward(self, query: str, model: str = None) -> str:
@@ -253,7 +254,7 @@ def main(query: str, search_type: str, model: str = DEFAULT_MODEL, k: int = 5):
             index_name=index_name,
             embedding_node_property=embedding_property,
             keyword_index_name=keyword_index_name,
-            search_type="hybrid",
+            search_type=SearchType.HYBRID,
         )
         results = store.similarity_search_with_score(query, k=k, threshold=0.25)
     else:

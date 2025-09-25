@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_vector_index(
-    driver: GraphDatabase.driver,
+    driver: Driver,
     label: str = "AtomicItem",
     property_name: str = "textEmbedding",
     dimensions: int = 1536,
