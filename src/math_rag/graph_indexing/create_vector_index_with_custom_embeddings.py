@@ -102,10 +102,10 @@ def get_embedding_model(model_name):
 def add_embeddings_with_neo4j_vector(
     driver: Driver,
     embedding_model,
+    text_properties: list,
+    embedding_property: str,
+    index_name: str,
     label: str = "AtomicItem",
-    text_properties: list = None,
-    embedding_property: str = None,
-    index_name: str = None,
 ):
     """
     Create embeddings and vector index for nodes using Neo4jVector.from_existing_graph.
@@ -122,19 +122,7 @@ def add_embeddings_with_neo4j_vector(
         index_name: Vector index name (default: auto-generated)
     """
 
-    if embedding_property is None:
-        # Auto-generate embedding property name based on source properties
-        # Add "Embedding" to the list of property names and join with underscore
-        prop_list = text_properties.copy() + ["Embedding"]
-        embedding_property = "_".join(prop_list)
-
-    if index_name is None:
-        index_name = f"vector_index_{embedding_property}"
-
     logger.info("Creating embeddings and vector index...")
-    logger.info(
-        f"Target: {label} nodes, properties: {text_properties} -> {embedding_property}"
-    )
 
     # Count nodes that need embeddings
     node_count = count_nodes_without_property(
@@ -180,9 +168,9 @@ def add_embeddings_with_neo4j_vector(
 def test_vector_search(
     driver: Driver,
     embedding_model,
+    index_name: str,
     query: str = "Zusammenhang",
     label: str = "AtomicItem",
-    index_name: str | None = None,
 ):
     """
     Test vector search with a sample query using the specified embedding model.
@@ -194,9 +182,6 @@ def test_vector_search(
         label: Node label to search (default: AtomicItem)
         index_name: Vector index name (default: auto-generated)
     """
-
-    if index_name is None:
-        index_name = f"vector_index_{label}"
 
     # Add extra debug logging for the query
     logger.info(f"Testing vector search on {label} nodes with index {index_name}")
@@ -280,6 +265,14 @@ def main(
 
         # Initialize embedding model once
         logger.info(f"Initializing embedding model: {model_name}")
+        if embedding_property is None:
+            # Auto-generate embedding property name based on source properties
+            # Add "Embedding" to the list of property names and join with underscore
+            prop_list = text_properties.copy() + ["Embedding"]
+            embedding_property = "_".join(prop_list)
+
+        index_name = f"vector_index_{embedding_property}"
+
         embedding_model = get_embedding_model(model_name)
 
         # Add embeddings to nodes
@@ -287,6 +280,7 @@ def main(
             driver,
             embedding_model,
             label=label,
+            index_name=index_name,
             text_properties=text_properties,
             embedding_property=embedding_property,
         )
@@ -302,7 +296,9 @@ def main(
         if test:
             logger.info(f"Query for testing: '{query}'")
             logger.info(f"Sending to test_vector_search: '{query}'")
-            test_vector_search(driver, embedding_model, query=query, label=label)
+            test_vector_search(
+                driver, embedding_model, query=query, label=label, index_name=index_name
+            )
 
         logger.info("Process completed.")
     finally:

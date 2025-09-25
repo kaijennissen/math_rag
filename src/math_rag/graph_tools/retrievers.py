@@ -1,15 +1,12 @@
 import logging
-import os
+from typing import Any, List
 
 import coloredlogs
-from dotenv import load_dotenv
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.embeddings import Embeddings
 from langchain_neo4j import Neo4jVector
 from langchain_neo4j.vectorstores.neo4j_vector import SearchType
-from langchain_openai import OpenAIEmbeddings
 from smolagents import Tool
 
-load_dotenv()
 # Configure logger
 logger = logging.getLogger(__name__)
 coloredlogs.install(
@@ -18,62 +15,10 @@ coloredlogs.install(
     fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-# Model configuration - same as in add_e5_embeddings.py
-DEFAULT_MODEL = "E5 Multilingual"
-MODEL_CONFIGS = {
-    "OpenAI": {
-        "type": "openai",
-        "model_name": "text-embedding-3-small",
-        "dimensions": 1536,
-    },
-    "E5 Multilingual": {
-        "type": "huggingface",
-        "model_name": "intfloat/multilingual-e5-large",
-        "dimensions": 1024,
-    },
-    "MXBAI German": {
-        "type": "huggingface",
-        "model_name": "mixedbread-ai/deepset-mxbai-embed-de-large-v1",
-        "dimensions": 1024,
-    },
-}
-
-
-def get_embedding_provider(model_name: str = DEFAULT_MODEL):
-    """
-    Get the embedding model instance based on the model name.
-
-    Args:
-        model_name: Name of the embedding model to use
-
-    Returns:
-        An initialized embedding model instance
-    """
-    if model_name not in MODEL_CONFIGS:
-        raise ValueError(
-            f"Unknown model: {model_name}. Available models: "
-            f"{', '.join(MODEL_CONFIGS.keys())}"
-        )
-
-    config = MODEL_CONFIGS[model_name]
-
-    if config["type"] == "huggingface":
-        logger.info(
-            f"Initializing HuggingFace embeddings model: {config['model_name']}"
-        )
-        return HuggingFaceEmbeddings(model_name=config["model_name"])
-    elif config["type"] == "openai":
-        logger.info(f"Initializing OpenAI embeddings model: {config['model_name']}")
-        return OpenAIEmbeddings(
-            openai_api_key=os.getenv("OPENAI_API_KEY"), model=config["model_name"]
-        )
-    else:
-        raise ValueError(f"Unsupported model type: {config['type']}")
-
 
 class GraphRetrieverTool(Tool):
     """A tool that retrieves documents from a Neo4j graph database
-    using hybrid search."""
+    using hybrid search (vector + keyword)."""
 
     name = "graph_retriever"
     description = """Uses hybrid search (vector + keyword) to
@@ -87,228 +32,202 @@ class GraphRetrieverTool(Tool):
             your target documents. Use the affirmative form rather than
             a question. Use german as language.""",
         },
-        "model": {
-            "type": "string",
-            "description": f"The embedding model to use. Available options: "
-            f"{', '.join(MODEL_CONFIGS.keys())}. "
-            f"Default is {DEFAULT_MODEL}.",
-            "default": DEFAULT_MODEL,
+        "k": {
+            "type": "integer",
+            "description": "Number of documents to retrieve. Default is 20.",
+            "default": 20,
             "nullable": True,
         },
     }
     output_type = "string"
 
-    def __init__(self, embedding_model: str = DEFAULT_MODEL, k: int = 20, **kwargs):
-        """Initialize the GraphRetrieverTool with custom configuration."""
+    def __init__(
+        self,
+        embedding_model: Embeddings,
+        uri: str,
+        username: str,
+        password: str,
+        vector_index_name: str,
+        keyword_index_name: str,
+        embedding_node_property: str,
+        **kwargs,
+    ):
+        """
+        Initialize the GraphRetrieverTool with Neo4j configuration.
+
+        Args:
+            embedding_model: An initialized embedding model instance
+                (e.g., HuggingFaceEmbeddings)
+            uri: Neo4j database URI
+            username: Neo4j username
+            password: Neo4j password
+            vector_index_name: Name of the vector index in Neo4j
+            keyword_index_name: Name of the keyword/fulltext index in Neo4j
+            embedding_node_property: Property name containing embeddings in Neo4j nodes
+            **kwargs: Additional arguments passed to Tool base class
+        """
         super().__init__(**kwargs)
 
         self.embedding_model = embedding_model
-        self.neo4j_url = os.getenv("NEO4J_URI")
-        self.neo4j_username = os.getenv("NEO4J_USERNAME")
-        self.neo4j_password = os.getenv("NEO4J_PASSWORD")
-        self.k = k
+        self.uri = uri
+        self.username = username
+        self.password = password
+        self.vector_index_name = vector_index_name
+        self.keyword_index_name = keyword_index_name
+        self.embedding_node_property = embedding_node_property
 
-    def _get_retriever(self, model_name: str = None):
-        """
-        Get a Neo4j Vector retriever with the specified embedding model.
+        # Initialize the Neo4j vector store once
+        self._initialize_vector_store()
 
-        Args:
-            model_name: Name of the embedding model to use
-
-        Returns:
-            Neo4jVector retriever instance
-        """
-        # Use the instance model if none is specified
-        if model_name is None:
-            model_name = self.embedding_model
-
-        # Get the embedding provider
-        embedding_provider = get_embedding_provider(model_name)
-
-        # Determine the correct index name based on model
-        index_name = "vector_index_summaryEmbedding"
-        embedding_property = "summaryEmbedding"
-
-        keyword_index_name = "fulltext_index_AtomicItem"
-
+    def _initialize_vector_store(self):
+        """Initialize the Neo4j vector store with hybrid search capabilities."""
         logger.info(
-            f"Creating hybrid retriever with model={model_name}, "
-            f"index_name={index_name}, keyword_index_name={keyword_index_name}"
+            f"Initializing Neo4j vector store with "
+            f"vector_index={self.vector_index_name}, "
+            f"keyword_index={self.keyword_index_name}"
         )
 
-        return Neo4jVector.from_existing_index(
-            embedding_provider,
-            url=self.neo4j_url,
-            username=self.neo4j_username,
-            password=self.neo4j_password,
-            index_name=index_name,  # name of the vector index
-            keyword_index_name=keyword_index_name,  # name of the fulltext index
-            embedding_node_property=embedding_property,
-            search_type=SearchType.VECTOR,
+        self.vector_store = Neo4jVector.from_existing_index(
+            self.embedding_model,
+            url=self.uri,
+            username=self.username,
+            password=self.password,
+            index_name=self.vector_index_name,  # vector index
+            keyword_index_name=self.keyword_index_name,  # fulltext index
+            embedding_node_property=self.embedding_node_property,
+            search_type=SearchType.HYBRID,
         )
 
-    def forward(self, query: str, model: str = None) -> str:
+    def _retrieve(self, query: str, k: int) -> List[Any]:
         """
-        Retrieve documents from Neo4j that match the query using the specified model.
+        Retrieve documents from Neo4j using hybrid search.
 
         Args:
             query: The search query
-            model: The embedding model to use (defaults to the instance model)
+            k: Number of documents to retrieve
+
+        Returns:
+            List of retrieved documents
+        """
+        logger.info(f"Retrieving {k} documents for query: '{query}'")
+
+        # Perform hybrid search with similarity scores
+        results = self.vector_store.similarity_search_with_score(
+            query, k=k, threshold=0.25
+        )
+
+        # Extract just the documents from the (doc, score) tuples
+        docs = [doc for doc, score in results]
+
+        logger.info(f"Successfully retrieved {len(docs)} documents")
+        return docs
+
+    def _format(self, docs: List[Any], query: str) -> str:
+        """
+        Format retrieved documents into a readable string.
+
+        Args:
+            docs: List of retrieved documents
+            query: The original search query (for context in output)
+
+        Returns:
+            Formatted string representation of the documents
+        """
+        if not docs:
+            return f"No documents found for query: '{query}'"
+
+        result_str = f"\nRetrieved {len(docs)} documents using hybrid search:\n"
+
+        for i, doc in enumerate(docs, 1):
+            result_str += f"\n\n===== Document {i} =====\n"
+            result_str += f"CONTENT: {doc.page_content}\n"
+
+            # Add metadata if available
+            if hasattr(doc, "metadata") and doc.metadata:
+                result_str += "METADATA:\n"
+                for key, value in doc.metadata.items():
+                    # Skip embedding vectors in output to keep it readable
+                    if "embedding" not in key.lower():
+                        result_str += f"  - {key}: {value}\n"
+
+            result_str += "-" * 40
+
+        return result_str
+
+    def forward(self, query: str, k: int = 20) -> str:
+        """
+        Main entry point for retrieving documents from Neo4j.
+
+        Args:
+            query: The search query
+            k: Number of documents to retrieve (default: 20)
 
         Returns:
             A formatted string with the retrieved documents
         """
         assert isinstance(query, str), "Your search query must be a string"
-
-        # Use default model if none provided
-        if model is None:
-            model = self.embedding_model
+        assert isinstance(k, int) and k > 0, "k must be a positive integer"
 
         try:
-            # Get the appropriate retriever with the specified model
-            retriever = self._get_retriever(model)
+            # Retrieve documents
+            docs = self._retrieve(query, k)
 
-            # Perform the search
-            docs = retriever.similarity_search(query, k=self.k)
-
-            # Format the results
-            result_str = (
-                f"\nRetrieved {len(docs)} documents using {model} embeddings:\n"
-            )
-
-            for i, doc in enumerate(docs):
-                result_str += f"\n\n===== Document {i + 1} =====\n"
-                result_str += f"CONTENT: {doc.page_content}\n"
-
-                # Add metadata if available
-                if hasattr(doc, "metadata") and doc.metadata:
-                    result_str += "METADATA:\n"
-                    for key, value in doc.metadata.items():
-                        if (
-                            "embedding" not in key.lower()
-                        ):  # Skip embedding vectors in output
-                            result_str += f"  - {key}: {value}\n"
-
-                result_str += "-" * 40
-
-            return result_str
+            # Format and return results
+            return self._format(docs, query)
 
         except Exception as e:
             logger.error(f"Error in graph retrieval: {e}")
             return f"Error retrieving documents: {str(e)}"
 
 
-def get_hybrid_retriever(model: str = DEFAULT_MODEL, k: int = 5):
+def main(query: str, k: int = 5):
     """
-    Helper function to get a preconfigured hybrid retriever.
-
-    Args:
-        model: The embedding model to use
-        k: Number of results to return
-
-    Returns:
-        A configured GraphRetrieverTool
-    """
-    return GraphRetrieverTool(embedding_model=model, k=k)
-
-
-def main(query: str, search_type: str, model: str = DEFAULT_MODEL, k: int = 5):
-    """
-    Main function to test the retriever.
+    Example usage of the GraphRetrieverTool.
 
     Args:
         query: The search query
-        search_type: Type of search (vector or hybrid)
-        model: Embedding model to use
         k: Number of results to return
     """
-    logger.info(
-        f"Retrieving {k} documents for query: '{query}' "
-        f"using {search_type} search with {model} embeddings."
+    import os
+
+    from dotenv import load_dotenv
+    from langchain_huggingface import HuggingFaceEmbeddings
+
+    load_dotenv()
+
+    # Option 1: HuggingFace
+    embedding_model = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
+
+    # Option 2: OpenAI (uncomment to use)
+    # embedding_model = OpenAIEmbeddings(
+    #     openai_api_key=os.getenv("OPENAI_API_KEY"),
+    #     model="text-embedding-3-small"
+    # )
+
+    # Create the retriever tool
+    retriever = GraphRetrieverTool(
+        embedding_model=embedding_model,
+        uri=os.getenv("NEO4J_URI"),
+        username=os.getenv("NEO4J_USERNAME"),
+        password=os.getenv("NEO4J_PASSWORD"),
+        vector_index_name="vector_index_text_title_summary_Embedding",
+        keyword_index_name="fulltext_index_AtomicItem",
+        embedding_node_property="text_title_Embedding",
     )
 
-    embedding_provider = get_embedding_provider(model)
-
-    # Determine the correct index and property names based on model
-    index_name = "vector_index_AtomicItem"
-    embedding_property = "textEmbedding"
-
-    if search_type == "vector":
-        store = Neo4jVector.from_existing_index(
-            embedding_provider,
-            url=os.getenv("NEO4J_URI"),
-            username=os.getenv("NEO4J_USERNAME"),
-            password=os.getenv("NEO4J_PASSWORD"),
-            index_name=index_name,
-            embedding_node_property=embedding_property,
-        )
-        results = store.similarity_search_with_score(query, k=k, threshold=0.25)
-
-    elif search_type == "hybrid":
-        keyword_index_name = "fulltext_index_AtomicItem"
-        store = Neo4jVector.from_existing_index(
-            embedding_provider,
-            url=os.getenv("NEO4J_URI"),
-            username=os.getenv("NEO4J_USERNAME"),
-            password=os.getenv("NEO4J_PASSWORD"),
-            index_name=index_name,
-            embedding_node_property=embedding_property,
-            keyword_index_name=keyword_index_name,
-            search_type=SearchType.HYBRID,
-        )
-        results = store.similarity_search_with_score(query, k=k, threshold=0.25)
-    else:
-        logger.error("Invalid search type. Use 'vector' or 'hybrid'.")
-        return
-
-    if not results:
-        logger.warning("No results found for query: %s", query)
-        return
-
-    for i, (result, score) in enumerate(results, start=1):
-        print(f"Result {i}:")
-        print(f"{result.page_content}")
-        if score is not None:
-            print(f"Score: {score:.4f}")
-        if hasattr(result, "metadata") and result.metadata:
-            print("Metadata:")
-            for key, value in result.metadata.items():
-                if "Embedding" not in key:
-                    print(f"  - {key}: {value}")
-        print("=" * 140)
+    # Perform retrieval
+    results = retriever.forward(query=query, k=k)
+    print(results)
 
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Neo4j vector/hybrid retriever CLI with multiple embedding models"
-    )
+    parser = argparse.ArgumentParser(description="Neo4j hybrid retriever CLI")
     parser.add_argument("-q", "--query", type=str, required=True, help="Search query")
-    parser.add_argument(
-        "-s",
-        "--search-type",
-        type=str,
-        choices=["vector", "hybrid"],
-        default="hybrid",
-        help="Search type: vector or hybrid",
-    )
-    parser.add_argument(
-        "-m",
-        "--model",
-        type=str,
-        choices=list(MODEL_CONFIGS.keys()),
-        default=DEFAULT_MODEL,
-        help=f"Embedding model to use (default: {DEFAULT_MODEL})",
-    )
     parser.add_argument(
         "-k", "--k", type=int, default=5, help="Number of results to retrieve"
     )
     args = parser.parse_args()
 
-    main(
-        query=args.query,
-        search_type=args.search_type,
-        model=args.model,
-        k=args.k,
-    )
+    main(query=args.query, k=args.k)
