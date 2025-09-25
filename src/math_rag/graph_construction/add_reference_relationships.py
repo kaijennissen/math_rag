@@ -59,13 +59,15 @@ def load_reference_tuples(pickle_path: Path) -> list:
     Returns:
         List of reference tuples
     """
-    if not pickle_path.exists():
-        logger.error(f"Reference tuples file not found at {pickle_path}")
-        logger.error("Please run infer_refs.py first to generate the reference tuples.")
-        return []
 
-    with open(pickle_path, "rb") as f:
-        reference_tuples = pickle.load(f)
+    try:
+        with open(pickle_path, "rb") as f:
+            reference_tuples: list = pickle.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"""Reference tuples file not found at {pickle_path}.
+            Please run infer_refs.py first to generate the reference tuples."""
+        )
 
     logger.info(f"Loaded {len(reference_tuples)} reference tuples from {pickle_path}")
     return reference_tuples

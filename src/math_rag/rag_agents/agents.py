@@ -14,11 +14,11 @@
 
 
 import logging
-import os
 import sys
+from pathlib import Path
+from typing import Optional
 
 import yaml
-from dotenv import load_dotenv
 from mcp import StdioServerParameters
 from smolagents import (
     CodeAgent,
@@ -28,38 +28,48 @@ from smolagents import (
     ToolCallingAgent,
 )
 
-from math_rag.core import ROOT
 from math_rag.graph_tools import GraphRetrieverTool
 
 logger = logging.getLogger(__name__)
 
 
-def setup_rag_chat():
+def setup_rag_chat(
+    openai_api_key: str,
+    neo4j_uri: str,
+    neo4j_username: str,
+    neo4j_password: str,
+    neo4j_database: str,
+    agent_config_path: Path,
+    model_id: str = "gpt-4.1",
+    api_base: str = "https://api.openai.com/v1",
+    huggingface_api_key: Optional[str] = None,
+):
     """Setup a RAG chat agent with the graph-based retriever tool and meta-question
     subagent.
+
+    Args:
+        openai_api_key: OpenAI API key
+        neo4j_uri: Neo4j connection URI
+        neo4j_username: Neo4j username
+        neo4j_password: Neo4j password
+        neo4j_database: Neo4j database name
+        agent_config_path: Path to agent configuration YAML file
+        model_id: Model ID for the LLM
+        api_base: API base URL for OpenAI
+        huggingface_api_key: Optional HuggingFace API key
 
     Returns:
         tuple: A tuple containing (graph_agent, mcp_client). The mcp_client must be
                disconnected when done using the agent.
     """
 
-    load_dotenv()
-
     # Load agent descriptions from YAML config file
-    # First try environment variable, then use project root-based path
-    config_path = os.getenv("AGENT_CONFIG_PATH")
-    if not config_path:
-        config_path = ROOT / "config" / "agents.yaml"
 
     try:
-        with open(config_path, "r") as file:
+        with open(agent_config_path, "r") as file:
             AGENT_DESCRIPTIONS = yaml.safe_load(file)
     except FileNotFoundError:
-        logger.error(f"Agent configuration file not found at {config_path}")
-        logger.error(
-            """Set the AGENT_CONFIG_PATH environment variable or ensure
-            the agents.yaml file exists in the config directory"""
-        )
+        logger.error(f"Agent configuration file not found at {agent_config_path}")
         sys.exit(1)
 
     # Initialize the model inside this function
@@ -68,22 +78,22 @@ def setup_rag_chat():
     #     # model_id="Qwen/QwQ-32B",
     #     # model_id="Qwen/Qwen3-32B",
     #     model_id="deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
-    #     token=os.getenv("HUGGINGFACE_API_KEY"),
+    #     token=huggingface_api_key,
     # )
     gpt_4_1 = OpenAIServerModel(
-        model_id="gpt-4.1",
-        api_base="https://api.openai.com/v1",
-        api_key=os.getenv("OPENAI_API_KEY"),
+        model_id=model_id,
+        api_base=api_base,
+        api_key=openai_api_key,
     )
 
     server_parameters = StdioServerParameters(
         command="uvx",
         args=["mcp-neo4j-cypher@0.4.0", "--transport", "stdio"],
         env={
-            "NEO4J_URI": os.getenv("NEO4J_URI"),
-            "NEO4J_USERNAME": os.getenv("NEO4J_USERNAME"),
-            "NEO4J_PASSWORD": os.getenv("NEO4J_PASSWORD"),
-            "NEO4J_DATABASE": os.getenv("NEO4J_DATABASE"),
+            "NEO4J_URI": neo4j_uri,
+            "NEO4J_USERNAME": neo4j_username,
+            "NEO4J_PASSWORD": neo4j_password,
+            "NEO4J_DATABASE": neo4j_database,
         },
     )
 
@@ -127,10 +137,23 @@ def setup_rag_chat():
 
 
 if __name__ == "__main__":
-    agent, mcp_client = setup_rag_chat()
+    # For testing - import settings and load from environment
+    from math_rag.config.settings import RagChatSettings
+
+    settings = RagChatSettings()
+    agent, mcp_client = setup_rag_chat(
+        openai_api_key=settings.openai_api_key,
+        neo4j_uri=settings.neo4j_uri,
+        neo4j_username=settings.neo4j_username,
+        neo4j_password=settings.neo4j_password,
+        neo4j_database=settings.neo4j_database,
+        agent_config_path=settings.agent_config_path,
+        model_id=settings.model_id,
+        api_base=settings.api_base,
+        huggingface_api_key=settings.huggingface_api_key,
+    )
     try:
         agent.visualize()
-        # agent.run("Was ist ein topologischer Raum?")
 
         question = (
             "Welche Definition, welcher Satz oder welches Theorem spielt die "

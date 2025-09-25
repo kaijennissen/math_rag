@@ -2,10 +2,11 @@ import os
 
 from rich.console import Console
 
+from math_rag.config.settings import RagChatSettings
 from math_rag.rag_agents.agents import setup_rag_chat
 
 
-def run_chat_interface():
+def run_chat_interface(settings: RagChatSettings):
     # Create Rich console with force_terminal=True to ensure color output
     console = Console(force_terminal=True)
 
@@ -14,7 +15,17 @@ def run_chat_interface():
         "[bold blue]Setting up Mathematical RAG system with Neo4j Knowledge Graph..."
         "[/bold blue]"
     )
-    agent, mcp_client = setup_rag_chat()
+    agent, mcp_client = setup_rag_chat(
+        openai_api_key=settings.openai_api_key,
+        neo4j_uri=settings.neo4j_uri,
+        neo4j_username=settings.neo4j_username,
+        neo4j_password=settings.neo4j_password,
+        neo4j_database=settings.neo4j_database,
+        agent_config_path=settings.agent_config_path,
+        model_id=settings.model_id,
+        api_base=settings.api_base,
+        huggingface_api_key=settings.huggingface_api_key,
+    )
 
     try:
         agent.visualize()
@@ -87,4 +98,6 @@ def run_chat_interface():
 
 
 if __name__ == "__main__":
-    run_chat_interface()
+    # Load settings from environment and CLI arguments
+    settings = RagChatSettings()
+    run_chat_interface(settings)

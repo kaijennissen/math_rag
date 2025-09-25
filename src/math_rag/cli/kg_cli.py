@@ -170,13 +170,6 @@ def main(
 
 
 if __name__ == "__main__":
-    # Pydantic-settings handles both environment variables and CLI arguments
-    # Usage examples:
-    #   python -m math_rag.cli.kg_cli
-    #   python -m math_rag.cli.kg_cli --db-path /path/to/database.sqlite
-    #   python -m math_rag.cli.kg_cli --document-name my_document
-    #   python -m math_rag.cli.kg_cli --clear
-
     settings = KnowledgeGraphSettings()
     main(
         db_path=settings.db_path,
