@@ -17,12 +17,10 @@ coloredlogs.install(
 
 
 class GraphRetrieverTool(Tool):
-    """A tool that retrieves documents from a Neo4j graph database
-    using hybrid search (vector + keyword)."""
+    """A tool that retrieves documents from a Neo4j graph database using hybrid search (vector + keyword)."""  # noqa: E501
 
     name = "graph_retriever"
-    description = """Uses hybrid search (vector + keyword) to
-    retrieve mathematical content from a Neo4j graph database."""
+    description = """Uses hybrid search (vector + keyword) to retrieve mathematical content from a Neo4j graph database."""  # noqa: E501
     inputs = {
         "query": {
             "type": "string",
