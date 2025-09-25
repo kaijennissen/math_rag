@@ -12,7 +12,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from neo4j import GraphDatabase
+from neo4j import Driver, GraphDatabase
 
 from math_rag.graph_indexing.utils import (
     drop_index_if_exists,
@@ -68,7 +68,7 @@ def create_fulltext_index(
     logger.info(f"Successfully created fulltext index {index_name}")
 
 
-def test_fulltext_search(driver: GraphDatabase.driver, query: str = "Umgebungsbasis"):
+def test_fulltext_search(driver: Driver, query: str = "Umgebungsbasis"):
     """Test fulltext search with a sample query."""
     logger.info(f"Testing fulltext search with query: '{query}'")
 

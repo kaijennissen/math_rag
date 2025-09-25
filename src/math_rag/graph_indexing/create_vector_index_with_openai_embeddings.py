@@ -15,7 +15,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from neo4j import GraphDatabase
+from neo4j import Driver, GraphDatabase
 
 from math_rag.graph_indexing.utils import (
     drop_index_if_exists,
@@ -80,7 +80,7 @@ def create_vector_index(
     logger.info(f"Successfully created vector index {index_name}")
 
 
-def test_vector_search(driver: GraphDatabase.driver, query: str = "Topologie"):
+def test_vector_search(driver: Driver, query: str = "Topologie"):
     """Test vector search with a sample query using OpenAI embeddings."""
     logger.info(f"Testing vector search with query: '{query}'")
 

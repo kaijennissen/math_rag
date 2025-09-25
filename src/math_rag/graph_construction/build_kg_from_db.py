@@ -9,7 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain_neo4j import Neo4jGraph
-from neo4j import GraphDatabase
+from neo4j import Driver, GraphDatabase
 from sqlmodel import select
 
 from math_rag.core import AtomicItem
@@ -182,7 +182,7 @@ def create_next_relationship(
     )
 
 
-def clear_neo4j_database(driver: GraphDatabase.driver) -> None:
+def clear_neo4j_database(driver: Driver) -> None:
     """Clear all data from the Neo4j database."""
     with driver.session() as session:
         session.run("MATCH (n) DETACH DELETE n")

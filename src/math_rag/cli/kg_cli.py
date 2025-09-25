@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from langchain_neo4j import Neo4jGraph
-from neo4j import GraphDatabase
+from neo4j import Driver, GraphDatabase
 
 from math_rag.config.settings import KnowledgeGraphSettings
 from math_rag.core.db_models import DatabaseManager
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 def build_complete_knowledge_graph(
     db_manager: DatabaseManager,
     graph: Neo4jGraph,
-    driver: GraphDatabase.driver,
+    driver: Driver,
     document_name: str,
     reference_tuples_path: Path,
     clear_first: bool = True,

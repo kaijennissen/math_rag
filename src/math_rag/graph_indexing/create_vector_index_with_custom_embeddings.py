@@ -34,7 +34,7 @@ import time
 from dotenv import load_dotenv
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_neo4j import Neo4jVector
-from neo4j import GraphDatabase
+from neo4j import Driver, GraphDatabase
 
 from math_rag.graph_indexing.utils import (
     count_nodes_without_property,
@@ -100,7 +100,7 @@ def get_embedding_model(model_name):
 
 
 def add_embeddings_with_neo4j_vector(
-    driver: GraphDatabase.driver,
+    driver: Driver,
     embedding_model,
     label: str = "AtomicItem",
     text_properties: list = None,

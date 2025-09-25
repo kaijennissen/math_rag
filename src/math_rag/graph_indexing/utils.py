@@ -8,13 +8,13 @@ to reduce code duplication and improve maintainability.
 import logging
 from typing import Optional, Tuple
 
-from neo4j import GraphDatabase
+from neo4j import Driver, GraphDatabase
 
 # Configure module logger
 logger = logging.getLogger(__name__)
 
 
-def ensure_atomic_unit_label(driver: GraphDatabase.driver) -> None:
+def ensure_atomic_unit_label(driver: Driver) -> None:
     """
     Ensure that all content nodes have the AtomicItem label.
 
@@ -47,7 +47,7 @@ def ensure_atomic_unit_label(driver: GraphDatabase.driver) -> None:
             logger.info("All content nodes already have the AtomicItem label")
 
 
-def drop_index_if_exists(driver: GraphDatabase.driver, index_name: str) -> bool:
+def drop_index_if_exists(driver: Driver, index_name: str) -> bool:
     """
     Drop an index if it exists.
 
@@ -73,7 +73,7 @@ def drop_index_if_exists(driver: GraphDatabase.driver, index_name: str) -> bool:
 
 
 def verify_nodes(
-    driver: GraphDatabase.driver, label: str, property_name: Optional[str] = None
+    driver: Driver, label: str, property_name: Optional[str] = None
 ) -> Tuple[bool, int]:
     """
     Verify that nodes exist in the database, optionally checking for a
