@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
+from langchain_huggingface import HuggingFaceEmbeddings
 from mcp import StdioServerParameters
 from smolagents import (
     CodeAgent,
@@ -86,6 +87,9 @@ def setup_rag_chat(
         api_key=openai_api_key,
     )
 
+    # Initialize embedding model for GraphRetrieverTool
+    embedding_model = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
+
     server_parameters = StdioServerParameters(
         command="uvx",
         args=["mcp-neo4j-cypher@0.4.0", "--transport", "stdio"],
@@ -100,9 +104,21 @@ def setup_rag_chat(
     # Create MCP client and get tools
     mcp_client = MCPClient(server_parameters)
     tools = mcp_client.get_tools()
+
+    # Initialize GraphRetrieverTool with required parameters
+    graph_retriever_tool = GraphRetrieverTool(
+        embedding_model=embedding_model,
+        uri=neo4j_uri,
+        username=neo4j_username,
+        password=neo4j_password,
+        vector_index_name="vector_index_summary_Embedding",
+        keyword_index_name="fulltext_index_AtomicItem",
+        embedding_node_property="summaryEmbedding",
+    )
+
     # Create main agent with the retriever tool and meta-agent
     graph_retriever_agent = CodeAgent(
-        tools=[*tools, GraphRetrieverTool()],
+        tools=[*tools, graph_retriever_tool],
         model=gpt_4_1,
         max_steps=10,
         verbosity_level=2,

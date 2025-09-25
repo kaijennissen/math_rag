@@ -186,6 +186,9 @@ def clear_neo4j_database(driver: Driver) -> None:
     """Clear all data from the Neo4j database."""
     with driver.session() as session:
         session.run("MATCH (n) DETACH DELETE n")
+        session.run("DROP INDEX fulltext_index_AtomicItem IF EXISTS")
+        session.run("DROP INDEX vector_index_summary_Embedding IF EXISTS")
+        session.run("DROP INDEX vector_index_text_title_summary_Embedding IF EXISTS")
     logger.info("Cleared Neo4j database")
 
 
@@ -363,7 +366,6 @@ def build_knowledge_graph_from_sqlite(
     graph: Neo4jGraph,
     driver: Driver,
     document_name: str,
-    clear_first: bool = True,
 ) -> None:
     """
     Build complete knowledge graph from SQLite database.
@@ -375,8 +377,6 @@ def build_knowledge_graph_from_sqlite(
         document_name: Name of the document
         clear_first: Whether to clear the database before building
     """
-    if clear_first:
-        clear_neo4j_database(driver)
 
     # Create document structure from file
     create_hierarchy_from_file(graph, document_name)

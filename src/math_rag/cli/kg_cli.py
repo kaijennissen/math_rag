@@ -23,6 +23,7 @@ from math_rag.graph_construction.add_reference_relationships import (
 )
 from math_rag.graph_construction.build_kg_from_db import (
     build_knowledge_graph_from_sqlite,
+    clear_neo4j_database,
 )
 from math_rag.graph_indexing.create_fulltext_index import (
     create_fulltext_index as create_fulltext_index_impl,
@@ -63,12 +64,14 @@ def build_complete_knowledge_graph(
 
     # Phase 1: Build graph structure and add atomic items
     logger.info("=== Phase 1: Building Knowledge Graph Structure ===")
+    if clear_first:
+        clear_neo4j_database(driver)
+
     build_knowledge_graph_from_sqlite(
         db_manager=db_manager,
         graph=graph,
         driver=driver,
         document_name=document_name,
-        clear_first=clear_first,
     )
     logger.info("✓ Graph structure and atomic items added successfully")
 
@@ -102,8 +105,9 @@ def build_complete_knowledge_graph(
         driver=driver,
         embedding_model=embedding_model,
         label="AtomicItem",
-        text_properties=["text", "title"],
-        embedding_property="text_title_Embedding",
+        index_name="vector_index_summary_Embedding",
+        text_properties=["summary"],
+        embedding_property="summaryEmbedding",
     )
     logger.info("✓ Vector index and embeddings created successfully")
 
