@@ -77,3 +77,29 @@ class RagChatSettings(BaseSettings):
     api_base: str = Field(
         default="https://api.openai.com/v1", description="API base URL for OpenAI"
     )
+
+
+class ReferenceExtractionSettings(BaseSettings):
+    """Settings for PDF reference extraction."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        cli_parse_args=True,  # Enable CLI argument parsing
+        extra="ignore",  # Ignore extra env variables
+    )
+
+    # PDF to process with default
+    pdf_path: Path = Field(
+        default=Path("docs/Skript_2024.pdf"),
+        description="Path to the PDF file to extract references from",
+    )
+
+    # Optional arguments with defaults
+    start_page: int = Field(
+        default=10, description="Page number to start extraction from (0-indexed)"
+    )
+    output_path: Path = Field(
+        default=ROOT / "data" / "reference_tuples.pkl",
+        description="Path where the reference tuples pickle file will be saved",
+    )

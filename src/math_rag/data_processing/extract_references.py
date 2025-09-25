@@ -1,11 +1,14 @@
+import logging
 import pickle
 import re
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import pymupdf
 
-from math_rag.core import ROOT
+# Logger will be configured by CLI
+logger = logging.getLogger(__name__)
 
 
 def get_text_around_rect(page, rect, padding=(2, 5)):
@@ -123,7 +126,7 @@ def identify_source_context(doc, page, from_rect):
     return {"type": "unknown", "number": "0", "full_reference": "Unknown context"}
 
 
-def extract_links_from_pdf(pdf_path: str, start_page: int) -> List[Dict]:
+def extract_links_from_pdf(pdf_path: str | Path, start_page: int) -> List[Dict]:
     """
     Extract hyperlinks from a mathematical PDF.
 
@@ -133,7 +136,7 @@ def extract_links_from_pdf(pdf_path: str, start_page: int) -> List[Dict]:
     Returns:
         List of dictionaries containing link information
     """
-    print(f"Extracting links from {pdf_path}")
+    logger.info(f"Extracting links from {pdf_path}")
     links = []
     # Open the PDF
     doc = pymupdf.open(pdf_path)
@@ -141,7 +144,7 @@ def extract_links_from_pdf(pdf_path: str, start_page: int) -> List[Dict]:
     # Extract links from each page
     for page_num, page in enumerate(doc[start_page:]):
         page_links = page.get_links()
-        print(f"Page {page_num + 1} has {len(page_links)} links")
+        logger.debug(f"Page {page_num + 1} has {len(page_links)} links")
 
         for link in page_links:
             # Filter internal links (links within the document)
@@ -279,8 +282,18 @@ def extract_digit_pattern(text: str) -> str:
     return pattern.group(0) if pattern else ""
 
 
-if __name__ == "__main__":
-    extracted_links = extract_links_from_pdf("docs/Skript_2024.pdf", start_page=10)
+def extract_reference_tuples(pdf_path: Path, start_page: int) -> List[Tuple[str, str]]:
+    """
+    Extract reference relationships from a PDF.
+
+    Args:
+        pdf_path: Path to the PDF file to process
+        start_page: Page number to start extraction from (0-indexed)
+
+    Returns:
+        List of (source, destination) reference tuples
+    """
+    extracted_links = extract_links_from_pdf(pdf_path, start_page=start_page)
 
     # Extract digit.digit.digit patterns from source and destination
     reference_tuples = []
@@ -304,12 +317,27 @@ if __name__ == "__main__":
         if source_pattern and dest_pattern and source_pattern != dest_pattern:
             reference_tuples.append((source_pattern, dest_pattern))
 
-    # Save tuples to pickle file
-    with open(ROOT / "data" / "reference_tuples.pkl", "wb") as f:
-        pickle.dump(reference_tuples, f)
-
-    print(f"Extracted {len(reference_tuples)} reference tuples:")
+    logger.info(f"Extracted {len(reference_tuples)} reference tuples")
     for source, dest in reference_tuples:
-        print(f"{source} -> {dest}")
+        logger.debug(f"{source} -> {dest}")
 
-    print("Saved tuples to reference_tuples.pkl")
+    return reference_tuples
+
+
+def main(pdf_path: Path, start_page: int, output_path: Path) -> None:
+    """
+    Main function to extract and save reference relationships from a PDF.
+
+    Args:
+        pdf_path: Path to the PDF file to process
+        start_page: Page number to start extraction from (0-indexed)
+        output_path: Path where the pickle file will be saved
+    """
+    # Extract reference tuples
+    reference_tuples = extract_reference_tuples(
+        pdf_path=pdf_path, start_page=start_page
+    )
+
+    with open(output_path, "wb") as f:
+        pickle.dump(reference_tuples, f)
+    logger.info(f"Saved {len(reference_tuples)} tuples to {output_path}")

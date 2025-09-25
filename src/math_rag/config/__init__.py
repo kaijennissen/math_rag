@@ -8,9 +8,11 @@ ensuring type safety, validation, and clear configuration hierarchy.
 from math_rag.config.settings import (
     KnowledgeGraphSettings,
     RagChatSettings,
+    ReferenceExtractionSettings,
 )
 
 __all__ = [
     "KnowledgeGraphSettings",
     "RagChatSettings",
+    "ReferenceExtractionSettings",
 ]
