@@ -81,8 +81,7 @@ def run_chat_interface(settings: RagChatSettings):
                 console.print(response)
                 console.print("\n" + "-" * 50 + "\n")
 
-                # Add to history (could be used for context in more advanced
-                # implementations)
+                # Add to history
                 chat_history.append({"user": user_input, "assistant": response})
 
             except KeyboardInterrupt:
@@ -98,6 +97,5 @@ def run_chat_interface(settings: RagChatSettings):
 
 
 if __name__ == "__main__":
-    # Load settings from environment and CLI arguments
     settings = RagChatSettings()
     run_chat_interface(settings)
