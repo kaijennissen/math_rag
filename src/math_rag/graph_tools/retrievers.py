@@ -1,7 +1,8 @@
 import logging
-from typing import Any, List
+from typing import List
 
 import coloredlogs
+from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_neo4j import Neo4jVector
 from langchain_neo4j.vectorstores.neo4j_vector import SearchType
@@ -14,6 +15,45 @@ coloredlogs.install(
     logger=logger,
     fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
+
+def format_document(doc: Document, index: int) -> str:
+    """
+    Module-level helper to format a single Document into a string.
+
+    Keeping this as a plain function (not a method) makes it much easier to
+    unit-test in isolation.
+
+    Args:
+        doc: Document instance (must have `page_content` and optional `metadata`)
+        index: 1-based index of the document for display
+
+    Returns:
+        Formatted string for the single document
+    """
+    allowed_metadata = {"number", "type", "title"}
+
+    # Separate lists for content and metadata; we'll concatenate at the end.
+    content_parts: List[str] = []
+    metadata_parts: List[str] = []
+
+    content_parts.append(f"\n\n===== Document {index} =====\n")
+    content_parts.append(f"CONTENT:\n {doc.page_content}\n")
+
+    # metadata may be missing or empty; only keep a small whitelist of keys
+    metadata = getattr(doc, "metadata", None)
+    if metadata:
+        # Single-pass over metadata: collect allowed keys in the order they appear
+        for key, value in metadata.items():
+            if key.lower() in allowed_metadata:
+                metadata_parts.append(f"  - {key}: {value}\n")
+
+    if metadata_parts:
+        metadata_parts.insert(0, "METADATA:\n")
+
+    parts = content_parts + metadata_parts
+    parts.append("-" * 40)
+    return "".join(parts)
 
 
 class GraphRetrieverTool(Tool):
@@ -96,7 +136,7 @@ class GraphRetrieverTool(Tool):
             search_type=SearchType.HYBRID,
         )
 
-    def _retrieve(self, query: str, k: int) -> List[Any]:
+    def _retrieve(self, query: str, k: int) -> List[Document]:
         """
         Retrieve documents from Neo4j using hybrid search.
 
@@ -120,37 +160,25 @@ class GraphRetrieverTool(Tool):
         logger.info(f"Successfully retrieved {len(docs)} documents")
         return docs
 
-    def _format(self, docs: List[Any], query: str) -> str:
+    def _format(self, docs: List[Document], query: str) -> str:
         """
         Format retrieved documents into a readable string.
 
         Args:
-            docs: List of retrieved documents
+            docs: List of retrieved documents (assumed non-empty)
             query: The original search query (for context in output)
 
         Returns:
             Formatted string representation of the documents
         """
-        if not docs:
-            return f"No documents found for query: '{query}'"
-
-        result_str = f"\nRetrieved {len(docs)} documents using hybrid search:\n"
+        result_parts: List[str] = [
+            f"\nRetrieved {len(docs)} documents using hybrid search:\n"
+        ]
 
         for i, doc in enumerate(docs, 1):
-            result_str += f"\n\n===== Document {i} =====\n"
-            result_str += f"CONTENT: {doc.page_content}\n"
+            result_parts.append(format_document(doc, i))
 
-            # Add metadata if available
-            if hasattr(doc, "metadata") and doc.metadata:
-                result_str += "METADATA:\n"
-                for key, value in doc.metadata.items():
-                    # Skip embedding vectors in output to keep it readable
-                    if "embedding" not in key.lower():
-                        result_str += f"  - {key}: {value}\n"
-
-            result_str += "-" * 40
-
-        return result_str
+        return "".join(result_parts)
 
     def forward(self, query: str, k: int = 20) -> str:
         """
@@ -169,6 +197,10 @@ class GraphRetrieverTool(Tool):
         try:
             # Retrieve documents
             docs = self._retrieve(query, k)
+
+            # Handle empty results here so _format can assume non-empty input
+            if not docs:
+                return f"No documents found for query: '{query}'"
 
             # Format and return results
             return self._format(docs, query)
@@ -208,9 +240,9 @@ def main(query: str, k: int = 5):
         uri=os.getenv("NEO4J_URI"),
         username=os.getenv("NEO4J_USERNAME"),
         password=os.getenv("NEO4J_PASSWORD"),
-        vector_index_name="vector_index_text_title_summary_Embedding",
+        vector_index_name="vector_index_summary_Embedding",
         keyword_index_name="fulltext_index_AtomicItem",
-        embedding_node_property="text_title_Embedding",
+        embedding_node_property="summaryEmbedding",
     )
 
     # Perform retrieval
