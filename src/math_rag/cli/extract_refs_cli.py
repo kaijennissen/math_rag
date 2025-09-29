@@ -6,11 +6,11 @@ This module provides a command-line interface to extract internal references
 and save them as tuples for use in the knowledge graph.
 """
 
-from math_rag.config.settings import ReferenceExtractionSettings
+from math_rag.config import ReferenceExtractionSettings, settings_provider
 from math_rag.data_processing.extract_references import main
 
 if __name__ == "__main__":
-    settings = ReferenceExtractionSettings()
+    settings = settings_provider.get_settings(ReferenceExtractionSettings)
 
     main(
         pdf_path=settings.pdf_path,

@@ -4,15 +4,14 @@ Simple CLI to view summaries alongside original content for quick comparison.
 
 import argparse
 
+from math_rag.config import MathRagBaseSettings, settings_provider
 from math_rag.core.db_models import DatabaseManager
-from math_rag.core.project_root import ROOT
-
-SQLITE_DB_PATH = ROOT / "data" / "atomic_units.sqlite"
 
 
 def show_summary_comparison(args):
     """Show original content and summary side by side."""
-    db_manager = DatabaseManager(SQLITE_DB_PATH)
+    settings = settings_provider.get_settings(MathRagBaseSettings)
+    db_manager = DatabaseManager(settings.db_path)
 
     with db_manager.get_session() as session:
         from sqlmodel import select

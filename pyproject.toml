@@ -35,6 +35,10 @@ dependencies = [
     "langchain-huggingface>=0.3.1",
     "sentence-transformers>=5.1.1",
     "mcp>=1.14.1",
+    "ty>=0.0.1a21",
+    "pyrefly>=0.34.0",
+    "zuban>=0.0.24",
+    "mypy>=1.18.2",
 ]
 
 [project.optional-dependencies]

@@ -24,7 +24,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 from sqlmodel import Session, create_engine, select
 
-from math_rag.config.settings import TranslateAtomsSettings
+from math_rag.config import TranslateAtomsSettings, settings_provider
 
 # Project imports
 from math_rag.core.db_models import ROOT, AtomicItemDB
@@ -232,7 +232,7 @@ def main(
 
 
 if __name__ == "__main__":
-    settings = TranslateAtomsSettings()
+    settings = settings_provider.get_settings(TranslateAtomsSettings)
 
     main(
         limit=settings.limit,

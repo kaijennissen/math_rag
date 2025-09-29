@@ -15,7 +15,7 @@ from pathlib import Path
 from langchain_neo4j import Neo4jGraph
 from neo4j import Driver, GraphDatabase
 
-from math_rag.config.settings import KnowledgeGraphSettings
+from math_rag.config import KnowledgeGraphSettings, settings_provider
 from math_rag.core.db_models import DatabaseManager
 from math_rag.graph_construction.add_reference_relationships import (
     add_references_to_graph,
@@ -174,7 +174,7 @@ def main(
 
 
 if __name__ == "__main__":
-    settings = KnowledgeGraphSettings()
+    settings = settings_provider.get_settings(KnowledgeGraphSettings)
     main(
         db_path=settings.db_path,
         document_name=settings.document_name,

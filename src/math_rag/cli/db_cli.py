@@ -10,13 +10,10 @@ from pathlib import Path
 
 from tabulate import tabulate
 
+from math_rag.config import MathRagBaseSettings, settings_provider
 from math_rag.core.db_models import DatabaseManager
-from math_rag.core.project_root import ROOT
 from math_rag.data_processing.migrate_to_sqlite import migrate_all_files
 from math_rag.data_processing.summarize import get_progress_stats, process_summaries
-
-# Hardcoded database path
-SQLITE_DB_PATH = ROOT / "data" / "atomic_units.sqlite"
 
 # Setup logging
 logging.basicConfig(
@@ -27,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 def init_db_command(args):
     """Initialize the SQLite database."""
-    db_manager = DatabaseManager(SQLITE_DB_PATH)
+    settings = settings_provider.get_settings(MathRagBaseSettings)
+    db_manager = DatabaseManager(settings.db_path)
     logger.info(f"Database initialized at {db_manager.db_path}")
 
 
@@ -36,7 +34,8 @@ def migrate_command(args):
     start_time = datetime.now()
 
     # Create database manager once
-    db_manager = DatabaseManager(SQLITE_DB_PATH)
+    settings = settings_provider.get_settings(MathRagBaseSettings)
+    db_manager = DatabaseManager(settings.db_path)
 
     source_dir = Path(args.source_dir) if args.source_dir else None
     total_units = migrate_all_files(
@@ -49,7 +48,8 @@ def migrate_command(args):
 
 def stats_command(args):
     """Show database statistics."""
-    db_manager = DatabaseManager(SQLITE_DB_PATH)
+    settings = settings_provider.get_settings(MathRagBaseSettings)
+    db_manager = DatabaseManager(settings.db_path)
 
     # Get counts
     total_units = db_manager.count_total_units()
@@ -94,7 +94,8 @@ def stats_command(args):
 def summarize_command(args):
     """Generate summaries for atomic units."""
     # Create database manager once
-    db_manager = DatabaseManager(SQLITE_DB_PATH)
+    settings = settings_provider.get_settings(MathRagBaseSettings)
+    db_manager = DatabaseManager(settings.db_path)
 
     if args.stats_only:
         progress = get_progress_stats(db_manager)

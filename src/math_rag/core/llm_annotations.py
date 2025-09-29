@@ -31,15 +31,15 @@ class LLMAnnotationBase(SQLModel):
     )
     concepts_json: Optional[str] = Field(
         default=None,
-        description='JSON-encoded list of concept strings, e.g. \'["filter","ultrafilter"]\'', #noqa: E501
+        description='JSON-encoded list of concept strings, e.g. \'["filter","ultrafilter"]\'',  # noqa: E501
     )
     input_hash: Optional[str] = Field(
         default=None,
-        description="sha256 hash of the original input fields + prompt_version for idempotency/audit", #noqa: E501
+        description="sha256 hash of the original input fields + prompt_version for idempotency/audit",  # noqa: E501
     )
     warnings: Optional[str] = Field(
         default=None,
-        description="JSON-encoded list of warning strings from preprocessing or LLM (nullable)", # noqa: E501
+        description="JSON-encoded list of warning strings from preprocessing or LLM (nullable)",  # noqa: E501
     )
 
 

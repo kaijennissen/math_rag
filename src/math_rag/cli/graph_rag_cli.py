@@ -2,7 +2,7 @@ import os
 
 from rich.console import Console
 
-from math_rag.config.settings import RagChatSettings
+from math_rag.config import RagChatSettings, settings_provider
 from math_rag.rag_agents.agents import setup_rag_chat
 
 
@@ -97,5 +97,5 @@ def run_chat_interface(settings: RagChatSettings):
 
 
 if __name__ == "__main__":
-    settings = RagChatSettings()
+    settings = settings_provider.get_settings(RagChatSettings)
     run_chat_interface(settings)
