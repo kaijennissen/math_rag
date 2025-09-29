@@ -111,9 +111,9 @@ def setup_rag_chat(
         uri=neo4j_uri,
         username=neo4j_username,
         password=neo4j_password,
-        vector_index_name="vector_index_summary_Embedding",
+        vector_index_name="vector_index_text_nl_Embedding",
         keyword_index_name="fulltext_index_AtomicItem",
-        embedding_node_property="summaryEmbedding",
+        embedding_node_property="text_nl_Embedding",
     )
 
     # Create main agent with the retriever tool and meta-agent

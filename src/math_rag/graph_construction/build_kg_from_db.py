@@ -14,6 +14,7 @@ from sqlmodel import select
 
 from math_rag.core import AtomicItem
 from math_rag.core.db_models import AtomicItemDB, DatabaseManager
+from math_rag.core.llm_annotations import LLMAnnotation
 from math_rag.core.project_root import ROOT
 from math_rag.data_processing import SectionHeaders
 
@@ -183,13 +184,36 @@ def create_next_relationship(
 
 
 def clear_neo4j_database(driver: Driver) -> None:
-    """Clear all data from the Neo4j database."""
+    r"""
+    Clear all data from the Neo4j database and drop discovered indexes.
+
+    This simplified POC routine:
+    - Enumerates indexes using `CALL db.indexes()` and attempts to drop them using
+      `DROP INDEX \`<name>\` IF EXISTS`.
+    - Finally removes all nodes with `MATCH (n) DETACH DELETE n`.
+
+    Note: This aggressively removes all indexes and data and is intended for POC.
+    """
     with driver.session() as session:
-        session.run("MATCH (n) DETACH DELETE n")
-        session.run("DROP INDEX fulltext_index_AtomicItem IF EXISTS")
-        session.run("DROP INDEX vector_index_summary_Embedding IF EXISTS")
-        session.run("DROP INDEX vector_index_text_title_summary_Embedding IF EXISTS")
-    logger.info("Cleared Neo4j database")
+        try:
+            # Enumerate index names
+            index_rows = session.run("CALL db.indexes() YIELD name RETURN name")
+            index_names = [record["name"] for record in index_rows]
+
+            # Drop each discovered index (simple, single-step DROP)
+            for name in index_names:
+                safe_name = name.replace("`", "``")
+                session.run(f"DROP INDEX `{safe_name}` IF EXISTS")
+                logger.info("Dropped index `%s`", name)
+
+            # Finally delete all nodes/relationships
+            session.run("MATCH (n) DETACH DELETE n")
+            logger.info("Deleted all nodes and relationships")
+
+        except Exception as e:
+            logger.warning("Failed to clear Neo4j database or drop indexes: %s", e)
+
+    logger.info("Cleared Neo4j database (attempted index drops)")
 
 
 def add_atomic_unit_to_graph(
@@ -284,6 +308,55 @@ def get_atomic_units_from_db(db_manager: DatabaseManager) -> list[AtomicItem]:
         db_rows = session.exec(select(AtomicItemDB)).all()
         units = [row.to_core_atomic_unit() for row in db_rows]
     return units
+
+
+def add_llm_annotations_to_graph(
+    graph: Neo4jGraph, db_manager: DatabaseManager, document_name: str
+) -> None:
+    """
+    Add LLM annotation data to existing graph nodes.
+
+    Args:
+        graph: Neo4j graph instance
+        db_manager: Database manager instance
+        document_name: Name of the document
+    """
+    logger.info("Adding LLM annotations to existing graph nodes...")
+
+    with db_manager.get_session() as session:
+        # Join LLMAnnotation with AtomicItemDB to get section info
+        query = select(LLMAnnotation, AtomicItemDB).join(
+            AtomicItemDB, LLMAnnotation.id == AtomicItemDB.id
+        )
+        results = session.exec(query).all()
+
+        updated_count = 0
+        for annotation, atomic_item in results:
+            # Construct Neo4j node ID using same pattern as graph creation
+            id = f"{atomic_item.section}.{atomic_item.subsection}.{atomic_item.subsubsection}"  # noqa: E501
+            node_id = f"{document_name}_{id}"
+
+            # Update node with LLM annotation properties
+            update_query = """
+            MATCH (n {id: $node_id})
+            SET n.text_nl = $text_nl,
+                n.proof_nl = $proof_nl
+            RETURN n.id AS updated_id
+            """
+
+            params = {
+                "node_id": node_id,
+                "text_nl": annotation.text_nl,
+                "proof_nl": annotation.proof_nl,
+            }
+
+            result = graph.query(update_query, params)
+
+            if result:
+                updated_count += 1
+                logger.debug(f"Updated node {node_id} with LLM annotations")
+
+    logger.info(f"Added LLM annotations to {updated_count} graph nodes")
 
 
 def create_atomic_unit_relationships(
@@ -389,6 +462,10 @@ def build_knowledge_graph_from_sqlite(
 
     ensure_atomic_unit_label(driver)
 
+    # Add LLM annotations to existing nodes
+    add_llm_annotations_to_graph(
+        graph=graph, db_manager=db_manager, document_name=document_name
+    )
     # Create atomic unit relationships
     create_atomic_unit_relationships(
         graph=graph, document_name=document_name, units=atomic_units
@@ -423,7 +500,6 @@ def main(clear_first: bool, db_path: str | Path):
             graph=graph,
             driver=driver,
             document_name=DOCUMENT_NAME,
-            clear_first=clear_first,
         )
         logger.info("Knowledge graph build complete")
 

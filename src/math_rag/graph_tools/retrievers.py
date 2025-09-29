@@ -39,6 +39,7 @@ def format_document(doc: Document, index: int) -> str:
 
     content_parts.append(f"\n\n===== Document {index} =====\n")
     content_parts.append(f"CONTENT:\n {doc.page_content}\n")
+    content_parts.append(f"{doc.metadata.get('text_nl')}\n\n")
 
     # metadata may be missing or empty; only keep a small whitelist of keys
     metadata = getattr(doc, "metadata", None)

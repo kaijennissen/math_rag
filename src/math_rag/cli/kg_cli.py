@@ -93,7 +93,7 @@ def build_complete_knowledge_graph(
     create_fulltext_index_impl(
         driver=driver,
         label="AtomicItem",
-        properties=["text", "title", "proof", "summary"],
+        properties=["title", "text_nl", "proof_nl"],
     )
     logger.info("✓ Fulltext index created successfully")
 
@@ -105,9 +105,9 @@ def build_complete_knowledge_graph(
         driver=driver,
         embedding_model=embedding_model,
         label="AtomicItem",
-        index_name="vector_index_summary_Embedding",
-        text_properties=["summary"],
-        embedding_property="summaryEmbedding",
+        index_name="vector_index_text_nl_Embedding",  # name of the vector index
+        text_properties=["text_nl"],  # node property to be used to calculate embeddings
+        embedding_property="text_nl_Embedding",  # property where embeddings are stored
     )
     logger.info("✓ Vector index and embeddings created successfully")
 
