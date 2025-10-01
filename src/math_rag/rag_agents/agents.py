@@ -12,6 +12,10 @@
 #         GraphRetrieverTool          CypherExecutorTool     |
 #                                                       SchemaInfoTool
 
+import os
+
+# Disable tokenizers parallelism warning
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import logging
 import sys
@@ -20,6 +24,8 @@ from typing import Optional
 
 import yaml
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_neo4j import Neo4jVector
+from langchain_neo4j.vectorstores.neo4j_vector import SearchType
 from mcp import StdioServerParameters
 from smolagents import (
     CodeAgent,
@@ -29,7 +35,8 @@ from smolagents import (
     ToolCallingAgent,
 )
 
-from math_rag.graph_tools import GraphRetrieverTool
+from math_rag.graph_tools import GraphRetrieverTool, PathRAGRetrieverTool
+from math_rag.graph_tools.utils import get_pathrag_query
 
 logger = logging.getLogger(__name__)
 
@@ -105,20 +112,37 @@ def setup_rag_chat(
     mcp_client = MCPClient(server_parameters)
     tools = mcp_client.get_tools()
 
-    # Initialize GraphRetrieverTool with required parameters
-    graph_retriever_tool = GraphRetrieverTool(
-        embedding_model=embedding_model,
-        uri=neo4j_uri,
+    # Create vector stores for both retrievers
+    hybrid_vector_store = Neo4jVector.from_existing_index(
+        embedding_model,
+        url=neo4j_uri,
         username=neo4j_username,
         password=neo4j_password,
-        vector_index_name="vector_index_text_nl_Embedding",
+        index_name="vector_index_text_nl_Embedding",
         keyword_index_name="fulltext_index_AtomicItem",
         embedding_node_property="text_nl_Embedding",
+        search_type=SearchType.HYBRID,
     )
 
-    # Create main agent with the retriever tool and meta-agent
+    pathrag_vector_store = Neo4jVector.from_existing_index(
+        embedding_model,
+        url=neo4j_uri,
+        username=neo4j_username,
+        password=neo4j_password,
+        index_name="vector_index_text_nl_Embedding",
+        keyword_index_name="fulltext_index_AtomicItem",
+        embedding_node_property="text_nl_Embedding",
+        search_type=SearchType.HYBRID,
+        retrieval_query=get_pathrag_query(),
+    )
+
+    # Initialize tools with dependency injection
+    graph_retriever_tool = GraphRetrieverTool(vector_store=hybrid_vector_store)
+    pathrag_retriever_tool = PathRAGRetrieverTool(vector_store=pathrag_vector_store)
+
+    # Create main agent with both retriever tools
     graph_retriever_agent = CodeAgent(
-        tools=[*tools, graph_retriever_tool],
+        tools=[*tools, graph_retriever_tool, pathrag_retriever_tool],
         model=gpt_4_1,
         max_steps=10,
         verbosity_level=2,

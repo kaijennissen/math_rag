@@ -3,10 +3,11 @@ from typing import List
 
 import coloredlogs
 from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
 from langchain_neo4j import Neo4jVector
 from langchain_neo4j.vectorstores.neo4j_vector import SearchType
 from smolagents import Tool
+
+from math_rag.graph_tools.utils import format_retrieval_results, get_pathrag_query
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -17,129 +18,62 @@ coloredlogs.install(
 )
 
 
-def format_document(doc: Document, index: int) -> str:
-    """
-    Module-level helper to format a single Document into a string.
+class BaseRetriever(Tool):
+    """Base class for all Neo4j retriever tools with common implementation."""
 
-    Keeping this as a plain function (not a method) makes it much easier to
-    unit-test in isolation.
+    # Class attributes to be defined by subclasses
+    name: str = None
+    description: str = None
+    default_k: int = 20
+    search_description: str = None
+    threshold: float = 0.25
 
-    Args:
-        doc: Document instance (must have `page_content` and optional `metadata`)
-        index: 1-based index of the document for display
+    def __init_subclass__(cls, **kwargs):
+        """Automatically configure Tool inputs based on class attributes."""
+        super().__init_subclass__(**kwargs)
 
-    Returns:
-        Formatted string for the single document
-    """
-    allowed_metadata = {"number", "type", "title"}
-
-    # Separate lists for content and metadata; we'll concatenate at the end.
-    content_parts: List[str] = []
-    metadata_parts: List[str] = []
-
-    content_parts.append(f"\n\n===== Document {index} =====\n")
-    content_parts.append(f"CONTENT:\n {doc.page_content}\n")
-    content_parts.append(f"{doc.metadata.get('text_nl')}\n\n")
-
-    # metadata may be missing or empty; only keep a small whitelist of keys
-    metadata = getattr(doc, "metadata", None)
-    if metadata:
-        # Single-pass over metadata: collect allowed keys in the order they appear
-        for key, value in metadata.items():
-            if key.lower() in allowed_metadata:
-                metadata_parts.append(f"  - {key}: {value}\n")
-
-    if metadata_parts:
-        metadata_parts.insert(0, "METADATA:\n")
-
-    parts = content_parts + metadata_parts
-    parts.append("-" * 40)
-    return "".join(parts)
-
-
-class GraphRetrieverTool(Tool):
-    """A tool that retrieves documents from a Neo4j graph database using hybrid search (vector + keyword)."""  # noqa: E501
-
-    name = "graph_retriever"
-    description = """Uses hybrid search (vector + keyword) to retrieve mathematical content from a Neo4j graph database."""  # noqa: E501
-    inputs = {
-        "query": {
-            "type": "string",
-            "description": """The query to search for in the mathematical
-            knowledge graph. This can be a question or a statement about
-            a mathematical concept. This should be semantically close to
-            your target documents. Use the affirmative form rather than
-            a question. Use german as language.""",
-        },
-        "k": {
-            "type": "integer",
-            "description": "Number of documents to retrieve. Default is 20.",
-            "default": 20,
-            "nullable": True,
-        },
-    }
-    output_type = "string"
+        # Set up inputs based on class attributes
+        cls.inputs = {
+            "query": {
+                "type": "string",
+                "description": """The query to search for in the mathematical
+                knowledge graph. This can be a question or a statement about
+                a mathematical concept. This should be semantically close to
+                your target documents. Use the affirmative form rather than
+                a question. Use german as language.""",
+            },
+            "k": {
+                "type": "integer",
+                "description": (
+                    f"Number of documents to retrieve. Default is {cls.default_k}."
+                ),
+                "default": cls.default_k,
+                "nullable": True,
+            },
+        }
+        cls.output_type = "string"
 
     def __init__(
         self,
-        embedding_model: Embeddings,
-        uri: str,
-        username: str,
-        password: str,
-        vector_index_name: str,
-        keyword_index_name: str,
-        embedding_node_property: str,
+        vector_store: Neo4jVector,
         **kwargs,
     ):
         """
-        Initialize the GraphRetrieverTool with Neo4j configuration.
+        Initialize the retriever tool with a pre-configured vector store.
 
         Args:
-            embedding_model: An initialized embedding model instance
-                (e.g., HuggingFaceEmbeddings)
-            uri: Neo4j database URI
-            username: Neo4j username
-            password: Neo4j password
-            vector_index_name: Name of the vector index in Neo4j
-            keyword_index_name: Name of the keyword/fulltext index in Neo4j
-            embedding_node_property: Property name containing embeddings in Neo4j nodes
+            vector_store: Pre-configured Neo4jVector instance
             **kwargs: Additional arguments passed to Tool base class
         """
+        # Use class attributes for Tool configuration
+        kwargs.setdefault("name", self.name)
+        kwargs.setdefault("description", self.description)
         super().__init__(**kwargs)
-
-        self.embedding_model = embedding_model
-        self.uri = uri
-        self.username = username
-        self.password = password
-        self.vector_index_name = vector_index_name
-        self.keyword_index_name = keyword_index_name
-        self.embedding_node_property = embedding_node_property
-
-        # Initialize the Neo4j vector store once
-        self._initialize_vector_store()
-
-    def _initialize_vector_store(self):
-        """Initialize the Neo4j vector store with hybrid search capabilities."""
-        logger.info(
-            f"Initializing Neo4j vector store with "
-            f"vector_index={self.vector_index_name}, "
-            f"keyword_index={self.keyword_index_name}"
-        )
-
-        self.vector_store = Neo4jVector.from_existing_index(
-            self.embedding_model,
-            url=self.uri,
-            username=self.username,
-            password=self.password,
-            index_name=self.vector_index_name,  # vector index
-            keyword_index_name=self.keyword_index_name,  # fulltext index
-            embedding_node_property=self.embedding_node_property,
-            search_type=SearchType.HYBRID,
-        )
+        self.vector_store = vector_store
 
     def _retrieve(self, query: str, k: int) -> List[Document]:
         """
-        Retrieve documents from Neo4j using hybrid search.
+        Retrieve documents from Neo4j using the configured vector store.
 
         Args:
             query: The search query
@@ -150,9 +84,9 @@ class GraphRetrieverTool(Tool):
         """
         logger.info(f"Retrieving {k} documents for query: '{query}'")
 
-        # Perform hybrid search with similarity scores
+        # Perform search with similarity scores using class-defined threshold
         results = self.vector_store.similarity_search_with_score(
-            query, k=k, threshold=0.25
+            query, k=k, threshold=self.threshold
         )
 
         # Extract just the documents from the (doc, score) tuples
@@ -161,37 +95,20 @@ class GraphRetrieverTool(Tool):
         logger.info(f"Successfully retrieved {len(docs)} documents")
         return docs
 
-    def _format(self, docs: List[Document], query: str) -> str:
+    def forward(self, query: str, k: int = None) -> str:
         """
-        Format retrieved documents into a readable string.
-
-        Args:
-            docs: List of retrieved documents (assumed non-empty)
-            query: The original search query (for context in output)
-
-        Returns:
-            Formatted string representation of the documents
-        """
-        result_parts: List[str] = [
-            f"\nRetrieved {len(docs)} documents using hybrid search:\n"
-        ]
-
-        for i, doc in enumerate(docs, 1):
-            result_parts.append(format_document(doc, i))
-
-        return "".join(result_parts)
-
-    def forward(self, query: str, k: int = 20) -> str:
-        """
-        Main entry point for retrieving documents from Neo4j.
+        Main entry point for retrieving documents.
 
         Args:
             query: The search query
-            k: Number of documents to retrieve (default: 20)
+            k: Number of documents to retrieve (default: class default_k)
 
         Returns:
             A formatted string with the retrieved documents
         """
+        if k is None:
+            k = self.default_k
+
         assert isinstance(query, str), "Your search query must be a string"
         assert isinstance(k, int) and k > 0, "k must be a positive integer"
 
@@ -204,20 +121,49 @@ class GraphRetrieverTool(Tool):
                 return f"No documents found for query: '{query}'"
 
             # Format and return results
-            return self._format(docs, query)
+            return format_retrieval_results(docs, self.search_description)
 
         except Exception as e:
-            logger.error(f"Error in graph retrieval: {e}")
+            logger.error(f"Error in retrieval: {e}")
             return f"Error retrieving documents: {str(e)}"
 
 
-def main(query: str, k: int = 5):
+class GraphRetrieverTool(BaseRetriever):
+    """A tool that retrieves documents using hybrid search."""
+
+    name = "graph_retriever"
+    description = (
+        "Uses hybrid search (vector + keyword) to retrieve mathematical "
+        "content from a Neo4j graph database."
+    )
+    default_k = 10
+    search_description = "hybrid search"
+    threshold = 0.25
+
+
+class PathRAGRetrieverTool(BaseRetriever):
+    """A tool that retrieves documents using hybrid search + connected nodes."""
+
+    name = "path_rag_retriever"
+    description = (
+        "Uses hybrid search (vector + keyword) combined with graph traversal "
+        "to retrieve mathematical content from a Neo4j graph database. "
+        "Returns both matched nodes and connected nodes via "
+        "CITES/REFERENCED relationships."
+    )
+    default_k = 10
+    search_description = "PathRAG (initial matches + connected via CITES)"
+    threshold = 0.25  # Include connected nodes even with low scores
+
+
+def main(query: str, k: int = 5, use_pathrag: bool = False):
     """
-    Example usage of the GraphRetrieverTool.
+    Example usage of the retriever tools.
 
     Args:
         query: The search query
         k: Number of results to return
+        use_pathrag: Whether to use PathRAG retriever instead of hybrid
     """
     import os
 
@@ -226,7 +172,7 @@ def main(query: str, k: int = 5):
 
     load_dotenv()
 
-    # Option 1: HuggingFace
+    # Initialize embedding model
     embedding_model = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
 
     # Option 2: OpenAI (uncomment to use)
@@ -234,17 +180,37 @@ def main(query: str, k: int = 5):
     #     openai_api_key=os.getenv("OPENAI_API_KEY"),
     #     model="text-embedding-3-small"
     # )
+    index_name = "vector_index_text_nl_Embedding"
+    keyword_index_name = "fulltext_index_AtomicItem"
+    embedding_node_property = "text_nl_Embedding"
 
-    # Create the retriever tool
-    retriever = GraphRetrieverTool(
-        embedding_model=embedding_model,
-        uri=os.getenv("NEO4J_URI"),
-        username=os.getenv("NEO4J_USERNAME"),
-        password=os.getenv("NEO4J_PASSWORD"),
-        vector_index_name="vector_index_summary_Embedding",
-        keyword_index_name="fulltext_index_AtomicItem",
-        embedding_node_property="summaryEmbedding",
-    )
+    if use_pathrag:
+        # Create PathRAG vector store directly
+        vector_store = Neo4jVector.from_existing_index(
+            embedding_model,
+            url=os.getenv("NEO4J_URI"),
+            username=os.getenv("NEO4J_USERNAME"),
+            password=os.getenv("NEO4J_PASSWORD"),
+            index_name=index_name,
+            keyword_index_name=keyword_index_name,
+            embedding_node_property=embedding_node_property,
+            search_type=SearchType.HYBRID,
+            retrieval_query=get_pathrag_query(),
+        )
+        retriever = PathRAGRetrieverTool(vector_store=vector_store)
+    else:
+        # Create hybrid vector store directly
+        vector_store = Neo4jVector.from_existing_index(
+            embedding_model,
+            url=os.getenv("NEO4J_URI"),
+            username=os.getenv("NEO4J_USERNAME"),
+            password=os.getenv("NEO4J_PASSWORD"),
+            index_name=index_name,
+            keyword_index_name=keyword_index_name,
+            embedding_node_property=embedding_node_property,
+            search_type=SearchType.HYBRID,
+        )
+        retriever = GraphRetrieverTool(vector_store=vector_store)
 
     # Perform retrieval
     results = retriever.forward(query=query, k=k)
@@ -254,11 +220,14 @@ def main(query: str, k: int = 5):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Neo4j hybrid retriever CLI")
+    parser = argparse.ArgumentParser(description="Neo4j retriever CLI")
     parser.add_argument("-q", "--query", type=str, required=True, help="Search query")
     parser.add_argument(
         "-k", "--k", type=int, default=5, help="Number of results to retrieve"
     )
+    parser.add_argument(
+        "--pathrag", action="store_true", help="Use PathRAG retriever instead of hybrid"
+    )
     args = parser.parse_args()
 
-    main(query=args.query, k=args.k)
+    main(query=args.query, k=args.k, use_pathrag=args.pathrag)
