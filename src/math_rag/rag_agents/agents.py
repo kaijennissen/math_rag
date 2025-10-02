@@ -88,7 +88,7 @@ def setup_rag_chat(
     #     model_id="deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
     #     token=huggingface_api_key,
     # )
-    gpt_4_1 = OpenAIServerModel(
+    model = OpenAIServerModel(
         model_id=model_id,
         api_base=api_base,
         api_key=openai_api_key,
@@ -143,7 +143,7 @@ def setup_rag_chat(
     # Create main agent with both retriever tools
     graph_retriever_agent = CodeAgent(
         tools=[*tools, graph_retriever_tool, pathrag_retriever_tool],
-        model=gpt_4_1,
+        model=model,
         max_steps=10,
         verbosity_level=2,
         name="graph_retriever_agent",
@@ -153,7 +153,7 @@ def setup_rag_chat(
 
     cypher_agent = ToolCallingAgent(
         tools=[*tools],
-        model=gpt_4_1,
+        model=model,
         max_steps=15,
         verbosity_level=2,
         name="cypher_agent",
@@ -165,7 +165,7 @@ def setup_rag_chat(
         tools=[],
         managed_agents=[graph_retriever_agent, cypher_agent],
         # add_base_tools=True,
-        model=gpt_4_1,
+        model=model,
         # model=reasoning_model,
         max_steps=20,
         verbosity_level=2,
