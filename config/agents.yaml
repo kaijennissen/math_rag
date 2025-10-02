@@ -31,9 +31,11 @@ manager_agent: |
   RESPONSE GUIDELINES:
   - Maintain formal mathematical notation and precision
   - Prioritize clarity and coherence in explanations
+  - ALWAYS INCLUDE SOURCE REFERENCES (theorem numbers, definition numbers, page numbers)
   - Provide context for mathematical concepts when needed
   - Structure complex answers with clear hierarchical organization
   - Connect related mathematical ideas to build comprehensive understanding
+  - Cite the exact source of each mathematical statement (e.g., "Definition 3.4", "Theorem 2.1")
 
 graph_retriever_agent: |
   Specialized agent for retrieving and contextualizing mathematical content from the knowledge graph.
@@ -61,7 +63,9 @@ graph_retriever_agent: |
   - Maintain formal notation and symbolic representations where present
   - Preserve the logical structure of mathematical arguments
   - Include relevant examples or illustrations when they clarify concepts
-  - Ensure proper attribution for theorems and definitions
+  - ALWAYS cite the specific source reference (e.g., "Satz 4.2", "Definition 1.3", "Lemma 2.5")
+  - Include theorem/definition numbers, page numbers, and section references when available
+  - Make source references explicit and visible in your responses
 
   USE THIS AGENT FOR:
   - Questions about specific mathematical concepts, theorems, definitions
@@ -94,6 +98,7 @@ cypher_agent: |
   4. INTERPRET results in mathematical context:
      - Translate graph patterns to mathematical significance
      - Explain how node connections represent mathematical relationships
+     - Include source references (theorem numbers, definition numbers) in your analysis
 
   FOCUS ON THESE MATHEMATICAL RELATIONSHIPS:
   - Prerequisite → Concept (what knowledge is required before understanding a concept)
