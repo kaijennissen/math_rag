@@ -171,6 +171,7 @@ def setup_rag_chat(
         verbosity_level=2,
         planning_interval=3,
         use_structured_outputs_internally=True,
+        description=AGENT_DESCRIPTIONS["manager_agent"],
     )
 
     return graph_agent, mcp_client

@@ -138,7 +138,7 @@ class GraphRetrieverTool(BaseRetriever):
     )
     default_k = 10
     search_description = "hybrid search"
-    threshold = 0.25
+    threshold = 0.5
 
 
 class PathRAGRetrieverTool(BaseRetriever):
@@ -153,7 +153,7 @@ class PathRAGRetrieverTool(BaseRetriever):
     )
     default_k = 10
     search_description = "PathRAG (initial matches + connected via CITES)"
-    threshold = 0.25  # Include connected nodes even with low scores
+    threshold = 0.5
 
 
 def main(query: str, k: int = 5, use_pathrag: bool = False):
