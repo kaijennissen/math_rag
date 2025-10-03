@@ -22,7 +22,7 @@ def run_dspy_chat_interface(settings: RagChatSettings):
     console.print(
         "[bold blue]Setting up DSPy-based Mathematical RAG system...[/bold blue]"
     )
-    rag_module, mcp_client = setup_dspy_rag_chat(
+    rag_module = setup_dspy_rag_chat(
         openai_api_key=settings.openai_api_key,
         neo4j_uri=settings.neo4j_uri,
         neo4j_username=settings.neo4j_username,
@@ -93,10 +93,10 @@ def run_dspy_chat_interface(settings: RagChatSettings):
             except Exception as e:
                 console.print(f"\n[bold red]Error:[/bold red] {str(e)}")
 
-    finally:
-        # Ensure MCP client is disconnected
-        console.print("[bold blue]Closing connection to Neo4j...[/bold blue]")
-        mcp_client.disconnect()
+    except KeyboardInterrupt:
+        console.print("\n[bold green]Goodbye![/bold green]")
+    except Exception as e:
+        console.print(f"\n[bold red]Fatal Error:[/bold red] {str(e)}")
 
 
 if __name__ == "__main__":
