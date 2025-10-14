@@ -151,6 +151,19 @@ wheels = [
 ]
 
 [[package]]
+name = "bm25s"
+version = "0.2.14"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/99/72/5ad06c30991ba494242785a3ab8987deb01c07dfc1c492847bde221e62bf/bm25s-0.2.14.tar.gz", hash = "sha256:7b6717770fffbdb3b962e5fe8ef1e6eac7f285d0fbc14484b321e136df837139", size = 59266, upload-time = "2025-09-08T17:06:30.728Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/3e/e3ae2f0fb0f8f46f9c787fa419ca5203ff850d0630749a26baf0a6570453/bm25s-0.2.14-py3-none-any.whl", hash = "sha256:76cdb70ae40747941b150a1ec16a9c20c576d6534d0a3c3eebb303c779b3cf65", size = 55128, upload-time = "2025-09-08T17:06:29.324Z" },
+]
+
+[[package]]
 name = "cachetools"
 version = "6.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -966,6 +979,7 @@ name = "math-rag"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "bm25s" },
     { name = "coloredlogs" },
     { name = "detect-secrets" },
     { name = "dspy" },
@@ -979,6 +993,7 @@ dependencies = [
     { name = "mcp" },
     { name = "mypy" },
     { name = "pandas" },
+    { name = "plotly" },
     { name = "pymupdf" },
     { name = "pypdf" },
     { name = "pyrefly" },
@@ -1005,6 +1020,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "bm25s", specifier = ">=0.2.14" },
     { name = "coloredlogs" },
     { name = "detect-secrets", specifier = ">=1.5.0" },
     { name = "dspy", specifier = ">=3.0.3" },
@@ -1018,6 +1034,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.14.1" },
     { name = "mypy", specifier = ">=1.18.2" },
     { name = "pandas" },
+    { name = "plotly", specifier = ">=6.3.1" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pymupdf" },
     { name = "pypdf" },
@@ -1496,6 +1513,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/23/e8/21db9c9987b0e728855bd57bff6984f67952bea55d6f75e055c46b5383e8/platformdirs-4.4.0.tar.gz", hash = "sha256:ca753cf4d81dc309bc67b0ea38fd15dc97bc30ce419a7f58d13eb3bf14c4febf", size = 21634, upload-time = "2025-08-26T14:32:04.268Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/40/4b/2028861e724d3bd36227adfa20d3fd24c3fc6d52032f4a93c133be5d17ce/platformdirs-4.4.0-py3-none-any.whl", hash = "sha256:abd01743f24e5287cd7a5db3752faf1a2d65353f38ec26d98e25a6db65958c85", size = 18654, upload-time = "2025-08-26T14:32:02.735Z" },
+]
+
+[[package]]
+name = "plotly"
+version = "6.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "narwhals" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0c/63/961d47c9ffd592a575495891cdcf7875dc0903ebb33ac238935714213789/plotly-6.3.1.tar.gz", hash = "sha256:dd896e3d940e653a7ce0470087e82c2bd903969a55e30d1b01bb389319461bb0", size = 6956460, upload-time = "2025-10-02T16:10:34.16Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/93/023955c26b0ce614342d11cc0652f1e45e32393b6ab9d11a664a60e9b7b7/plotly-6.3.1-py3-none-any.whl", hash = "sha256:8b4420d1dcf2b040f5983eed433f95732ed24930e496d36eb70d211923532e64", size = 9833698, upload-time = "2025-10-02T16:10:22.584Z" },
 ]
 
 [[package]]
