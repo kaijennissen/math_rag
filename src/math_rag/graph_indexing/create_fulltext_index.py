@@ -3,8 +3,11 @@ Script to create fulltext indexes in Neo4j for keyword search in the knowledge g
 
 This script handles:
 1. Creating the AtomicItem label on all content nodes
-2. Creating fulltext indexes for keyword search
+2. Creating fulltext indexes for keyword search (optimized for German content)
 3. Testing the fulltext index with sample queries
+
+The fulltext indexes are configured with German language analyzers for better
+tokenization, stemming, and stop word handling of German mathematical content.
 """
 
 import argparse
@@ -33,6 +36,7 @@ def create_fulltext_index(
     label: str = "AtomicItem",
     properties: list = None,
     index_name: str = None,
+    analyzer: str = "german",
 ):
     """Create a fulltext index for specified nodes and properties.
 
@@ -41,6 +45,7 @@ def create_fulltext_index(
         label: Node label to index (default: AtomicItem)
         properties: List of properties to index (default: ["text", "title", "proof"])
         index_name: Custom index name (default: fulltext_index_{label})
+        analyzer: Language analyzer for fulltext index (default: german)
     """
     if properties is None:
         properties = ["text", "title", "proof"]
@@ -63,12 +68,13 @@ def create_fulltext_index(
             f"""
             CREATE FULLTEXT INDEX {index_name}
             FOR (n:{label}) ON EACH [{property_list}]
+            OPTIONS {{indexConfig: {{`fulltext.analyzer`: '{analyzer}'}}}}
             """
         )
     logger.info(f"Successfully created fulltext index {index_name}")
 
 
-def test_fulltext_search(driver: Driver, query: str = "Umgebungsbasis"):
+def test_fulltext_search(driver: Driver, query: str = "topologisch"):
     """Test fulltext search with a sample query."""
     logger.info(f"Testing fulltext search with query: '{query}'")
 
@@ -118,6 +124,7 @@ def main(
     query: str = "",
     label: str = "AtomicItem",
     properties: list = [],
+    analyzer: str = "german",
 ):
     """Main function to create and test fulltext index."""
 
@@ -143,9 +150,12 @@ def main(
 
         # Create fulltext index
         logger.info(
-            f"Creating fulltext index for {label} on properties {properties}..."
+            f"Creating fulltext index for {label} on properties {properties} with {analyzer} analyzer..."  # noqa: E501
         )
-        create_fulltext_index(driver, label=label, properties=properties)
+
+        create_fulltext_index(
+            driver, label=label, properties=properties, analyzer=analyzer
+        )
         logger.info("Fulltext index created successfully.")
 
         # Test if requested
@@ -180,6 +190,12 @@ if __name__ == "__main__":
         default=["text", "title", "proof", "summary"],
         help="Properties for fulltext index (default: text title proof summary)",
     )
+    parser.add_argument(
+        "--analyzer",
+        type=str,
+        default="german",
+        help="Language analyzer for fulltext index (default: german)",
+    )
 
     args = parser.parse_args()
 
@@ -188,4 +204,5 @@ if __name__ == "__main__":
         query=args.query,
         label=args.label,
         properties=args.properties,
+        analyzer=args.analyzer,
     )

@@ -276,6 +276,17 @@ uv run python src/math_rag/graph_indexing/create_vector_index_with_custom_embedd
 
 This section documents important design decisions, architecture choices, and lessons learned throughout the development of this project.
 
+### 2025-10-12: German Language Analyzer for Fulltext Search
+
+When creating fulltext indexes in Neo4j for German mathematical content, we discovered the importance of configuring language-specific analyzers:
+
+- **Default Behavior**: Neo4j fulltext indexes use English analyzers by default, which provide suboptimal tokenization and stemming for German text
+- **German Analyzer Benefits**: Using the `german` analyzer provides better handling of German compound words, proper stemming according to German grammar rules, and appropriate stop word filtering
+- **Implementation**: Updated `create_fulltext_index.py` to use `OPTIONS {indexConfig: {'fulltext.analyzer': 'german'}}` in the index creation query
+- **Search Quality**: This significantly improved keyword search recall and precision for German mathematical terms and concepts
+
+For multilingual content, consider using language-specific indexes or the `standard` analyzer as a compromise between languages.
+
 ### 2025-05-18: Embedding Generation Strategy
 
 We initially explored two approaches for implementing embeddings in our Neo4j graph:
@@ -292,6 +303,7 @@ We've removed the native Cypher approach (`cypher_embeddings.py`) for the follow
 - **Benchmarking Results**: Our performance tests showed up to 40% better retrieval accuracy using specialized models compared to OpenAI embeddings
 
 The current implementation uses external embedding generation for maximum flexibility and performance, allowing us to use domain-specific models that better understand mathematical concepts in German text.
+
 
 ## 🔄 Knowledge Graph Structure
 
