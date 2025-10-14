@@ -340,6 +340,16 @@ The interface lets you:
 
 Commands within the chat interface:
 - Type `exit`, `quit`, or `q` to end the session
+
+## 🖥️ Web Interface
+
+For a better user experience, use the Streamlit web interface:
+
+```bash
+streamlit run src/app/main.py
+```
+
+Access at `http://localhost:8501` for an interactive chat interface.
 - Type `clear` to clear the screen
 
 ## 🛠️ Customization

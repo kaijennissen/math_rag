@@ -92,6 +92,7 @@ def setup_rag_chat(
         model_id=model_id,
         api_base=api_base,
         api_key=openai_api_key,
+        temperature=0.0,
     )
 
     # Initialize embedding model for GraphRetrieverTool
