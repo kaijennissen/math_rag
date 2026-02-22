@@ -60,6 +60,9 @@ class InvertedIndex:
         for doc in docs:
             self.add_document(doc)
 
+    def bm25(self, query: str) -> list[dict[float, str]]:
+        pass
+
 
 doc = Document("the cat sat on the mat")
 inv_index = InvertedIndex()
@@ -67,3 +70,11 @@ inv_index.add_document(doc)
 doc_list = [Document("the cat sat on the mat"), Document("the dog sat on the log")]
 inv_index.add_documents(doc_list)
 inv_index
+
+if __name__ == "__main__":
+    documents = [
+        "the cat in the hat",
+        "the cat sat on the mat",
+        "the dog sat on the log",
+    ]
+    query = "what the cat"
