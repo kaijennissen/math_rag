@@ -6,7 +6,7 @@ inverted index. While this could be done by further nesting dictionaries, I thin
 a more object-oriented approach (using lightweight dataclasses) is more convincing.
 """
 
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 
@@ -39,14 +39,22 @@ class InvertedIndex:
 
     number_of_documents: int = 0
     average_document_length: float = 0
-    entries: dict[str, InvertedIndexEntry] = field(default_factory=dict)
+    entries: defaultdict[str, list[dict]] = field(
+        default_factory=lambda: defaultdict(list)
+    )
+    documents: set = field(default_factory=set)
 
     def add_document(self, doc: Document):
-        self.average_document_length = (
-            self.average_document_length * self.number_of_documents + doc.length
-        ) / (self.number_of_documents + 1)
-        self.number_of_documents += 1
-        self.entries  # missing
+        if doc.id not in self.documents:
+            self.average_document_length = (
+                self.average_document_length * self.number_of_documents + doc.length
+            ) / (self.number_of_documents + 1)
+            self.number_of_documents += 1
+            for term, term_count in doc.term_count.items():
+                self.entries[term].append({doc.id: term_count})  # missing
+            self.documents.update({doc.id})
+        else:
+            print("doc alreday in the index")
 
     def add_documents(self, docs: list[Document]):
         for doc in docs:
