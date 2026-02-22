@@ -69,14 +69,17 @@ if __name__ == "__main__":
     N = len(documents)
     avg_doc_len = sum([len(doc.split()) for doc in documents]) / N
     scoring = [
-        bm25(
-            inv_index=inv_index,
-            query=query,
-            doc=doc.split(),
-            N=N,
-            avg_doc_len=avg_doc_len,
-        )
+        {
+            "score": bm25(
+                inv_index=inv_index,
+                query=query,
+                doc=doc.split(),
+                N=N,
+                avg_doc_len=avg_doc_len,
+            ),
+            "doc": doc,
+        }
         for doc in documents
     ]
-    for doc, score in zip(documents, scoring):
-        print(f"score: {score} for document: {doc}")
+    for entry in scoring:
+        print(f"score: {entry.get('score')} for document: {entry.get('doc')}")
