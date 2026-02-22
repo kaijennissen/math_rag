@@ -7,13 +7,14 @@ myself.
 import math
 from collections import Counter, defaultdict
 
-documents = ["the cat in the hat", "the cat sat on the mat", "the dog sat on the log"]
 
-inv_index = defaultdict(list)
-for doc_num, doc in enumerate(documents, start=1):
-    doc_tokens = Counter(doc.split())
-    for token, token_count in doc_tokens.items():
-        inv_index[token].append({"doc": doc_num, "count": token_count})
+def ingestion(documents: list) -> dict:
+    inv_index = defaultdict(list)
+    for doc_num, doc in enumerate(documents, start=1):
+        doc_tokens = Counter(doc.split())
+        for token, token_count in doc_tokens.items():
+            inv_index[token].append({"doc": doc_num, "count": token_count})
+    return inv_index
 
 
 def idf(n_q: int, N: int) -> float:
@@ -58,4 +59,24 @@ def bm25(
 
 
 if __name__ == "__main__":
+    documents = [
+        "the cat in the hat",
+        "the cat sat on the mat",
+        "the dog sat on the log",
+    ]
+    inv_index = ingestion(documents)
     query = "what the cat"
+    N = len(documents)
+    avg_doc_len = sum([len(doc.split()) for doc in documents]) / N
+    scoring = [
+        bm25(
+            inv_index=inv_index,
+            query=query,
+            doc=doc.split(),
+            N=N,
+            avg_doc_len=avg_doc_len,
+        )
+        for doc in documents
+    ]
+    for doc, score in zip(documents, scoring):
+        print(f"score: {score} for document: {doc}")
