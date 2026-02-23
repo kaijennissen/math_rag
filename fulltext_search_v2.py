@@ -6,6 +6,7 @@ inverted index. While this could be done by further nesting dictionaries, I thin
 a more object-oriented approach (using lightweight dataclasses) is more convincing.
 """
 
+import math
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
@@ -31,6 +32,20 @@ class InvertedIndexEntry:
 
     doc_id: int
     count: int
+
+
+def idf(n_q: int, N: int) -> float:
+    nominator = N - n_q + 0.5
+    denominator = n_q + 0.5
+    return math.log(nominator / denominator + 1)
+
+
+def term_frequency(
+    f_q_D: int, doc_length: int, avg_doc_len: float, k: float, b: float
+) -> float:
+    nominator = f_q_D * (k + 1)
+    denominator = f_q_D + k * (1 - b + b * doc_length / avg_doc_len)
+    return nominator / denominator
 
 
 @dataclass
@@ -60,7 +75,29 @@ class InvertedIndex:
         for doc in docs:
             self.add_document(doc)
 
-    def bm25(self, query: str) -> list[dict[float, str]]:
+    def bm25_single_doc(
+        self, query: str, doc: Document, k: float = 1.2, b: float = 0.8
+    ) -> float:
+        query_terms = query.split()
+
+        term_score = []
+        for term in query_terms:
+            n_q = len(self.entries.get(term, []))  # number of docs containing the term
+            term_idf = idf(n_q, self.number_of_documents)
+            f_q_D = doc.term_count.get("term", 0)
+            doc_length = doc.length
+            term_freq = term_frequency(
+                f_q_D=f_q_D,
+                doc=doc_length,
+                avg_doc_len=self.average_document_length,
+                k=k,
+                b=b,
+            )
+            term_score.append(term_idf * term_freq)
+        score = sum(term_score)
+        return score
+
+    def bm25(self, query: str) -> list:
         pass
 
 
