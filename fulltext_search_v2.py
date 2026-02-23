@@ -57,17 +57,19 @@ class InvertedIndex:
     entries: defaultdict[str, list[dict]] = field(
         default_factory=lambda: defaultdict(list)
     )
-    documents: set = field(default_factory=set)
+    doc_ids: set = field(default_factory=set)
+    documents: list = field(default_factory=list)
 
     def add_document(self, doc: Document):
-        if doc.id not in self.documents:
+        if doc.id not in self.doc_ids:
             self.average_document_length = (
                 self.average_document_length * self.number_of_documents + doc.length
             ) / (self.number_of_documents + 1)
             self.number_of_documents += 1
             for term, term_count in doc.term_count.items():
                 self.entries[term].append({doc.id: term_count})  # missing
-            self.documents.update({doc.id})
+            self.doc_ids.update({doc.id})
+            self.documents.extend([doc])
         else:
             print("doc alreday in the index")
 
@@ -84,11 +86,11 @@ class InvertedIndex:
         for term in query_terms:
             n_q = len(self.entries.get(term, []))  # number of docs containing the term
             term_idf = idf(n_q, self.number_of_documents)
-            f_q_D = doc.term_count.get("term", 0)
+            f_q_D = doc.term_count.get(term, 0)
             doc_length = doc.length
             term_freq = term_frequency(
                 f_q_D=f_q_D,
-                doc=doc_length,
+                doc_length=doc_length,
                 avg_doc_len=self.average_document_length,
                 k=k,
                 b=b,
@@ -97,16 +99,14 @@ class InvertedIndex:
         score = sum(term_score)
         return score
 
-    def bm25(self, query: str) -> list:
-        pass
+    def bm25(self, query: str, k: float = 1.2, b: float = 0.8) -> list:
+        return sorted(
+            [
+                self.bm25_single_doc(query=query, doc=doc, k=k, b=b)
+                for doc in self.documents
+            ]
+        )
 
-
-doc = Document("the cat sat on the mat")
-inv_index = InvertedIndex()
-inv_index.add_document(doc)
-doc_list = [Document("the cat sat on the mat"), Document("the dog sat on the log")]
-inv_index.add_documents(doc_list)
-inv_index
 
 if __name__ == "__main__":
     documents = [
@@ -115,3 +115,9 @@ if __name__ == "__main__":
         "the dog sat on the log",
     ]
     query = "what the cat"
+
+    inv_index = InvertedIndex()
+    doc_list = [Document(x) for x in documents]
+    inv_index.add_documents(doc_list)
+    bm25_score = inv_index.bm25(query=query)
+    print(bm25_score)
