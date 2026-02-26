@@ -104,17 +104,18 @@ class InvertedIndex:
             [
                 self.bm25_single_doc(query=query, doc=doc, k=k, b=b)
                 for doc in self.documents
-            ]
+            ],
+            reverse=True,
         )
 
 
 if __name__ == "__main__":
     documents = [
-        "the cat in the hat",
-        "the cat sat on the mat",
-        "the dog sat on the log",
+        "Im folgenden sei $\\underline{X}=(X, \\mathcal{T})$ ein topologischer Raum und $\\mathcal{A}, \\mathcal{B}, \\ldots$ seien Mengen von Teilmengen von $X$, also $\\mathcal{A}, \\mathcal{B}, \\ldots \\subset \\mathcal{P} X$.\n\nBereits vor der Einführung des Begriffes der $F_{\\sigma}$-Mengen haben wir (in 1.2.4) bemerkt, dass die Vereinigung unendlich vieler abgeschlossener Mengen in $\\underline{X}$ nicht notwendig abgeschlossen in $\\underline{X}$ ist. Unter gewissen Bedingungen kann man jedoch ein positives Resultat herleiten, wie wir jetzt zunächst zeigen wollen.",  # noqa E501
+        "(1) $\\underline{X}$ heißt $T_{3}$-Raum, wenn zu jedem Punkt $x$ von $\\underline{X}$ und jeder abgeschlossenen Menge $A$ in $\\underline{X}$ mit $x \\notin A$ (offene) Umgebungen $U$ von $x$ und $V$ von $A$ in $\\underline{X}$ mit $U \\cap V=\\emptyset$ existieren.\n\n(2) $\\underline{X}$ heißt regulär, wenn $\\underline{X}$ gleichzeitig $\\mathrm{T}_{3}$-Raum und $\\mathrm{T}_{1}$-Raum ist.",  # noqa: E501
+        "(1) $\\underline{X}$ heißt $T_{4}$-Raum, wenn zu je zwei disjunkten abgeschlossenen Mengen $A$ und $B$ in $\\underline{X}$ (offene) Umgebungen $U$ von $A$ und $V$ von $B$ mit $U \\cap V=\\emptyset$ existieren.\n\n(2) $\\underline{X}$ heißt normal, wenn $\\underline{X}$ gleichzeitig $\\mathrm{T}_{4}$-Raum und $\\mathrm{T}_{1}$-Raum ist.",  # noqa: E501
     ]
-    query = "what the cat"
+    query = "Was ist ein T4-Raum?"
     # add pylatexenc + replace unicode strings (subset etc.)
     inv_index = InvertedIndex()
     doc_list = [Document(x) for x in documents]
