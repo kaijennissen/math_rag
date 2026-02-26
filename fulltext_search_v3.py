@@ -115,11 +115,8 @@ if __name__ == "__main__":
         "the dog sat on the log",
     ]
     query = "what the cat"
-
-    inv_index = InvertedIndex()
-
     # add pylatexenc + replace unicode strings (subset etc.)
-
+    inv_index = InvertedIndex()
     doc_list = [Document(x) for x in documents]
     inv_index.add_documents(doc_list)
     bm25_score = inv_index.bm25(query=query)
